@@ -10,6 +10,9 @@
   --borde: #dfe8ec;
   --naranja: #eb6834;
   --verde: #1baf7a;
+  --tinta-clara: #c4d4e0;
+  --tinta-tenue: #7f97a9;
+  --barra: 240px;
 }
 
 * {
@@ -23,54 +26,236 @@ body {
   color: var(--tinta);
 }
 
-.contenedor {
-  max-width: 1080px;
-  margin: 0 auto;
-  padding: 0 24px 64px;
+/* ─── Estructura del backoffice ─────────────────────────────────────────── */
+
+.aplicacion {
+  display: grid;
+  grid-template-columns: var(--barra) 1fr;
+  min-height: 100vh;
 }
 
-.cabecera {
+.barra-lateral {
   background: var(--tinta);
   color: var(--blanco);
-  padding: 40px 0 48px;
-  margin-bottom: 32px;
+  padding: 26px 0 32px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
 }
 
-.cabecera .contenedor {
-  padding-bottom: 0;
+/* `min-width: 0` evita que un panel ancho (una tabla, un grafico) estire la
+   columna y empuje la barra lateral fuera de la pantalla. */
+.area {
+  min-width: 0;
 }
 
 .marca {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
+  padding: 0 20px 22px;
 }
 
-.marca h1 {
-  font-size: 30px;
+.marca p {
+  font-size: 22px;
   font-weight: 600;
   margin: 0;
-  letter-spacing: -0.5px;
+  letter-spacing: -0.4px;
 }
 
-.marca h1 span {
+.marca p span {
   color: var(--agua);
 }
 
 .marca small {
-  font-size: 13px;
-  color: #9db4c4;
+  font-size: 11px;
+  color: var(--tinta-tenue);
   text-transform: uppercase;
   letter-spacing: 1.5px;
 }
 
-.cabecera p {
-  margin: 10px 0 0;
-  color: #c4d4e0;
+/* ─── Navegación ────────────────────────────────────────────────────────── */
+
+.nav-grupo {
+  margin-top: 18px;
+}
+
+.nav-titulo {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: var(--tinta-tenue);
+  margin: 0 0 6px;
+  padding: 0 20px;
+}
+
+.nav-enlace {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 20px;
+  color: var(--tinta-clara);
+  text-decoration: none;
+  font-size: 14px;
+  border-left: 3px solid transparent;
+}
+
+.nav-enlace:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--blanco);
+}
+
+.nav-enlace.activo {
+  background: rgba(15, 163, 177, 0.16);
+  border-left-color: var(--agua);
+  color: var(--blanco);
+  font-weight: 600;
+}
+
+/* Marca las secciones sin fuente conectada. Es deliberadamente discreto: informa
+   sin gritar, porque hoy son mayoria. */
+.punto {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--naranja);
+  flex: none;
+}
+
+/* ─── Encabezado de sección ─────────────────────────────────────────────── */
+
+.encabezado {
+  background: var(--blanco);
+  border-bottom: 1px solid var(--borde);
+  padding: 30px 0 26px;
+  margin-bottom: 28px;
+}
+
+.encabezado .contenedor {
+  padding-bottom: 0;
+}
+
+.encabezado-titulo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.encabezado-titulo h1 {
+  font-size: 26px;
+  font-weight: 600;
+  margin: 0;
+  letter-spacing: -0.4px;
+}
+
+.encabezado-subtitulo {
+  margin: 8px 0 0;
+  color: var(--gris);
   font-size: 15px;
-  max-width: 640px;
+  max-width: 680px;
   line-height: 1.6;
 }
+
+.contenedor {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 0 28px 64px;
+}
+
+/* ─── Señales de estado ─────────────────────────────────────────────────── */
+
+.senal {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.senal.ok {
+  background: rgba(27, 175, 122, 0.12);
+  color: #14855c;
+}
+
+.senal.pendiente {
+  background: rgba(235, 104, 52, 0.12);
+  color: #b8471c;
+}
+
+.senal.alerta {
+  background: rgba(216, 90, 48, 0.14);
+  color: var(--alerta);
+}
+
+/* ─── Menú inicial ──────────────────────────────────────────────────────── */
+
+.grupo {
+  margin-bottom: 34px;
+}
+
+.grupo h2 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: var(--gris);
+  font-weight: 600;
+  margin: 0 0 12px;
+}
+
+.grilla-secciones {
+  display: grid;
+  /* auto-fill y no auto-fit: con auto-fit un grupo de una sola seccion estira la
+     tarjeta a todo el ancho y queda desalineada con la grilla de los otros. */
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.tarjeta-seccion {
+  display: block;
+  background: var(--blanco);
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+  padding: 20px 22px;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.tarjeta-seccion:hover {
+  border-color: var(--agua);
+  box-shadow: 0 3px 12px rgba(16, 49, 75, 0.07);
+}
+
+.tarjeta-titulo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.tarjeta-titulo h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.tarjeta-resumen {
+  font-size: 14px;
+  color: var(--gris);
+  line-height: 1.55;
+  margin: 0 0 12px;
+}
+
+.tarjeta-origen {
+  font-size: 12px;
+  color: var(--gris-suave);
+  margin: 0;
+}
+
+/* ─── Filtros ───────────────────────────────────────────────────────────── */
 
 .filtros {
   display: flex;
@@ -106,6 +291,8 @@ body {
   border-color: var(--agua);
   color: var(--blanco);
 }
+
+/* ─── KPIs y paneles ────────────────────────────────────────────────────── */
 
 .grilla-kpis {
   display: grid;
@@ -170,11 +357,90 @@ body {
   gap: 20px;
 }
 
-@media (max-width: 820px) {
-  .dos-columnas {
-    grid-template-columns: 1fr;
-  }
+/* ─── Estado sin fuente y contratos de API ──────────────────────────────── */
+
+.sin-fuente {
+  text-align: center;
+  padding: 32px 20px 24px;
 }
+
+.sin-fuente h2 {
+  font-size: 17px;
+  margin: 14px 0 6px;
+}
+
+.sin-fuente p {
+  font-size: 14px;
+  color: var(--gris);
+  margin: 0 auto;
+  max-width: 460px;
+  line-height: 1.6;
+}
+
+.contrato {
+  border-top: 1px solid var(--borde);
+  padding-top: 18px;
+  margin-bottom: 12px;
+  overflow-x: auto;
+}
+
+.contrato table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.contrato th {
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--gris-suave);
+  font-weight: 600;
+  padding: 0 12px 8px 0;
+  border-bottom: 1px solid var(--borde);
+}
+
+.contrato td {
+  padding: 10px 12px 10px 0;
+  border-bottom: 1px solid var(--espuma);
+  color: var(--gris);
+  vertical-align: top;
+}
+
+.contrato code,
+.tarjeta-origen code {
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  font-size: 12px;
+  color: var(--tinta);
+  background: var(--espuma);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.contrato .tipo {
+  color: var(--agua-oscura);
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.motivo {
+  font-size: 14px;
+  color: var(--gris);
+  line-height: 1.6;
+  margin: 0 0 14px;
+}
+
+.lista-columnas {
+  margin: 0 0 14px;
+  padding-left: 20px;
+  font-size: 14px;
+  color: var(--gris);
+  line-height: 1.7;
+}
+
+/* ─── Estados de carga y error ──────────────────────────────────────────── */
 
 .nota {
   font-size: 12px;
@@ -185,12 +451,65 @@ body {
 
 .cargando,
 .error {
-  padding: 60px 0;
-  text-align: center;
   color: var(--gris);
   font-size: 15px;
 }
 
+.panel.cargando,
+.panel.error {
+  text-align: center;
+  padding: 44px 24px;
+  line-height: 1.6;
+}
+
 .error strong {
   color: var(--alerta);
+}
+
+/* ─── Pantallas angostas ────────────────────────────────────────────────── */
+
+@media (max-width: 900px) {
+  .aplicacion {
+    grid-template-columns: 1fr;
+  }
+
+  /* En angosto la barra deja de ser columna y pasa a ser una tira arriba: los
+     grupos se acuestan y los enlaces se envuelven. */
+  .barra-lateral {
+    position: static;
+    height: auto;
+    padding-bottom: 14px;
+  }
+
+  .navegacion {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 0;
+    padding: 0 12px;
+  }
+
+  .nav-grupo {
+    margin-top: 0;
+    display: contents;
+  }
+
+  .nav-titulo {
+    display: none;
+  }
+
+  .nav-enlace {
+    border-left: none;
+    border-radius: 999px;
+    padding: 7px 13px;
+  }
+
+  .nav-enlace.activo {
+    background: var(--agua);
+  }
+}
+
+@media (max-width: 820px) {
+  .dos-columnas {
+    grid-template-columns: 1fr;
+  }
 }

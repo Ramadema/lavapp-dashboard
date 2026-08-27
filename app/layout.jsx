@@ -1,15 +1,29 @@
 import "./globals.css";
+import Navegacion from "@/components/Navegacion";
 
 export const metadata = {
-  title: "LavApp · Dashboard de encuesta",
+  title: "LavApp · Backoffice",
   description:
-    "Indicadores de la encuesta a 40 lavaderos de autos sobre gestión operativa.",
+    "Backoffice de LavApp: KPIs de operación, cuentas, facturación e investigación de mercado.",
 };
 
 export default function RootLayout({ children }) {
   return (
     <html lang="es">
-      <body>{children}</body>
+      <body>
+        <div className="aplicacion">
+          <aside className="barra-lateral">
+            <div className="marca">
+              <p>
+                Lav<span>App</span>
+              </p>
+              <small>Backoffice</small>
+            </div>
+            <Navegacion />
+          </aside>
+          <div className="area">{children}</div>
+        </div>
+      </body>
     </html>
   );
 }

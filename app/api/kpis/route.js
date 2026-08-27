@@ -1,8 +1,9 @@
-import encuestas from "@/lib/encuestas";
+import obtenerEncuestas from "@/lib/encuestas";
 import { calcularKpis } from "@/lib/kpis";
 
 // GET /api/kpis[?registro=...] — KPIs agregados, opcionalmente de un segmento
-export function GET(request) {
+export async function GET(request) {
+  const { datos: encuestas } = await obtenerEncuestas();
   const registro = request.nextUrl.searchParams.get("registro");
   const datos = registro
     ? encuestas.filter((r) => r.registro === registro)
