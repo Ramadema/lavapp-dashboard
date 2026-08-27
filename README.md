@@ -1,17 +1,20 @@
-# LavApp · Dashboard de encuesta
+# LavApp · Backoffice
 
-Dashboard de KPIs sobre la encuesta a 40 lavaderos de autos (gestión operativa), desarrollado para el Seminario de Integración Profesional.
+Backoffice del proyecto LavApp, desarrollado para el Seminario de Integración
+Profesional. Reúne los tableros internos del producto: la encuesta a 40 lavaderos
+de autos sobre gestión operativa (con datos) y las áreas de gestión —operación,
+cuentas, clientes y facturación— que van a alimentarse desde la app de gestión.
 
 ## Arquitectura
 
 Aplicación Next.js (App Router) desplegada en Vercel. El front y la API son el
 mismo proyecto y salen del mismo dominio, pero la separación cliente ↔ API REST
-se mantiene: el dashboard consume los endpoints por `fetch`, no accede al dato
+se mantiene: cada pantalla consume los endpoints por `fetch`, no accede al dato
 directo.
 
-- **`/app`** — el dashboard (`page.jsx`, componente de cliente) y los Route Handlers bajo `/app/api`, que exponen la API REST.
-- **`/lib`** — lógica del lado del servidor: `encuestas.js` resuelve la fuente de datos, `csv.js` parsea el CSV, `normalizar.js` valida y traduce los valores, `kpis.js` calcula los indicadores.
-- **`/components`** — tarjetas de KPI y gráficos (Recharts).
+- **`/app`** — el menú inicial (`page.jsx`), las secciones bajo `/app/dashboards/<slug>/` y los Route Handlers bajo `/app/api`, que exponen la API REST.
+- **`/lib`** — lógica del lado del servidor: `encuestas.js` resuelve la fuente de datos, `csv.js` parsea el CSV, `normalizar.js` valida y traduce los valores, `kpis.js` calcula los indicadores, `secciones.js` declara qué secciones existen y qué contrato tiene cada endpoint.
+- **`/components`** — navegación, encabezado de sección, estado vacío, tarjetas de KPI y gráficos (Recharts).
 - **`/data`** — `encuestas.json`, las 40 respuestas originales, que además funcionan como respaldo.
 
 ```
@@ -77,18 +80,27 @@ Salida esperada:
 ✓ Ready in 259ms
 ```
 
-### 4. Abrir el dashboard
+### 4. Abrir el backoffice
 
 Ir a **http://localhost:3000**.
 
-Un solo proceso sirve el dashboard y la API: no hace falta un segundo servidor
-ni configurar proxies. La página arranca mostrando *"Cargando encuesta…"*
-mientras hace el `fetch` a `/api/respuestas`, y después dibuja las 8 tarjetas de KPI y
-los 4 gráficos.
+Un solo proceso sirve el front y la API: no hace falta un segundo servidor ni
+configurar proxies. La raíz es el menú, con una tarjeta por sección y su estado:
+**Con datos** o **Sin fuente**.
 
-Para comprobar que el filtrado funciona, hacer clic en el chip
-**Papel/pizarra**: el KPI "Respuestas en el segmento" pasa de 40 a 14 y
-"Gestión manual o nula" sube a 100 %.
+Las secciones marcadas *Sin fuente* (Operación, Lavaderos, Clientes,
+Facturación) ya tienen ruta y endpoint, pero el endpoint responde `501` hasta que
+se conecte la app de gestión. Muestran el contrato que van a consumir, no números
+inventados.
+
+Para ver datos de verdad, entrar a **Encuesta a lavaderos**. La página arranca
+mostrando *"Cargando encuesta…"* mientras hace el `fetch` a `/api/respuestas`, y
+después dibuja las 8 tarjetas de KPI y los 4 gráficos. Para comprobar que el
+filtrado funciona, hacer clic en el chip **Papel/pizarra**: el KPI "Respuestas en
+el segmento" pasa de 40 a 14 y "Gestión manual o nula" sube a 100 %.
+
+**Estado del sistema** es `/api/salud` con interfaz: dice si los datos salieron
+de la planilla o del respaldo, y qué filas se rechazaron.
 
 ### 5. Verificar la API (opcional)
 
@@ -102,6 +114,11 @@ curl http://localhost:3000/api/kpis
 
 curl "http://localhost:3000/api/kpis?registro=Papel/pizarra"
 # {"n":14,"gestionManualONula":{"valor":14,"pct":100},...
+
+# Las areas todavia no conectadas responden 501 con su contrato:
+curl -i http://localhost:3000/api/operacion
+# HTTP/1.1 501 Not Implemented
+# {"conectada":false,"seccion":"operacion","motivo":"El backoffice todavia no...
 ```
 
 ### 6. Detener el servidor

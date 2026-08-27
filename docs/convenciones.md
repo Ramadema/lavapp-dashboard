@@ -119,7 +119,7 @@ revisión.
 
 ### 5.1 Lógica de negocio duplicada
 
-El caso vivo es `lib/kpis.js` vs. el `useMemo` de `app/page.jsx`
+El caso vivo es `lib/kpis.js` vs. el `useMemo` de `app/dashboards/encuesta-lavaderos/page.jsx`
 ([deuda conocida](arquitectura.md#1-el-cálculo-de-kpis-está-duplicado)). **No
 agregues duplicaciones nuevas.** Si necesitás el mismo cálculo en dos lugares,
 extraelo a una función pura en `lib/` y llamala desde los dos.
@@ -136,7 +136,7 @@ import { VOCABULARIO } from "@/lib/normalizar";
 const FILTROS_REGISTRO = ["Todos", ...VOCABULARIO.registro];
 ```
 
-El caso vivo es `app/page.jsx`, que todavía repite el vocabulario en
+El caso vivo es `app/dashboards/encuesta-lavaderos/page.jsx`, que todavía repite el vocabulario en
 `FILTROS_REGISTRO` y `ORDEN_FRECUENCIA`. **No agregues copias nuevas.**
 
 ### 5.3 Fallar en silencio

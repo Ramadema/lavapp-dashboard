@@ -11,9 +11,9 @@
 
 | Quiero… | Receta | Archivos que toca |
 |---------|--------|-------------------|
-| Una tarjeta con un número nuevo | [A](#receta-a-agregar-un-kpi-numérico) | `lib/kpis.js`, `app/page.jsx`, `README.md` |
-| Un gráfico nuevo con datos que ya tengo | [B](#receta-b-agregar-un-gráfico) | `app/page.jsx` |
-| Un tipo de gráfico que todavía no existe | [C](#receta-c-agregar-un-tipo-de-gráfico-nuevo) | `components/`, `app/page.jsx` |
+| Una tarjeta con un número nuevo | [A](#receta-a-agregar-un-kpi-numérico) | `lib/kpis.js`, `app/dashboards/encuesta-lavaderos/page.jsx`, `README.md` |
+| Un gráfico nuevo con datos que ya tengo | [B](#receta-b-agregar-un-gráfico) | `app/dashboards/encuesta-lavaderos/page.jsx` |
+| Un tipo de gráfico que todavía no existe | [C](#receta-c-agregar-un-tipo-de-gráfico-nuevo) | `components/`, `app/dashboards/encuesta-lavaderos/page.jsx` |
 | Usar una pregunta de la encuesta que no está modelada | [D](#receta-d-agregar-un-campo-de-la-encuesta) | `lib/normalizar.js`, `data/encuestas.json` |
 | Un dashboard entero nuevo | [E](#receta-e-agregar-un-dashboard-nuevo) | `app/dashboards/`, `lib/kpis/`, `app/api/` |
 
@@ -109,19 +109,19 @@ número pelado si el resto de los KPIs devuelven objetos.
 
 ### Paso 2 — calcularlo en el cliente
 
-Archivo: `app/page.jsx`, dentro del `useMemo` que arma `kpis`.
+Archivo: `app/dashboards/encuesta-lavaderos/page.jsx`, dentro del `useMemo` que arma `kpis`.
 
 Ahí ya existe el helper local `entre(campo, valores)`, que cuenta cuántas filas
 tienen alguno de esos valores. Usalo.
 
 ```jsx
-// app/page.jsx — dentro del useMemo de kpis, en el objeto que devuelve
+// app/dashboards/encuesta-lavaderos/page.jsx — dentro del useMemo de kpis, en el objeto que devuelve
   usanSistema: pct(entre("registro", ["Sistema de gestion"]), n),
 ```
 
 ### Paso 3 — mostrarlo
 
-Archivo: `app/page.jsx`, en uno de los `<div className="grilla-kpis">`.
+Archivo: `app/dashboards/encuesta-lavaderos/page.jsx`, en uno de los `<div className="grilla-kpis">`.
 
 La grilla no tiene un número fijo de columnas: es
 `repeat(auto-fit, minmax(200px, 1fr))`, así que acomoda las tarjetas que le pongas
@@ -164,7 +164,7 @@ Ejemplo: agregar un gráfico de **criterio de orden de atención**.
 
 ### Paso 1 — armar la distribución
 
-Archivo: `app/page.jsx`, al lado de los otros `useMemo`.
+Archivo: `app/dashboards/encuesta-lavaderos/page.jsx`, al lado de los otros `useMemo`.
 
 El patrón está en los `useMemo` de `registros` y `dificultades`: contar y mapear
 a `{nombre, valor}`.
@@ -189,7 +189,7 @@ ordenar por valor descendente. Para escalas con orden propio (frecuencia, Likert
 
 ### Paso 2 — renderizarlo
 
-Archivo: `app/page.jsx`, dentro del `<main>`.
+Archivo: `app/dashboards/encuesta-lavaderos/page.jsx`, dentro del `<main>`.
 
 Un gráfico va siempre dentro de un `<section className="panel">` con `<h2>` y
 `<p className="subtitulo">`. Para dos gráficos lado a lado, envolvelos en
@@ -286,10 +286,10 @@ Archivo: `lib/normalizar.js`.
 1. Agregá el valor canónico a `VOCABULARIO.registro`.
 2. Si la etiqueta del formulario es más larga, agregá el alias en `ALIAS.registro`.
 3. Si el KPI de "gestión manual" tiene que contarla o no, actualizá `lib/kpis.js`
-   **y** `app/page.jsx` (Receta A), y firmá la decisión (ver
+   **y** `app/dashboards/encuesta-lavaderos/page.jsx` (Receta A), y firmá la decisión (ver
    [convenciones.md](convenciones.md#4-firma-de-autor-en-decisiones-de-lógica)).
 4. Si el valor aparece en los chips de filtro, agregalo a `FILTROS_REGISTRO` en
-   `app/page.jsx`.
+   `app/dashboards/encuesta-lavaderos/page.jsx`.
 
 ```js
 // lib/normalizar.js
@@ -404,18 +404,16 @@ trabajo es:
 2. **Módulo de cálculo** en `lib/kpis/<dominio>.js`, con funciones puras.
 3. **Ruta de API** en `app/api/<dominio>/route.js`. Solo traduce HTTP.
 4. **Página** en `app/dashboards/<slug>/page.jsx`, reusando `components/`.
-5. **Índice.** Hoy `app/page.jsx` **es** el dashboard de la encuesta, no un
-   índice: esa lista no existe todavía. El primero que agregue un segundo
-   dashboard tiene que hacer la migración, y es parte del trabajo:
+5. **Registro.** Declarala en `lib/secciones.js` con su `slug`, `grupo`,
+   `titulo`, `ruta`, `endpoint` y `contrato`. La navegación y la tarjeta del menú
+   salen de ahí solas: no hay que tocar `app/dashboards/encuesta-lavaderos/page.jsx` ni
+   `components/Navegacion.jsx`.
 
-   1. Mover `app/page.jsx` a `app/dashboards/encuesta-lavaderos/page.jsx` tal
-      como está.
-   2. Crear un `app/page.jsx` nuevo que sea solo el índice: una lista de
-      `<Link>` a cada dashboard.
-   3. Mover `lib/kpis.js` a `lib/kpis/encuesta.js` y actualizar los imports de
-      `app/api/kpis/route.js` y del dashboard movido.
-   4. Verificar que `/` muestre el índice y que el dashboard siga funcionando en
-      su ruta nueva.
+   > **Pendiente de la migración a secciones:** `lib/kpis.js` todavía no se movió
+   > a `lib/kpis/encuesta.js`. Mientras haya un solo módulo de cálculo no molesta;
+   > el primero que agregue un segundo dominio de KPIs tiene que hacer ese
+   > rename y actualizar los imports de `app/api/kpis/route.js` y del dashboard
+   > de la encuesta.
 
 6. **Documentá** la fuente y los KPIs nuevos en el README.
 
@@ -427,7 +425,7 @@ Copiá esto en la descripción del PR y marcá cada punto.
 
 ```
 [ ] El KPI/gráfico cambia al usar los chips de filtro (usé `datos`, no `respuestas`)
-[ ] Si toqué un KPI, lo actualicé en lib/kpis.js Y en app/page.jsx
+[ ] Si toqué un KPI, lo actualicé en lib/kpis.js Y en app/dashboards/encuesta-lavaderos/page.jsx
 [ ] Los números de /api/kpis coinciden con los que muestra el dashboard
 [ ] Si agregué un campo, está también en data/encuestas.json
 [ ] curl /api/salud → con la planilla configurada: fuente: "planilla", motivo: null, filasRechazadas: 0
