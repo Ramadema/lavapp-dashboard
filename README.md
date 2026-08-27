@@ -144,19 +144,33 @@ El build tiene que terminar con esta tabla de rutas:
 Route (app)
 ┌ ○ /
 ├ ○ /_not-found
+├ ƒ /api/clientes
+├ ƒ /api/facturacion
 ├ ƒ /api/kpis
+├ ƒ /api/lavaderos
+├ ƒ /api/operacion
 ├ ƒ /api/respuestas
 ├ ƒ /api/salud
+├ ○ /dashboards/clientes
+├ ○ /dashboards/encuesta-lavaderos
+├ ○ /dashboards/estado
+├ ○ /dashboards/facturacion
+├ ○ /dashboards/lavaderos
+├ ○ /dashboards/operacion
 └ ○ /icon.svg
 
 ○  (Static)   prerendered as static content
 ƒ  (Dynamic)  server-rendered on demand
 ```
 
-Las tres rutas de API tienen que aparecer como dinámicas (`ƒ`): en Vercel se
+Las siete rutas de API tienen que aparecer como dinámicas (`ƒ`): en Vercel se
 convierten en serverless functions. Si alguna sale como estática (`○`), quedó
 resuelta en tiempo de build y devolvería siempre los mismos datos, ignorando el
-parámetro `?registro=`.
+parámetro `?registro=` y **congelando la lectura de la planilla en el momento del
+deploy**.
+
+Las páginas sí son estáticas (`○`) y está bien: el HTML no trae datos adentro,
+los pide por `fetch` al abrirse en el navegador.
 
 ## Datos en vivo desde Google Sheets
 
