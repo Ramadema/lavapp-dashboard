@@ -57,18 +57,24 @@ importar de las de abajo, nunca de las de arriba ni de sus hermanas.
 ## Flujo de datos
 
 ```
-                            ┌──▶ planilla de Google (CSV, cache 60 s)
-Navegador                   │
-   │  fetch /api/respuestas │
-   ▼                        │
-app/api/respuestas/route.js─┤
-   │                        └──▶ data/encuestas.json (respaldo)
-   │  obtenerEncuestas()          │
-   ▼                              ▼
-lib/encuestas.js ──▶ lib/csv.js ──▶ lib/normalizar.js ──▶ array canónico
-                                                              │
-                                                              ▼
-                                                        lib/kpis.js
+Navegador
+   │  fetch /api/respuestas
+   ▼
+app/api/respuestas/route.js
+   │  obtenerEncuestas()
+   ▼
+lib/encuestas.js
+   │
+   ├─ hay ENCUESTAS_CSV_URL y se pudo leer?
+   │     SI ──▶ planilla de Google (CSV, cache 60 s)
+   │              └──▶ lib/csv.js ──▶ lib/normalizar.js ──┐
+   │                                   (valida y traduce)  │
+   │                                                       ▼
+   │                                                array canónico ──▶ lib/kpis.js
+   │                                                       ▲
+   └─ NO ──▶ data/encuestas.json ─────────────────────────┘
+                (respaldo: NO pasa por csv.js ni normalizar.js,
+                 entra tal cual está escrito en el archivo)
 ```
 
 El detalle de la fuente en vivo, el cache y el respaldo está en el

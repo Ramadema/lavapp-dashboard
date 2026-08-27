@@ -128,9 +128,16 @@ extraelo a una función pura en `lib/` y llamala desde los dos.
 
 Un valor como `"Papel/pizarra"` escrito a mano en tres archivos es una bomba de
 tiempo: el día que cambie, uno se va a quedar viejo y **el KPI va a contar 0 sin
-tirar ningún error**. Los valores canónicos viven en `VOCABULARIO`
-(`lib/normalizar.js`). Si un componente necesita la lista, importala o pedila por
-props.
+tirar ningún error**. Los valores canónicos viven en `VOCABULARIO`, exportado
+desde `lib/normalizar.js`. Si un componente necesita la lista, importala:
+
+```js
+import { VOCABULARIO } from "@/lib/normalizar";
+const FILTROS_REGISTRO = ["Todos", ...VOCABULARIO.registro];
+```
+
+El caso vivo es `app/page.jsx`, que todavía repite el vocabulario en
+`FILTROS_REGISTRO` y `ORDEN_FRECUENCIA`. **No agregues copias nuevas.**
 
 ### 5.3 Fallar en silencio
 
@@ -182,8 +189,9 @@ suscribirse, tocar el DOM.
 ## 6. Datos y validación
 
 - **Una sola puerta de entrada.** Todo dato externo pasa por un loader en `lib/`
-  que devuelve `{ datos, fuente, motivo, problemas }`. Ningún componente ni
-  `route.js` lee una fuente externa por su cuenta.
+  que devuelve `{ datos, fuente, motivo, problemas, filasRechazadas,
+  columnasIgnoradas }`. Ningún componente ni `route.js` lee una fuente externa por
+  su cuenta.
 - **Siempre con respaldo.** Un dashboard que no puede leer su fuente muestra el
   último dato conocido y dice que lo está haciendo. Nunca una pantalla en blanco.
 - **El diagnóstico se expone.** Si hubo fallback o filas rechazadas, tiene que
@@ -203,9 +211,13 @@ suscribirse, tocar el DOM.
   [agregar-kpis-y-graficos.md](agregar-kpis-y-graficos.md#checklist-antes-de-dar-por-terminado).
 - **`.env.local` no se commitea nunca.** Si agregás una variable, va a
   `.env.example` con un valor de ejemplo y un comentario.
-- `AGENTS.md` y `CLAUDE.md` los mantiene `next dev` dentro de sus marcadores.
-  Si aparecen modificados sin que los tocaras, commiteá el cambio con tu trabajo:
+- **`AGENTS.md` lo comparte `next dev` con nosotros.** Next mantiene solo el
+  bloque entre `<!-- BEGIN:nextjs-agent-rules -->` y `<!-- END:... -->` y preserva
+  todo lo que está afuera, que es donde viven nuestras reglas. Si el bloque
+  aparece modificado sin que lo tocaras, commiteá el cambio con tu trabajo:
   borrarlo del diff solo lo vuelve a crear.
+  `CLAUDE.md` es una sola línea (`@AGENTS.md`) y **no tiene marcadores**: Next lo
+  deja intacto mientras `AGENTS.md` hospede el bloque.
 
 ## 8. Antes de abrir el PR
 

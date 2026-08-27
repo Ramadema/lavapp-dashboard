@@ -23,8 +23,10 @@ Romper cualquiera de estos es un error, no una decisión de diseño:
 3. **`lib/kpis.js` es puro.** Sin `fetch`, sin React, sin `process.env`.
 4. **Nada falla en silencio.** Un dato que no se entiende se rechaza y se reporta
    en `/api/salud`. Nunca se ignora calladamente.
-5. **Los valores del dominio viven en `VOCABULARIO`** (`lib/normalizar.js`), no
-   sueltos por el código.
+5. **Los valores del dominio viven en `VOCABULARIO`** (exportado desde
+   `lib/normalizar.js`), no sueltos por el código. Ojo: `app/page.jsx` todavía
+   repite parte del vocabulario en `FILTROS_REGISTRO` y `ORDEN_FRECUENCIA`. Es
+   deuda: no agregues copias nuevas, importá `VOCABULARIO`.
 6. **El dashboard filtra sobre `datos`, no sobre `respuestas`.** Usar
    `respuestas` hace que el gráfico ignore el filtro activo.
 
@@ -37,11 +39,22 @@ práctica: **si tocás un KPI, tenés que editar los dos archivos.**
 
 ## Verificación mínima antes de decir que terminaste
 
+Sin server:
+
 ```bash
 npm test          # obligatorio si tocaste lib/csv.js o lib/normalizar.js
 npm run build
-curl -s localhost:3000/api/salud | python3 -m json.tool   # filasRechazadas: 0
 ```
+
+Con server (`npm run dev` bloquea la terminal: dejalo en una y usá otra):
+
+```bash
+curl -s localhost:3000/api/salud | python3 -m json.tool
+```
+
+Con la planilla configurada tiene que decir `fuente: "planilla"`, `motivo: null` y
+`filasRechazadas: 0`. Si dice `fuente: "respaldo"`, la planilla no se leyó y el
+resto del diagnóstico no significa nada.
 
 Y mirar el dashboard en el navegador: que el gráfico tenga **barras dibujadas**,
 no solo ejes, y que los números cambien al usar los chips de filtro.

@@ -15,12 +15,17 @@ directo.
 - **`/data`** — `encuestas.json`, las 40 respuestas originales, que además funcionan como respaldo.
 
 ```
-                                    ┌─▶ planilla de Google (CSV, cache 60 s)
-Navegador ──fetch /api/*──▶ lib/encuestas.js ─┤
-   (React + Recharts)       (Node, en Vercel) └─▶ data/encuestas.json (respaldo)
-                                     │
-                                     ▼
-                          lib/normalizar.js ──▶ lib/kpis.js
+Navegador ──fetch /api/*──▶ lib/encuestas.js ──┐
+   (React + Recharts)       (Node, en Vercel)  │
+                                               ├─▶ planilla de Google (CSV, 60 s)
+                                               │      └─▶ csv.js ─▶ normalizar.js ─┐
+                                               │           (valida y traduce)      │
+                                               │                                   ▼
+                                               │                          array canónico ─▶ kpis.js
+                                               │                                   ▲
+                                               └─▶ data/encuestas.json ────────────┘
+                                                     (respaldo: entra tal cual,
+                                                      sin validar ni traducir)
 ```
 
 La fuente de datos es un único punto de cambio: `lib/encuestas.js` devuelve
@@ -78,7 +83,7 @@ Ir a **http://localhost:3000**.
 
 Un solo proceso sirve el dashboard y la API: no hace falta un segundo servidor
 ni configurar proxies. La página arranca mostrando *"Cargando encuesta…"*
-mientras hace el `fetch` a `/api/kpis`, y después dibuja las 8 tarjetas de KPI y
+mientras hace el `fetch` a `/api/respuestas`, y después dibuja las 8 tarjetas de KPI y
 los 4 gráficos.
 
 Para comprobar que el filtrado funciona, hacer clic en el chip
@@ -89,7 +94,8 @@ Para comprobar que el filtrado funciona, hacer clic en el chip
 
 ```bash
 curl http://localhost:3000/api/salud
-# {"ok":true}
+# {"ok":true,"fuente":"respaldo","motivo":"ENCUESTAS_CSV_URL no esta configurada",
+#  "filas":40,"csvConfigurado":false,"filasRechazadas":0,...
 
 curl http://localhost:3000/api/kpis
 # {"n":40,"gestionManualONula":{"valor":32,"pct":80},...

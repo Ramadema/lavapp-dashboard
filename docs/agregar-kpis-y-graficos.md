@@ -11,7 +11,7 @@
 
 | Quiero… | Receta | Archivos que toca |
 |---------|--------|-------------------|
-| Una tarjeta con un número nuevo | [A](#receta-a-agregar-un-kpi-numérico) | `lib/kpis.js`, `app/page.jsx` |
+| Una tarjeta con un número nuevo | [A](#receta-a-agregar-un-kpi-numérico) | `lib/kpis.js`, `app/page.jsx`, `README.md` |
 | Un gráfico nuevo con datos que ya tengo | [B](#receta-b-agregar-un-gráfico) | `app/page.jsx` |
 | Un tipo de gráfico que todavía no existe | [C](#receta-c-agregar-un-tipo-de-gráfico-nuevo) | `components/`, `app/page.jsx` |
 | Usar una pregunta de la encuesta que no está modelada | [D](#receta-d-agregar-un-campo-de-la-encuesta) | `lib/normalizar.js`, `data/encuestas.json` |
@@ -123,9 +123,14 @@ tienen alguno de esos valores. Usalo.
 
 Archivo: `app/page.jsx`, en uno de los `<div className="grilla-kpis">`.
 
-La grilla es de 4 columnas. **Agregá la tarjeta a una grilla que tenga menos de
-4, o abrí una grilla nueva.** No dejes una grilla con 5 tarjetas: se desarma el
-layout.
+La grilla no tiene un número fijo de columnas: es
+`repeat(auto-fit, minmax(200px, 1fr))`, así que acomoda las tarjetas que le pongas
+y las baja de renglón cuando no entran. Hoy hay dos grillas de 4 para que queden
+dos filas parejas de 4, no por un límite técnico.
+
+**Agregá la tarjeta a una de las grillas existentes, o abrí una nueva** si querés
+mantener el agrupamiento visual. Con 5 tarjetas en una grilla no se rompe nada,
+solo deja de estar alineada con la otra fila.
 
 ```jsx
 <TarjetaKpi
@@ -137,8 +142,13 @@ layout.
 
 ### Paso 4 — verificar
 
+`npm run dev` bloquea la terminal, así que va en una y los `curl` en otra:
+
 ```bash
+# terminal 1
 npm run dev
+
+# terminal 2
 curl -s "http://localhost:3000/api/kpis" | python3 -m json.tool | grep -A2 usanSistema
 ```
 
@@ -196,8 +206,13 @@ Un gráfico va siempre dentro de un `<section className="panel">` con `<h2>` y
 ### Paso 3 — verificar
 
 Abrí el dashboard y confirmá que **se ven las barras**, no solo los ejes. Si ves
-los ejes con la escala correcta pero ninguna barra, el problema casi siempre es
-el contrato de `datos`: una clave de `series` que falta en alguna fila.
+los ejes con la escala correcta pero ninguna barra, el problema está en el
+contrato de `datos`:
+
+- En `BarrasHorizontales`, cada fila necesita `nombre` y `valor` con esos nombres
+  exactos. Un `{categoria, total}` dibuja los ejes y ninguna barra.
+- En `BarrasAgrupadas`, cada `clave` de `series` tiene que existir en **todas** las
+  filas de `datos`, incluso valiendo `0`.
 
 Si estás capturando la página con un browser headless y las barras no salen, leé
 [Problemas conocidos](../README.md#los-gráficos-salen-vacíos-en-capturas-con-un-browser-headless):
@@ -291,37 +306,89 @@ const ALIAS = {
 ```
 
 **Verificación:** `curl -s localhost:3000/api/salud | python3 -m json.tool`.
-`filasRechazadas` tiene que ser `0`. Si el valor no está en el vocabulario, esas
-filas aparecen en `problemas` con motivo `"valor no reconocido"` — **no se cuentan
-mal en silencio, se rechazan**.
+Con la planilla configurada tiene que dar `fuente: "planilla"`, `motivo: null` y
+`filasRechazadas: 0`. Si el valor no está en el vocabulario, esas filas aparecen
+en `problemas` con motivo `"valor no reconocido"` — **no se cuentan mal en
+silencio, se rechazan**.
+
+> Mirá `fuente` antes que `filasRechazadas`: si dice `"respaldo"`, la planilla no
+> se leyó y el `0` no significa nada.
 
 ### Caso D.2 — una pregunta nueva
 
 Archivo: `lib/normalizar.js`.
 
 1. Agregá el nombre del campo a `CAMPOS`.
+
+   > **Todo campo de `CAMPOS` es obligatorio.** Si una fila lo tiene vacío, la
+   > fila entera se rechaza. No hay campos opcionales: si la pregunta del
+   > formulario no es obligatoria, la mitad de las respuestas se van a rechazar.
+   > En ese caso hay que decidir un valor por defecto antes de agregarlo.
+
 2. Si es categórico: agregá su lista a `VOCABULARIO`, y los alias en `ALIAS` si el
    formulario usa etiquetas largas.
-3. Si es numérico (Likert 1-5): agregalo a `NUMERICOS` y **no** a `VOCABULARIO`.
+3. Si es numérico: agregalo a `NUMERICOS` y **no** a `VOCABULARIO`.
+
+   > **El rango válido está fijo en 1 a 5 enteros** (`lib/normalizar.js`, dentro
+   > de `normalizarFilas`). Un campo numérico con otra escala —una cantidad de
+   > vehículos, un precio— necesita cambiar esa validación primero; si no, todo
+   > lo que caiga fuera de 1-5 se rechaza.
 4. Agregá un fragmento distintivo de la pregunta a `PATRONES_PREGUNTA`.
+
+   **Es una expresión regular que se evalúa contra el texto de la pregunta
+   normalizado**, no contra el texto tal cual está en la planilla. La
+   normalización (`clavePregunta` en `lib/normalizar.js`) saca los acentos, pasa
+   todo a minúsculas y colapsa los espacios. O sea: el patrón se escribe **sin
+   acentos, en minúsculas y sin signos**.
+
+   ```js
+   // MAL: nunca va a matchear, tiene acento, mayuscula y signo
+   usaWhatsapp: /¿Usan WhatsApp para avisar?/,
+
+   // BIEN: sin acentos, en minusculas, un fragmento distintivo
+   usaWhatsapp: /usan whatsapp para avisar/,
+   ```
 
 > **El patrón tiene que ser único.** Verificá que no matchee la pregunta de otro
 > campo: `"alta demanda"` aparece en dos preguntas distintas del formulario
-> actual. Si dos campos matchean la misma columna, el loader corta con
-> `"cabeceras ambiguas"` en lugar de adivinar.
+> actual.
+>
+> La condición exacta es: **si el patrón de un campo matchea más de una columna**,
+> ese campo queda sin asignar y el loader corta con
+> `"cabeceras ambiguas: <campo> (columnas N y M)"` en lugar de adivinar. El caso
+> inverso —dos campos cuyos patrones matchean la misma columna— no da ambigüedad:
+> gana el primero en el orden de `CAMPOS` y el otro queda como faltante.
 
 5. **Agregá el campo a las 40 filas de `data/encuestas.json`.** Es obligatorio: el
    respaldo no pasa por la normalización, así que si el campo falta ahí, cuando la
    app caiga al respaldo va a llegar `undefined` al dashboard sin ningún error.
 
+   > Y por lo mismo, **los valores que escribas en ese JSON tienen que ser ya los
+   > canónicos de `VOCABULARIO`**, no las etiquetas largas del formulario. Nada
+   > los va a traducir ni validar: van derecho a `lib/kpis.js`.
+
 **Verificación:**
 
 ```bash
-curl -s localhost:3000/api/salud | python3 -m json.tool   # filasRechazadas: 0, faltantes: []
+curl -s localhost:3000/api/salud | python3 -m json.tool
 curl -s localhost:3000/api/respuestas | python3 -c "import sys,json; print(json.load(sys.stdin)[0])"
 ```
 
 El campo nuevo tiene que aparecer en la primera respuesta.
+
+> **Las claves que delatan el error de este caso son `fuente` y `motivo`, no
+> `filasRechazadas`.** Si el patrón nuevo no matchea ninguna columna, el loader no
+> rechaza filas: cae entero al respaldo, y `/api/salud` devuelve
+> `fuente: "respaldo"` con `motivo: "faltan columnas en la planilla: <campo>"`.
+>
+> Con `filasRechazadas: 0` no alcanza: el respaldo **no** pasa por la
+> normalización, así que ese `0` también aparece cuando la planilla ni se leyó.
+> **Si `ENCUESTAS_CSV_URL` no está configurada, esta verificación no prueba nada.**
+>
+> `/api/salud` devuelve exactamente estas claves: `ok`, `fuente`, `motivo`,
+> `filas`, `csvConfigurado`, `filasRechazadas`, `problemas` y `columnasIgnoradas`.
+> La lista `faltantes` de `lib/normalizar.js` es interna y solo se usa para armar
+> el string de `motivo`.
 
 ---
 
@@ -337,7 +404,19 @@ trabajo es:
 2. **Módulo de cálculo** en `lib/kpis/<dominio>.js`, con funciones puras.
 3. **Ruta de API** en `app/api/<dominio>/route.js`. Solo traduce HTTP.
 4. **Página** en `app/dashboards/<slug>/page.jsx`, reusando `components/`.
-5. **Índice.** Agregá el dashboard nuevo a la lista de `app/page.jsx`.
+5. **Índice.** Hoy `app/page.jsx` **es** el dashboard de la encuesta, no un
+   índice: esa lista no existe todavía. El primero que agregue un segundo
+   dashboard tiene que hacer la migración, y es parte del trabajo:
+
+   1. Mover `app/page.jsx` a `app/dashboards/encuesta-lavaderos/page.jsx` tal
+      como está.
+   2. Crear un `app/page.jsx` nuevo que sea solo el índice: una lista de
+      `<Link>` a cada dashboard.
+   3. Mover `lib/kpis.js` a `lib/kpis/encuesta.js` y actualizar los imports de
+      `app/api/kpis/route.js` y del dashboard movido.
+   4. Verificar que `/` muestre el índice y que el dashboard siga funcionando en
+      su ruta nueva.
+
 6. **Documentá** la fuente y los KPIs nuevos en el README.
 
 ---
@@ -351,7 +430,7 @@ Copiá esto en la descripción del PR y marcá cada punto.
 [ ] Si toqué un KPI, lo actualicé en lib/kpis.js Y en app/page.jsx
 [ ] Los números de /api/kpis coinciden con los que muestra el dashboard
 [ ] Si agregué un campo, está también en data/encuestas.json
-[ ] curl /api/salud → filasRechazadas: 0, faltantes: []
+[ ] curl /api/salud → con la planilla configurada: fuente: "planilla", motivo: null, filasRechazadas: 0
 [ ] npm test pasa (obligatorio si toqué lib/csv.js o lib/normalizar.js)
 [ ] npm run build pasa sin errores ni warnings nuevos
 [ ] Vi el gráfico con barras dibujadas en el navegador, no solo los ejes
@@ -362,15 +441,29 @@ Copiá esto en la descripción del PR y marcá cada punto.
 
 ## Comandos de verificación de referencia
 
+No necesitan server:
+
 ```bash
-npm run dev                  # dev server en :3000
 npm test                     # tests de csv.js y normalizar.js
 npm run build                # tiene que compilar sin errores
-npm start                    # server de producción, lo que corre en Vercel
+```
 
+Necesitan server. `npm run dev` y `npm start` bloquean la terminal: dejalos
+corriendo en una y usá otra para los `curl`.
+
+```bash
+# terminal 1
+npm run dev                  # dev server en :3000
+# o bien: npm start          # server de producción, lo que corre en Vercel
+
+# terminal 2
 curl -s localhost:3000/api/salud | python3 -m json.tool
 curl -s localhost:3000/api/kpis | python3 -m json.tool
 curl -s "localhost:3000/api/kpis?registro=Papel/pizarra" | python3 -m json.tool
+```
 
-lsof -ti:3000 -sTCP:LISTEN | xargs kill    # bajar el server
+Para bajar un server que quedó en segundo plano:
+
+```bash
+lsof -ti:3000 -sTCP:LISTEN | xargs kill
 ```
