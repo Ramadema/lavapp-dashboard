@@ -13,7 +13,7 @@ se mantiene: cada pantalla consume los endpoints por `fetch`, no accede al dato
 directo.
 
 - **`/app`** — el menú inicial (`page.jsx`), las secciones bajo `/app/dashboards/<slug>/` y los Route Handlers bajo `/app/api`, que exponen la API REST.
-- **`/lib`** — lógica del lado del servidor: `encuestas.js` resuelve la fuente de datos, `csv.js` parsea el CSV, `normalizar.js` valida y traduce los valores, `kpis.js` calcula los indicadores, `secciones.js` declara qué secciones existen y qué contrato tiene cada endpoint.
+- **`/lib`** — lógica del lado del servidor: `encuestas.js` resuelve la fuente de datos, `csv.js` parsea el CSV, `normalizar.js` valida y traduce los valores, `kpis/encuesta.js` calcula los indicadores, `secciones.js` declara qué secciones existen y qué contrato tiene cada endpoint.
 - **`/components`** — navegación, encabezado de sección, estado vacío, tarjetas de KPI y gráficos (Recharts).
 - **`/data`** — `encuestas.json`, las 40 respuestas originales, que además funcionan como respaldo.
 
@@ -24,7 +24,7 @@ Navegador ──fetch /api/*──▶ lib/encuestas.js ──┐
                                                │      └─▶ csv.js ─▶ normalizar.js ─┐
                                                │           (valida y traduce)      │
                                                │                                   ▼
-                                               │                          array canónico ─▶ kpis.js
+                                               │                          array canónico ─▶ kpis/encuesta.js
                                                │                                   ▲
                                                └─▶ data/encuestas.json ────────────┘
                                                      (respaldo: entra tal cual,
@@ -203,7 +203,7 @@ export real:
 - **Columnas de más.** La `Marca temporal` se ignora y se reporta en `/api/salud`.
 - **La columna `id` es opcional**: si no está, se numera por orden de fila.
 
-Vocabulario canónico por campo, que es lo que finalmente ve `lib/kpis.js`:
+Vocabulario canónico por campo, que es lo que finalmente ve `lib/kpis/encuesta.js`:
 
 | Columna | Valores canónicos |
 |---------|-------------------|

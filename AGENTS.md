@@ -20,7 +20,7 @@ Romper cualquiera de estos es un error, no una decisión de diseño:
 1. **Los datos entran por un solo lugar.** Todo pasa por `lib/encuestas.js`.
    Ningún componente ni `route.js` lee una fuente externa por su cuenta.
 2. **Los `route.js` no calculan.** Leen parámetros, llaman a `lib/`, serializan.
-3. **`lib/kpis.js` es puro.** Sin `fetch`, sin React, sin `process.env`.
+3. **`lib/kpis/encuesta.js` es puro.** Sin `fetch`, sin React, sin `process.env`.
 4. **Nada falla en silencio.** Un dato que no se entiende se rechaza y se reporta
    en `/api/salud`. Nunca se ignora calladamente.
 5. **Los valores del dominio viven en `VOCABULARIO`** (exportado desde
@@ -35,7 +35,7 @@ Romper cualquiera de estos es un error, no una decisión de diseño:
 
 ## Deuda conocida: no la arregles sin permiso
 
-`lib/kpis.js` y el `useMemo` de `app/dashboards/encuesta-lavaderos/page.jsx`
+`lib/kpis/encuesta.js` y el `useMemo` de `app/dashboards/encuesta-lavaderos/page.jsx`
 **duplican el cálculo de los KPIs**. Está documentado en
 [docs/arquitectura.md](docs/arquitectura.md#deuda-conocida). Consecuencia
 práctica: **si tocás un KPI, tenés que editar los dos archivos.**

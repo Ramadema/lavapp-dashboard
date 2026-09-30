@@ -1,5 +1,5 @@
 import obtenerEncuestas from "@/lib/encuestas";
-import { calcularKpis } from "@/lib/kpis";
+import { calcularKpis } from "@/lib/kpis/encuesta";
 
 // GET /api/kpis[?registro=...] — KPIs agregados, opcionalmente de un segmento
 export async function GET(request) {

@@ -11,7 +11,7 @@
 
 | Quiero… | Receta | Archivos que toca |
 |---------|--------|-------------------|
-| Una tarjeta con un número nuevo | [A](#receta-a-agregar-un-kpi-numérico) | `lib/kpis.js`, `app/dashboards/encuesta-lavaderos/page.jsx`, `README.md` |
+| Una tarjeta con un número nuevo | [A](#receta-a-agregar-un-kpi-numérico) | `lib/kpis/encuesta.js`, `app/dashboards/encuesta-lavaderos/page.jsx`, `README.md` |
 | Un gráfico nuevo con datos que ya tengo | [B](#receta-b-agregar-un-gráfico) | `app/dashboards/encuesta-lavaderos/page.jsx` |
 | Un tipo de gráfico que todavía no existe | [C](#receta-c-agregar-un-tipo-de-gráfico-nuevo) | `components/`, `app/dashboards/encuesta-lavaderos/page.jsx` |
 | Usar una pregunta de la encuesta que no está modelada | [D](#receta-d-agregar-un-campo-de-la-encuesta) | `lib/normalizar.js`, `data/encuestas.json` |
@@ -89,14 +89,14 @@ Ejemplo: agregar **"% que usa sistema de gestión"**.
 
 ### Paso 1 — calcularlo en el servidor
 
-Archivo: `lib/kpis.js`, dentro de `calcularKpis`.
+Archivo: `lib/kpis/encuesta.js`, dentro de `calcularKpis`.
 
 Agregá el conteo antes del `return` y la salida dentro del objeto que se
 devuelve. Usá el helper `pct(n, total)` que ya está en el archivo; no reimplementes
 el redondeo.
 
 ```js
-// lib/kpis.js — dentro de calcularKpis, antes del return
+// lib/kpis/encuesta.js — dentro de calcularKpis, antes del return
 const conSistema = datos.filter((r) => r.registro === "Sistema de gestion").length;
 
 // ...dentro del objeto que devuelve la función:
@@ -285,7 +285,7 @@ Archivo: `lib/normalizar.js`.
 
 1. Agregá el valor canónico a `VOCABULARIO.registro`.
 2. Si la etiqueta del formulario es más larga, agregá el alias en `ALIAS.registro`.
-3. Si el KPI de "gestión manual" tiene que contarla o no, actualizá `lib/kpis.js`
+3. Si el KPI de "gestión manual" tiene que contarla o no, actualizá `lib/kpis/encuesta.js`
    **y** `app/dashboards/encuesta-lavaderos/page.jsx` (Receta A), y firmá la decisión (ver
    [convenciones.md](convenciones.md#4-firma-de-autor-en-decisiones-de-lógica)).
 4. Si el valor aparece en los chips de filtro, agregalo a `FILTROS_REGISTRO` en
@@ -365,7 +365,7 @@ Archivo: `lib/normalizar.js`.
 
    > Y por lo mismo, **los valores que escribas en ese JSON tienen que ser ya los
    > canónicos de `VOCABULARIO`**, no las etiquetas largas del formulario. Nada
-   > los va a traducir ni validar: van derecho a `lib/kpis.js`.
+   > los va a traducir ni validar: van derecho a `lib/kpis/encuesta.js`.
 
 **Verificación:**
 
@@ -409,12 +409,6 @@ trabajo es:
    salen de ahí solas: no hay que tocar `app/dashboards/encuesta-lavaderos/page.jsx` ni
    `components/Navegacion.jsx`.
 
-   > **Pendiente de la migración a secciones:** `lib/kpis.js` todavía no se movió
-   > a `lib/kpis/encuesta.js`. Mientras haya un solo módulo de cálculo no molesta;
-   > el primero que agregue un segundo dominio de KPIs tiene que hacer ese
-   > rename y actualizar los imports de `app/api/kpis/route.js` y del dashboard
-   > de la encuesta.
-
 6. **Documentá** la fuente y los KPIs nuevos en el README.
 
 ---
@@ -425,7 +419,7 @@ Copiá esto en la descripción del PR y marcá cada punto.
 
 ```
 [ ] El KPI/gráfico cambia al usar los chips de filtro (usé `datos`, no `respuestas`)
-[ ] Si toqué un KPI, lo actualicé en lib/kpis.js Y en app/dashboards/encuesta-lavaderos/page.jsx
+[ ] Si toqué un KPI, lo actualicé en lib/kpis/encuesta.js Y en app/dashboards/encuesta-lavaderos/page.jsx
 [ ] Los números de /api/kpis coinciden con los que muestra el dashboard
 [ ] Si agregué un campo, está también en data/encuestas.json
 [ ] curl /api/salud → con la planilla configurada: fuente: "planilla", motivo: null, filasRechazadas: 0

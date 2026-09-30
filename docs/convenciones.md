@@ -26,7 +26,7 @@
 | Funciones y variables | `camelCase`, verbo si hace algo | `obtenerEncuestas`, `normalizarFilas` |
 | Componentes React | `PascalCase`, describe la forma no el dato | `BarrasHorizontales` |
 | Archivos de componente | igual que el componente + `.jsx` | `BarrasHorizontales.jsx` |
-| Archivos de `lib/` | `kebab-case` o una palabra, `.js` | `kpis.js`, `normalizar.js` |
+| Archivos de `lib/` | `kebab-case` o una palabra, `.js` | `kpis/encuesta.js`, `normalizar.js` |
 | Constantes de módulo | `SCREAMING_SNAKE_CASE` | `VOCABULARIO`, `SEGUNDOS_CACHE` |
 | Rutas y slugs | `kebab-case` | `app/dashboards/encuesta-lavaderos/` |
 | Claves de salida de la API | `camelCase`, del negocio | `gestionManualONula` |
@@ -119,7 +119,7 @@ revisión.
 
 ### 5.1 Lógica de negocio duplicada
 
-El caso vivo es `lib/kpis.js` vs. el `useMemo` de `app/dashboards/encuesta-lavaderos/page.jsx`
+El caso vivo es `lib/kpis/encuesta.js` vs. el `useMemo` de `app/dashboards/encuesta-lavaderos/page.jsx`
 ([deuda conocida](arquitectura.md#1-el-cálculo-de-kpis-está-duplicado)). **No
 agregues duplicaciones nuevas.** Si necesitás el mismo cálculo en dos lugares,
 extraelo a una función pura en `lib/` y llamala desde los dos.

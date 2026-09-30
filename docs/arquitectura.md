@@ -35,7 +35,7 @@ importar de las de abajo, nunca de las de arriba ni de sus hermanas.
 │ 3. API            app/api/**/route.js                        │
 │                   traduce HTTP ↔ dominio. Sin lógica propia. │
 ├─────────────────────────────────────────────────────────────┤
-│ 2. DOMINIO        lib/kpis.js                                │
+│ 2. DOMINIO        lib/kpis/encuesta.js                       │
 │                   cálculo de indicadores. Funciones puras.   │
 ├─────────────────────────────────────────────────────────────┤
 │ 1. DATOS          lib/encuestas.js  ← única puerta de entrada│
@@ -72,7 +72,7 @@ lib/encuestas.js
    │              └──▶ lib/csv.js ──▶ lib/normalizar.js ──┐
    │                                   (valida y traduce)  │
    │                                                       ▼
-   │                                                array canónico ──▶ lib/kpis.js
+   │                                                array canónico ──▶ lib/kpis/encuesta.js
    │                                                       ▲
    └─ NO ──▶ data/encuestas.json ─────────────────────────┘
                 (respaldo: NO pasa por csv.js ni normalizar.js,
@@ -113,7 +113,7 @@ fallan lo hacen en silencio.
 
 | Archivo | Responsabilidad |
 |---------|-----------------|
-| `lib/kpis.js` | `calcularKpis(datos)` → objeto de indicadores. Funciones puras, sin efectos. |
+| `lib/kpis/encuesta.js` | `calcularKpis(datos)` → objeto de indicadores. Funciones puras, sin efectos. |
 | `lib/secciones.js` | `SECCIONES`, `GRUPOS`, `buscarSeccion`, `cuerpoSinFuente`. Declara qué secciones existen, su ruta, su endpoint y el contrato de ese endpoint. Puro: sin React, sin `fetch`, sin `process.env`. |
 
 > `lib/secciones.js` lo leen las dos capas de arriba: la presentación para dibujar
@@ -175,8 +175,8 @@ app/
     <nuevo-dominio>/route.js
 lib/
   secciones.js                  → declarar la seccion acá primero
-  kpis.js                       → pendiente: renombrar a lib/kpis/encuesta.js
   kpis/
+    encuesta.js                 → los KPIs de la encuesta
     <nuevo-dominio>.js          → un módulo de cálculo por dominio
 ```
 
@@ -205,7 +205,7 @@ sepa qué se esperaba.
 
 ### 1. El cálculo de KPIs está duplicado
 
-`lib/kpis.js` y el `useMemo` de `app/dashboards/encuesta-lavaderos/page.jsx` calculan **los mismos
+`lib/kpis/encuesta.js` y el `useMemo` de `app/dashboards/encuesta-lavaderos/page.jsx` calculan **los mismos
 indicadores dos veces**, con lógica copiada y nombres de salida distintos
 (`gestionManualONula.pct` en el server, `kpis.manual` en el cliente).
 
@@ -215,7 +215,7 @@ El dashboard usa la versión del cliente; `/api/kpis` usa la del server.
 lugares, y si te olvidás de uno, el dashboard y la API dicen cosas distintas sin
 que nada falle.
 
-**Arreglo previsto:** `lib/kpis.js` no tiene dependencias de servidor, así que el
+**Arreglo previsto:** `lib/kpis/encuesta.js` no tiene dependencias de servidor, así que el
 componente de cliente puede importar `calcularKpis` directamente y borrar su
 copia. Requiere unificar los nombres de salida y ajustar el JSX.
 
