@@ -11,7 +11,7 @@
 
 | Quiero… | Receta | Archivos que toca |
 |---------|--------|-------------------|
-| Una tarjeta con un número nuevo | [A](#receta-a-agregar-un-kpi-numérico) | `lib/kpis.js`, `app/dashboards/encuesta-lavaderos/page.jsx`, `README.md` |
+| Una tarjeta con un número nuevo | [A](#receta-a-agregar-un-kpi-numérico) | `lib/kpis/encuesta.js`, `app/dashboards/encuesta-lavaderos/page.jsx`, `README.md` |
 | Un gráfico nuevo con datos que ya tengo | [B](#receta-b-agregar-un-gráfico) | `app/dashboards/encuesta-lavaderos/page.jsx` |
 | Un tipo de gráfico que todavía no existe | [C](#receta-c-agregar-un-tipo-de-gráfico-nuevo) | `components/`, `app/dashboards/encuesta-lavaderos/page.jsx` |
 | Usar una pregunta de la encuesta que no está modelada | [D](#receta-d-agregar-un-campo-de-la-encuesta) | `lib/normalizar.js`, `data/encuestas.json` |
@@ -52,8 +52,14 @@ Para rankear categorías. El alto se calcula solo según la cantidad de filas.
 <BarrasHorizontales
   datos={[{ nombre: "Papel/pizarra", valor: 14 }, ...]}  // [{nombre: string, valor: number}]
   color="#0fa3b1"                                        // string, un solo color
+  etiquetaValor="Días"                                   // string, opcional: el nombre del valor en el tooltip (por defecto "Respuestas")
+  anchoEtiquetas={240}                                   // number, opcional: ancho del eje de nombres en px (por defecto 170)
 />
 ```
+
+Con el eje de 170 px entran unos 20 caracteres por renglón; con 240, unos 30.
+Un `nombre` más largo se parte en dos renglones y se pisa con la barra de al
+lado: recortalo antes de pasarlo.
 
 ### `BarrasAgrupadas`
 
@@ -76,6 +82,85 @@ Para comparar varias series sobre las mismas categorías.
 en **todas** las filas de `datos`, incluso cuando el valor es `0`. Si falta,
 Recharts dibuja el eje pero no la barra, y no avisa.
 
+### `Lineas`
+
+Para una evolución en el tiempo: una o varias series sobre el mismo eje X. Es el
+burndown de Performance.
+
+```jsx
+<Lineas
+  datos={[
+    { nombre: "23 sept", Pendiente: 30, "Ritmo ideal": 30 },
+    { nombre: "24 sept", Pendiente: 27, "Ritmo ideal": 27.9 },
+    { nombre: "25 sept", Pendiente: null, "Ritmo ideal": 25.7 },  // null: la línea se corta
+  ]}
+  series={[
+    { clave: "Pendiente", color: "var(--agua)" },                  // grosor 2.5
+    { clave: "Ritmo ideal", color: "var(--gris-suave)", punteada: true },  // punteada, grosor 1.5
+    { clave: "Total del sprint", color: "var(--naranja)", grosor: 1.5 },   // grosor: number, opcional
+  ]}
+/>
+```
+
+**Regla del contrato:** igual que en `BarrasAgrupadas`, cada `clave` existe en
+todas las filas. La diferencia es que acá `null` es un valor válido y quiere
+decir "sin dato": la línea se corta en vez de caer a cero. Usalo para los días
+que todavía no pasaron.
+
+### `AreasApiladas`
+
+Para ver cómo se reparte un total en el tiempo. Es el flujo acumulado
+(cumulative flow) de Performance. Se apilan en el orden de `series`: la primera
+queda abajo.
+
+```jsx
+<AreasApiladas
+  datos={[
+    { nombre: "23 sept", Terminado: 0, "En curso": 4, Pendiente: 26 },
+    { nombre: "24 sept", Terminado: 0, "En curso": 4, Pendiente: 26 },
+    { nombre: "25 sept", Terminado: null, "En curso": null, Pendiente: null },  // null: la pila se corta
+  ]}
+  series={[
+    { clave: "Terminado", color: "var(--verde)" },
+    { clave: "En curso", color: "var(--agua)" },
+    { clave: "Pendiente", color: "var(--tinta-clara)" },
+  ]}
+/>
+```
+
+**Regla del contrato:** igual que en `Lineas`: cada `clave` existe en todas las
+filas y `null` quiere decir "sin dato". Si un día tiene una serie en `null`,
+poné las tres en `null`: una pila a medias no significa nada.
+
+### `BarrasApiladas`
+
+Para comparar categorías viendo a la vez el total y su composición. Son el
+avance por iniciativa y la carga por responsable de Performance. Barras
+horizontales; el alto se calcula solo según la cantidad de filas.
+
+```jsx
+<BarrasApiladas
+  datos={[
+    { nombre: "Epic - LavApp", Terminado: 0, "En curso": 10, Pendiente: 13 },
+    { nombre: "Sin iniciativa", Terminado: 4, "En curso": 6, Pendiente: 23 },
+  ]}
+  series={[                                                  // se apilan en este orden, la primera pegada al eje
+    { clave: "Terminado", color: "var(--verde)" },
+    { clave: "En curso", color: "var(--agua)" },
+    { clave: "Pendiente", color: "var(--tinta-clara)" },
+  ]}
+  anchoEtiquetas={190}                                       // number, opcional: ancho del eje de nombres en px (por defecto 170)
+/>
+```
+
+**Regla del contrato:** cada `clave` existe en todas las filas, con `0` si no
+hay nada. Los `nombre` largos se recortan antes de pasarlos, como en
+`BarrasHorizontales`.
+
+**Colores:** los componentes de gráficos aceptan un token de `globals.css` como
+`var(--agua)`: Recharts lo pasa tal cual al SVG y lo resuelve el navegador. Es la
+forma de no repetir el hex de un token (Performance ya lo usa así).
+
 ---
 
 ## Receta A: agregar un KPI numérico
@@ -89,14 +174,14 @@ Ejemplo: agregar **"% que usa sistema de gestión"**.
 
 ### Paso 1 — calcularlo en el servidor
 
-Archivo: `lib/kpis.js`, dentro de `calcularKpis`.
+Archivo: `lib/kpis/encuesta.js`, dentro de `calcularKpis`.
 
 Agregá el conteo antes del `return` y la salida dentro del objeto que se
 devuelve. Usá el helper `pct(n, total)` que ya está en el archivo; no reimplementes
 el redondeo.
 
 ```js
-// lib/kpis.js — dentro de calcularKpis, antes del return
+// lib/kpis/encuesta.js — dentro de calcularKpis, antes del return
 const conSistema = datos.filter((r) => r.registro === "Sistema de gestion").length;
 
 // ...dentro del objeto que devuelve la función:
@@ -285,7 +370,7 @@ Archivo: `lib/normalizar.js`.
 
 1. Agregá el valor canónico a `VOCABULARIO.registro`.
 2. Si la etiqueta del formulario es más larga, agregá el alias en `ALIAS.registro`.
-3. Si el KPI de "gestión manual" tiene que contarla o no, actualizá `lib/kpis.js`
+3. Si el KPI de "gestión manual" tiene que contarla o no, actualizá `lib/kpis/encuesta.js`
    **y** `app/dashboards/encuesta-lavaderos/page.jsx` (Receta A), y firmá la decisión (ver
    [convenciones.md](convenciones.md#4-firma-de-autor-en-decisiones-de-lógica)).
 4. Si el valor aparece en los chips de filtro, agregalo a `FILTROS_REGISTRO` en
@@ -365,7 +450,7 @@ Archivo: `lib/normalizar.js`.
 
    > Y por lo mismo, **los valores que escribas en ese JSON tienen que ser ya los
    > canónicos de `VOCABULARIO`**, no las etiquetas largas del formulario. Nada
-   > los va a traducir ni validar: van derecho a `lib/kpis.js`.
+   > los va a traducir ni validar: van derecho a `lib/kpis/encuesta.js`.
 
 **Verificación:**
 
@@ -386,7 +471,8 @@ El campo nuevo tiene que aparecer en la primera respuesta.
 > **Si `ENCUESTAS_CSV_URL` no está configurada, esta verificación no prueba nada.**
 >
 > `/api/salud` devuelve exactamente estas claves: `ok`, `fuente`, `motivo`,
-> `filas`, `csvConfigurado`, `filasRechazadas`, `problemas` y `columnasIgnoradas`.
+> `filas`, `csvConfigurado`, `filasRechazadas`, `problemas`, `columnasIgnoradas`
+> y `shortcutConfigurado`.
 > La lista `faltantes` de `lib/normalizar.js` es interna y solo se usa para armar
 > el string de `motivo`.
 
@@ -401,6 +487,9 @@ trabajo es:
 1. **Fuente de datos.** Si el dashboard nuevo no usa la encuesta, agregá su loader
    en `lib/` siguiendo el patrón de `lib/encuestas.js`: una función `async` que
    devuelve `{ datos, fuente, motivo, problemas }` y **siempre tiene respaldo**.
+   Si la fuente no admite un respaldo en disco sin inventar datos, como
+   `lib/shortcut.js`, el respaldo es el cache de `fetch` (solo guarda respuestas
+   200) y la pantalla dice de cuándo es el dato que muestra.
 2. **Módulo de cálculo** en `lib/kpis/<dominio>.js`, con funciones puras.
 3. **Ruta de API** en `app/api/<dominio>/route.js`. Solo traduce HTTP.
 4. **Página** en `app/dashboards/<slug>/page.jsx`, reusando `components/`.
@@ -408,12 +497,6 @@ trabajo es:
    `titulo`, `ruta`, `endpoint` y `contrato`. La navegación y la tarjeta del menú
    salen de ahí solas: no hay que tocar `app/dashboards/encuesta-lavaderos/page.jsx` ni
    `components/Navegacion.jsx`.
-
-   > **Pendiente de la migración a secciones:** `lib/kpis.js` todavía no se movió
-   > a `lib/kpis/encuesta.js`. Mientras haya un solo módulo de cálculo no molesta;
-   > el primero que agregue un segundo dominio de KPIs tiene que hacer ese
-   > rename y actualizar los imports de `app/api/kpis/route.js` y del dashboard
-   > de la encuesta.
 
 6. **Documentá** la fuente y los KPIs nuevos en el README.
 
@@ -425,11 +508,11 @@ Copiá esto en la descripción del PR y marcá cada punto.
 
 ```
 [ ] El KPI/gráfico cambia al usar los chips de filtro (usé `datos`, no `respuestas`)
-[ ] Si toqué un KPI, lo actualicé en lib/kpis.js Y en app/dashboards/encuesta-lavaderos/page.jsx
+[ ] Si toqué un KPI, lo actualicé en lib/kpis/encuesta.js Y en app/dashboards/encuesta-lavaderos/page.jsx
 [ ] Los números de /api/kpis coinciden con los que muestra el dashboard
 [ ] Si agregué un campo, está también en data/encuestas.json
 [ ] curl /api/salud → con la planilla configurada: fuente: "planilla", motivo: null, filasRechazadas: 0
-[ ] npm test pasa (obligatorio si toqué lib/csv.js o lib/normalizar.js)
+[ ] npm test pasa (obligatorio si toqué lib/csv.js, lib/normalizar.js o lib/kpis/performance.js)
 [ ] npm run build pasa sin errores ni warnings nuevos
 [ ] Vi el gráfico con barras dibujadas en el navegador, no solo los ejes
 [ ] Cero errores en la consola del navegador
@@ -442,7 +525,7 @@ Copiá esto en la descripción del PR y marcá cada punto.
 No necesitan server:
 
 ```bash
-npm test                     # tests de csv.js y normalizar.js
+npm test                     # tests de csv.js, normalizar.js y kpis/performance.js
 npm run build                # tiene que compilar sin errores
 ```
 
