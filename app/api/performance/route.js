@@ -52,7 +52,11 @@ async function responder(request, { fresco }) {
   return Response.json(
     armarReporte(
       { iteraciones: sprints.datos, iteracion, ...sprint.datos },
-      { ahora: new Date(), leidoEl: [sprints.leidoEl, sprint.leidoEl] }
+      {
+        ahora: new Date(),
+        leidoEl: [sprints.leidoEl, sprint.leidoEl],
+        problemas: sprint.problemas,
+      }
     )
   );
 }

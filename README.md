@@ -103,8 +103,9 @@ filtrado funciona, hacer clic en el chip **Papel/pizarra**: el KPI "Respuestas e
 el segmento" pasa de 40 a 14 y "Gestión manual o nula" sube a 100 %.
 
 **Performance** muestra el sprint en curso de Shortcut: avance en tareas y en
-puntos, días restantes, tareas por estado y las listas de terminadas y
-pendientes. Arriba hay un selector para ver otros sprints y el botón
+puntos, días restantes, el burndown día a día, tareas por estado, el tiempo de
+resolución (cycle time) y las listas de terminadas y pendientes. Arriba hay un
+selector para ver otros sprints y el botón
 **Actualizar**, que trae los datos de Shortcut en el momento. Sin
 `SHORTCUT_API_TOKEN` la sección muestra que falta conectarla.
 
@@ -387,8 +388,19 @@ curl -X POST http://localhost:3000/api/performance     # lo que hace "Actualizar
 - **Tareas por estado**: una tarjeta por columna del tablero, en su orden.
 - **Terminadas y pendientes**: título, estado, iniciativa (el epic),
   responsables y puntos.
+- **Trabajo pendiente día a día (burndown)**: cuánto faltaba terminar al cierre
+  de cada día, en tareas o en puntos, contra la línea ideal que baja del alcance
+  del primer día a 0 el último. Se reconstruye con tres fechas de cada tarea:
+  cuándo entró al sprint, cuándo se terminó y el corte de día. La API no da la
+  fecha de ingreso como campo: sale del historial de cada story. La línea del
+  total del sprint muestra lo que se sumó con el sprint empezado.
+- **Tiempo de resolución (cycle time)**: de `started_at` a `completed_at` de
+  cada tarea terminada, con promedio y mediana del sprint. Es la misma cuenta
+  que el `cycle_time` de Shortcut.
 
 Las reglas exactas están firmadas con `@decision` en `lib/kpis/performance.js`.
+Una limitación de la API: solo lista las tareas que hoy están en el sprint, así
+que una que se sacó a mitad de camino no aparece en el burndown.
 Los días se cortan en hora de Buenos Aires.
 
 ### Cómo se comporta el cache
@@ -396,7 +408,13 @@ Los días se cortan en hora de Buenos Aires.
 La API de Shortcut acepta 200 requests por minuto. Para no gastarlas en cada
 carga de página, `lib/shortcut.js` cachea con *stale-while-revalidate*: los
 sprints y sus stories se releen cada 5 minutos, y los workflows, las personas y
-los epics cada 15. Un reporte leído en frío cuesta 5 requests.
+los epics cada 15. Un reporte leído en frío cuesta 5 requests más uno por
+story para el historial (el Sprint 1, con 56 stories, son 61 requests y unos 4
+segundos). Los historiales se piden de a 5 y quedan guardados por versión: cada
+uno se cachea con el `updated_at` de su story, así que en las lecturas
+siguientes solo se vuelve a pedir el de las stories que cambiaron. Si Shortcut
+corta con un 429 a mitad de camino, las stories que quedaron sin historial se
+informan y usan su fecha de creación.
 
 **Actualizar** lee de Shortcut sin pasar por el cache y después lo vence, así
 que la próxima carga de cualquiera también trae el dato nuevo. La pantalla
@@ -500,6 +518,8 @@ En **Performance**, por sprint de Shortcut:
 - Días restantes (o días para empezar, si es un sprint próximo)
 - Tareas y puntos por columna del tablero
 - Listas de tareas terminadas y pendientes, con estado, iniciativa y responsables
+- Burndown diario en tareas o puntos, con línea ideal y cambios de alcance
+- Cycle time por tarea terminada, con promedio y mediana
 
 ## Nota metodológica
 

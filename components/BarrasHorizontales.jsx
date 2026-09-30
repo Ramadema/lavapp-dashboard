@@ -10,7 +10,12 @@ import {
   CartesianGrid,
 } from "recharts";
 
-export default function BarrasHorizontales({ datos, color }) {
+export default function BarrasHorizontales({
+  datos,
+  color,
+  etiquetaValor = "Respuestas",
+  anchoEtiquetas = 170,
+}) {
   const alto = Math.max(180, datos.length * 42 + 40);
   return (
     <div style={{ width: "100%", height: alto }}>
@@ -31,14 +36,14 @@ export default function BarrasHorizontales({ datos, color }) {
           <YAxis
             type="category"
             dataKey="nombre"
-            width={170}
+            width={anchoEtiquetas}
             tick={{ fontSize: 12, fill: "#5c6b76" }}
             axisLine={false}
             tickLine={false}
           />
           <Tooltip
             cursor={{ fill: "rgba(15,163,177,0.06)" }}
-            formatter={(v) => [v, "Respuestas"]}
+            formatter={(v) => [v, etiquetaValor]}
           />
           <Bar dataKey="valor" fill={color} radius={[0, 4, 4, 0]} barSize={20} />
         </BarChart>

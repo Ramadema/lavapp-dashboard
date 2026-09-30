@@ -52,8 +52,14 @@ Para rankear categorías. El alto se calcula solo según la cantidad de filas.
 <BarrasHorizontales
   datos={[{ nombre: "Papel/pizarra", valor: 14 }, ...]}  // [{nombre: string, valor: number}]
   color="#0fa3b1"                                        // string, un solo color
+  etiquetaValor="Días"                                   // string, opcional: el nombre del valor en el tooltip (por defecto "Respuestas")
+  anchoEtiquetas={240}                                   // number, opcional: ancho del eje de nombres en px (por defecto 170)
 />
 ```
+
+Con el eje de 170 px entran unos 20 caracteres por renglón; con 240, unos 30.
+Un `nombre` más largo se parte en dos renglones y se pisa con la barra de al
+lado: recortalo antes de pasarlo.
 
 ### `BarrasAgrupadas`
 
@@ -75,6 +81,35 @@ Para comparar varias series sobre las mismas categorías.
 **Regla del contrato:** cada `clave` de `series` tiene que existir como propiedad
 en **todas** las filas de `datos`, incluso cuando el valor es `0`. Si falta,
 Recharts dibuja el eje pero no la barra, y no avisa.
+
+### `Lineas`
+
+Para una evolución en el tiempo: una o varias series sobre el mismo eje X. Es el
+burndown de Performance.
+
+```jsx
+<Lineas
+  datos={[
+    { nombre: "23 sept", Pendiente: 30, "Ritmo ideal": 30 },
+    { nombre: "24 sept", Pendiente: 27, "Ritmo ideal": 27.9 },
+    { nombre: "25 sept", Pendiente: null, "Ritmo ideal": 25.7 },  // null: la línea se corta
+  ]}
+  series={[
+    { clave: "Pendiente", color: "var(--agua)" },                  // grosor 2.5
+    { clave: "Ritmo ideal", color: "var(--gris-suave)", punteada: true },  // punteada, grosor 1.5
+    { clave: "Total del sprint", color: "var(--naranja)", grosor: 1.5 },   // grosor: number, opcional
+  ]}
+/>
+```
+
+**Regla del contrato:** igual que en `BarrasAgrupadas`, cada `clave` existe en
+todas las filas. La diferencia es que acá `null` es un valor válido y quiere
+decir "sin dato": la línea se corta en vez de caer a cero. Usalo para los días
+que todavía no pasaron.
+
+**Colores:** los componentes de gráficos aceptan un token de `globals.css` como
+`var(--agua)`: Recharts lo pasa tal cual al SVG y lo resuelve el navegador. Es la
+forma de no repetir el hex de un token (Performance ya lo usa así).
 
 ---
 

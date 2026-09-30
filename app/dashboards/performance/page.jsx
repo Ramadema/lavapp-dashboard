@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import EncabezadoSeccion from "@/components/EncabezadoSeccion";
 import TarjetaKpi from "@/components/TarjetaKpi";
+import Lineas from "@/components/Lineas";
+import BarrasHorizontales from "@/components/BarrasHorizontales";
 import { buscarSeccion, ESTADO_SIN_FUENTE } from "@/lib/secciones";
 import { diaLocal, ESTADOS_SPRINT, ZONA_HORARIA } from "@/lib/kpis/performance";
 
@@ -28,6 +30,32 @@ const fechaCorta = (dia) => FECHA_CORTA.format(new Date(`${dia}T00:00:00Z`));
 const diaYHora = (instante) => DIA_Y_HORA.format(new Date(instante));
 const conPorcentaje = (pct) => (pct === null ? "–" : `${pct}%`);
 const dias = (n) => (n === 1 ? "1 día" : `${n} días`);
+const textoDeTareas = (n) => (n === 1 ? "1 tarea" : `${n} tareas`);
+const recortar = (texto, largo) =>
+  texto.length > largo ? texto.slice(0, largo - 1).trimEnd() + "…" : texto;
+
+// Menos de un dia se lee mejor en horas: "5 h" y no "0.2 días".
+function duracion(enDias) {
+  if (enDias === null) return "–";
+  if (enDias < 1) {
+    const horas = Math.round(enDias * 24);
+    return horas < 1 ? "menos de 1 h" : `${horas} h`;
+  }
+  return dias(enDias);
+}
+
+// Los colores son los tokens de globals.css: Recharts los recibe como var() y
+// el navegador los resuelve, asi no se repite el hex del token.
+const SERIES_BURNDOWN = [
+  { clave: "Pendiente", color: "var(--agua)" },
+  { clave: "Ritmo ideal", color: "var(--gris-suave)", punteada: true },
+  { clave: "Total del sprint", color: "var(--naranja)", grosor: 1.5 },
+];
+
+const UNIDADES = [
+  { valor: "tareas", texto: "Tareas" },
+  { valor: "puntos", texto: "Puntos" },
+];
 
 async function pedirReporte(sprint, metodo) {
   const url = seccion.endpoint + (sprint ? `?sprint=${sprint}` : "");
@@ -86,9 +114,7 @@ function tarjetaDeDias(sprint) {
 function detalleDePuntos({ total, terminados, tareasSinEstimar }) {
   if (total === 0) return "ninguna tarea tiene puntos cargados";
   const sinEstimar =
-    tareasSinEstimar === 0
-      ? ""
-      : ` · ${tareasSinEstimar} ${tareasSinEstimar === 1 ? "tarea" : "tareas"} sin estimar`;
+    tareasSinEstimar === 0 ? "" : ` · ${textoDeTareas(tareasSinEstimar)} sin estimar`;
   return `${terminados} de ${total} puntos${sinEstimar}`;
 }
 
@@ -217,7 +243,8 @@ function PanelDeError({ error }) {
 }
 
 function Reporte({ reporte }) {
-  const { sprint, resumen, porEstado, terminadas, pendientes, lectura, problemas } = reporte;
+  const { sprint, resumen, porEstado, burndown, cycleTime, terminadas, pendientes, lectura, problemas } =
+    reporte;
   const tarjeta = tarjetaDeDias(sprint);
 
   return (
@@ -250,6 +277,8 @@ function Reporte({ reporte }) {
         />
       </div>
 
+      <PanelBurndown burndown={burndown} sprint={sprint} hayPuntos={resumen.puntos.total > 0} />
+
       <section className="panel">
         <h2>Tareas por estado</h2>
         <p className="subtitulo">En qué columna del tablero está hoy cada tarea del sprint</p>
@@ -268,6 +297,8 @@ function Reporte({ reporte }) {
           </div>
         )}
       </section>
+
+      <PanelCycleTime cycleTime={cycleTime} />
 
       <section className="panel">
         <h2>Terminadas ({terminadas.length})</h2>
@@ -292,6 +323,126 @@ function Reporte({ reporte }) {
           ` No se cuentan ${resumen.tareas.archivadas} tareas archivadas.`}
       </p>
     </>
+  );
+}
+
+function PanelBurndown({ burndown, sprint, hayPuntos }) {
+  const [unidad, setUnidad] = useState("tareas");
+  const enPuntos = hayPuntos && unidad === "puntos";
+
+  const datos = useMemo(
+    () =>
+      burndown.dias.map((d) => ({
+        nombre: fechaCorta(d.dia),
+        Pendiente: enPuntos ? d.puntos : d.tareas,
+        "Ritmo ideal": enPuntos ? d.idealPuntos : d.idealTareas,
+        "Total del sprint": enPuntos ? d.alcancePuntos : d.alcanceTareas,
+      })),
+    [burndown, enPuntos]
+  );
+
+  const cambios = burndown.cambiosDeAlcance.map((c) => {
+    const puntos = c.puntos > 0 ? ` (${c.puntos} puntos)` : "";
+    const verbo = c.tareas === 1 ? "entró" : "entraron";
+    return `el ${fechaCorta(c.dia)} ${verbo} ${textoDeTareas(c.tareas)}${puntos}`;
+  });
+
+  return (
+    <section className="panel">
+      <h2>Trabajo pendiente día a día</h2>
+      <p className="subtitulo">
+        Cuánto faltaba terminar al cierre de cada día, contra el ritmo que hace falta
+        para cerrar el sprint a tiempo (burndown)
+      </p>
+      {hayPuntos && (
+        <div className="filtros" role="group" aria-label="Medir el trabajo en">
+          <span>Medir en:</span>
+          {UNIDADES.map((u) => (
+            <button
+              key={u.valor}
+              className={"chip" + (unidad === u.valor ? " activo" : "")}
+              aria-pressed={unidad === u.valor}
+              onClick={() => setUnidad(u.valor)}
+            >
+              {u.texto}
+            </button>
+          ))}
+        </div>
+      )}
+      <Lineas datos={datos} series={SERIES_BURNDOWN} />
+      {sprint.diasParaEmpezar > 0 && (
+        <p className="motivo">
+          El sprint todavía no empezó: la línea de lo pendiente aparece desde el{" "}
+          {fechaCorta(sprint.inicio)}.
+        </p>
+      )}
+      {cambios.length > 0 && (
+        <p className="motivo">
+          El total del sprint cambió: {cambios.join("; ")}. Esas tareas se sumaron con
+          el sprint empezado.
+        </p>
+      )}
+      {burndown.ingresosEstimados > 0 && (
+        <p className="motivo">
+          {burndown.ingresosEstimados === 1
+            ? "De 1 tarea no se pudo saber cuándo entró al sprint: se toma su fecha de creación."
+            : `De ${burndown.ingresosEstimados} tareas no se pudo saber cuándo entraron al sprint: se toma su fecha de creación.`}
+        </p>
+      )}
+    </section>
+  );
+}
+
+function PanelCycleTime({ cycleTime }) {
+  const { promedioDias, medianaDias, tareas, sinDatos } = cycleTime;
+  const barras = useMemo(
+    // Con el eje de 240 px entran unos 30 caracteres por renglon; mas largo,
+    // Recharts parte la etiqueta en dos y se pisa con la barra de al lado.
+    () => tareas.map((t) => ({ nombre: recortar(`sc-${t.id} ${t.titulo}`, 30), valor: t.dias })),
+    [tareas]
+  );
+
+  return (
+    <section className="panel">
+      <h2>Tiempo de resolución</h2>
+      <p className="subtitulo">
+        Cuánto tardó cada tarea terminada, desde que se empezó hasta que se cerró
+        (cycle time)
+      </p>
+      {tareas.length === 0 ? (
+        <p className="motivo">Todavía no hay tareas terminadas para medir.</p>
+      ) : (
+        <>
+          <div className="grilla-kpis">
+            <TarjetaKpi
+              etiqueta="Promedio"
+              valor={duracion(promedioDias)}
+              detalle={
+                tareas.length === 1 ? "sobre 1 tarea terminada" : `sobre ${tareas.length} tareas terminadas`
+              }
+            />
+            <TarjetaKpi
+              etiqueta="Mediana"
+              valor={duracion(medianaDias)}
+              detalle="la mitad de las tareas tardó menos que esto"
+            />
+          </div>
+          <BarrasHorizontales
+            datos={barras}
+            color="var(--agua)"
+            etiquetaValor="Días"
+            anchoEtiquetas={240}
+          />
+        </>
+      )}
+      {sinDatos > 0 && (
+        <p className="motivo">
+          {sinDatos === 1
+            ? "1 tarea terminada no tiene fecha de inicio y no se midió."
+            : `${sinDatos} tareas terminadas no tienen fecha de inicio y no se midieron.`}
+        </p>
+      )}
+    </section>
   );
 }
 

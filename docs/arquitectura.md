@@ -97,9 +97,11 @@ app/api/performance/route.js
    │  obtenerSprints() · elegirSprintPorDefecto() · obtenerSprint(id)
    ▼
 lib/shortcut.js ──▶ API REST v3 de Shortcut (token en SHORTCUT_API_TOKEN)
-   │                 cache de Next: 5 min sprints y stories, 15 min catálogos
+   │                 cache de Next: 5 min sprints y stories, 15 min catálogos,
+   │                 historial de cada story guardado por versión
    ▼
 respuestas crudas ──▶ lib/kpis/performance.js ──▶ armarReporte()
+                         resumen · burndown · cycle time
 ```
 
 Shortcut no tiene respaldo en disco: el respaldo es el propio cache, que solo
@@ -116,7 +118,7 @@ guarda respuestas 200. El detalle está en el
 | `lib/csv.js` | Parser CSV (RFC 4180). No sabe nada de encuestas. **No filtra filas vacías**: el índice de cada fila tiene que seguir siendo el número de línea del archivo, porque `/api/salud` lo reporta para ir a corregir la celda. Lanza si encuentra una comilla sin cerrar. | Casi nunca. Es genérico. |
 | `lib/normalizar.js` | Traduce la planilla al vocabulario canónico y valida. `CAMPOS`, `VOCABULARIO`, `ALIAS`, `PATRONES_PREGUNTA`. | Al agregar una pregunta, una opción nueva o una etiqueta nueva del formulario. |
 | `data/encuestas.json` | Las 40 respuestas originales. Doble función: dato inicial y respaldo. | Ver la advertencia de abajo. |
-| `lib/shortcut.js` | Único archivo que habla con la API de Shortcut. Lee `SHORTCUT_API_TOKEN`, cachea con tag `shortcut`, traduce los errores HTTP a un `motivo` legible y devuelve las respuestas crudas. El token no sale nunca de acá. | Al pedir un dato nuevo a Shortcut o cambiar los tiempos de cache. |
+| `lib/shortcut.js` | Único archivo que habla con la API de Shortcut. Lee `SHORTCUT_API_TOKEN`, cachea con tag `shortcut`, traduce los errores HTTP a un `motivo` legible y devuelve las respuestas crudas. Pide el historial de cada story (para saber cuándo entró al sprint) de a 5 y cacheado por versión: con el `updated_at` de la story en un header, solo se vuelve a pedir el de las que cambiaron. El token no sale nunca de acá. | Al pedir un dato nuevo a Shortcut o cambiar los tiempos de cache. |
 
 > **Cuidado con `data/encuestas.json`:** se importa directo en
 > `lib/encuestas.js` y **no pasa por la normalización**. Si agregás un campo a
@@ -140,7 +142,7 @@ fallan lo hacen en silencio.
 | Archivo | Responsabilidad |
 |---------|-----------------|
 | `lib/kpis/encuesta.js` | `calcularKpis(datos)` → objeto de indicadores. Funciones puras, sin efectos. |
-| `lib/kpis/performance.js` | `armarReporte(respuestasDeShortcut, { ahora })` → el reporte del sprint: resumen, tareas por estado, listas. También `elegirSprintPorDefecto`, `ETAPAS` y `diaLocal`, que usa la pantalla. Recibe la hora por parámetro para que los tests la fijen. |
+| `lib/kpis/performance.js` | `armarReporte(respuestasDeShortcut, { ahora })` → el reporte del sprint: resumen, tareas por estado, listas, burndown (`calcularBurndown`, con la fecha de ingreso de cada tarea sacada de su historial por `fechaDeIngreso`) y cycle time (`calcularCycleTime`). También `elegirSprintPorDefecto`, `ETAPAS` y `diaLocal`, que usa la pantalla. Recibe la hora por parámetro para que los tests la fijen. |
 | `lib/secciones.js` | `SECCIONES`, `GRUPOS`, `buscarSeccion`, `cuerpoSinFuente`. Declara qué secciones existen, su ruta, su endpoint y el contrato de ese endpoint. Puro: sin React, sin `fetch`, sin `process.env`. |
 
 > `lib/secciones.js` lo leen las dos capas de arriba: la presentación para dibujar
@@ -177,7 +179,7 @@ silencio](convenciones.md#53-fallar-en-silencio) aplicada a una sección entera.
 | `app/page.jsx` | El menú inicial: una tarjeta por sección, agrupadas. Server component. |
 | `app/dashboards/encuesta-lavaderos/page.jsx` | El dashboard de la encuesta. `"use client"`. |
 | `app/dashboards/estado/page.jsx` | `/api/salud` con interfaz: fuente en uso, filas rechazadas, columnas ignoradas. `"use client"`. |
-| `app/dashboards/performance/page.jsx` | El avance del sprint para negocio: selector de sprint, "Actualizar", resumen, tareas por estado y listas. Si Shortcut falla, muestra el motivo y no números. `"use client"`. |
+| `app/dashboards/performance/page.jsx` | El avance del sprint para negocio: selector de sprint, "Actualizar", resumen, burndown en tareas o puntos, tareas por estado, cycle time y listas. Si Shortcut falla, muestra el motivo y no números. `"use client"`. |
 | `app/dashboards/{operacion,lavaderos,clientes,facturacion}/page.jsx` | Áreas sin fuente. Encabezado + `SinFuente`. Cada una son 20 líneas: toda la variación está en `lib/secciones.js`. |
 | `app/globals.css` | Tokens de color (`--tinta`, `--agua`, …) y todas las clases. Sin CSS-in-JS. |
 | `components/Navegacion.jsx` | Barra lateral. `"use client"` porque marca el enlace activo con `usePathname`. |
@@ -186,8 +188,9 @@ silencio](convenciones.md#53-fallar-en-silencio) aplicada a una sección entera.
 | `components/TarjetaKpi.jsx` | Tarjeta de un indicador numérico. |
 | `components/BarrasHorizontales.jsx` | Gráfico de barras horizontales (ranking de categorías). |
 | `components/BarrasAgrupadas.jsx` | Gráfico de barras verticales agrupadas (comparar series). |
+| `components/Lineas.jsx` | Gráfico de líneas (evolución en el tiempo). Un `null` corta la línea: es lo que usa el burndown para los días que no pasaron. |
 
-Los contratos de props de los tres componentes están en
+Los contratos de props de los componentes están en
 [agregar-kpis-y-graficos.md](agregar-kpis-y-graficos.md#contratos-de-los-componentes).
 
 ## Cómo se agrega un dashboard nuevo
