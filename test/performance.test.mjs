@@ -8,8 +8,11 @@
 
 import {
   armarReporte,
+  avancePorIniciativa,
   calcularBurndown,
   calcularCycleTime,
+  calcularFlujo,
+  cargaPorResponsable,
   describirSprint,
   diaLocal,
   elegirSprintPorDefecto,
@@ -409,6 +412,69 @@ console.log("### 9. cycle time");
   check("coincide con el cycle_time que calcula Shortcut", r.cycleTime.tareas[0].dias, Math.round((168968 / 86400) * 100) / 100);
   const conOverride = reporte([terminada({ started_at: "2026-09-23T00:00:00Z", started_at_override: "2026-09-24T00:00:00Z", completed_at: "2026-09-26T00:00:00Z" })]);
   check("usa el override de inicio si lo hay", conOverride.cycleTime.tareas[0].dias, 2);
+}
+
+console.log("### 10. flujo acumulado");
+{
+  // Mismo sprint y mismo "hoy" que el burndown: las curvas tienen que sumar lo mismo.
+  const sprint = describirSprint(iteracion({ start_date: "2026-09-23", end_date: "2026-09-29" }), new Date("2026-09-27T15:00:00Z"));
+  const f = calcularFlujo(
+    [
+      // Empieza el 23, termina el 24.
+      tarea({ ingresoEl: "2026-09-20T12:00:00Z", empezadaEl: "2026-09-23T12:00:00Z", terminada: true, terminadaEl: "2026-09-24T12:00:00Z" }),
+      // Entra el 23 y se empieza el 26, sigue abierta.
+      tarea({ ingresoEl: "2026-09-23T10:00:00Z", empezadaEl: "2026-09-26T12:00:00Z" }),
+      // Entra el 25, se termina el 25 de Buenos Aires sin haberse marcado empezada.
+      tarea({ ingresoEl: "2026-09-25T16:00:00Z", terminada: true, terminadaEl: "2026-09-26T02:30:00Z" }),
+      tarea({ ingresoEl: "2026-09-26T12:00:00Z" }),
+    ],
+    sprint,
+    new Date("2026-09-27T15:00:00Z")
+  );
+  check("terminadas acumuladas por dia; futuro en null", f.dias.map((d) => d.terminadas), [0, 1, 2, 2, 2, null, null]);
+  check("en curso: empezadas y no terminadas", f.dias.map((d) => d.enCurso), [1, 0, 0, 1, 1, null, null]);
+  check("pendientes: el resto de lo que ya entro", f.dias.map((d) => d.pendientes), [1, 1, 1, 1, 1, null, null]);
+  check(
+    "las tres etapas suman el alcance del dia",
+    f.dias.slice(0, 5).map((d) => d.terminadas + d.enCurso + d.pendientes),
+    [2, 2, 3, 4, 4]
+  );
+}
+{
+  const sprint = describirSprint(iteracion(), AHORA);
+  const f = calcularFlujo([tarea({ terminada: true, terminadaEl: null })], sprint, AHORA);
+  const hoy = f.dias.find((d) => d.dia === "2026-09-30");
+  check("terminada sin fecha: pendiente hasta hoy, terminada hoy", [f.dias[0].pendientes, hoy.terminadas], [1, 1]);
+}
+
+console.log("### 11. avance por iniciativa y carga por responsable");
+{
+  const r = reporte([
+    terminada({ epic_id: 16, owner_ids: ["uuid-ana"], estimate: 3 }),
+    enCurso({ epic_id: 16, owner_ids: ["uuid-ana", "uuid-beto"], estimate: 2 }),
+    story({ epic_id: 16, owner_ids: [] }),
+    story({ epic_id: null, owner_ids: ["uuid-beto"], estimate: 1 }),
+  ]);
+  check(
+    "por iniciativa: el epic y 'Sin iniciativa', del mas cargado al menos",
+    r.porIniciativa.grupos.map((g) => [g.nombre, g.total, g.terminadas, g.enCurso, g.pendientes, g.pct]),
+    [["Epic - LavApp", 3, 1, 1, 1, 33.3], ["Sin iniciativa", 1, 0, 0, 1, 0]]
+  );
+  check("por iniciativa: puntos totales y terminados", r.porIniciativa.grupos.map((g) => [g.puntos, g.puntosTerminados]), [[5, 3], [1, 0]]);
+  check(
+    "por responsable: la compartida cuenta para los dos; sin dueño va a 'Sin asignar'",
+    r.porResponsable.grupos.map((g) => [g.nombre, g.total, g.terminadas, g.enCurso, g.pendientes]),
+    [["Ana Pérez", 2, 1, 1, 0], ["beto", 2, 0, 1, 1], ["Sin asignar", 1, 0, 0, 1]]
+  );
+  check("se informa cuantas estan compartidas", r.porResponsable.compartidas, 1);
+}
+{
+  check("sin tareas: sin grupos", [avancePorIniciativa([]).grupos, cargaPorResponsable([]).grupos], [[], []]);
+  const empate = cargaPorResponsable([
+    tarea({ responsables: ["Zoe"], etapa: "Pendiente" }),
+    tarea({ responsables: ["Ana"], etapa: "Pendiente" }),
+  ]);
+  check("a igual carga, orden alfabetico", empate.grupos.map((g) => g.nombre), ["Ana", "Zoe"]);
 }
 
 console.log("\n" + ok + " OK, " + fail + " fallas");

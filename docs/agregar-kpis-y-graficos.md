@@ -107,6 +107,56 @@ todas las filas. La diferencia es que acá `null` es un valor válido y quiere
 decir "sin dato": la línea se corta en vez de caer a cero. Usalo para los días
 que todavía no pasaron.
 
+### `AreasApiladas`
+
+Para ver cómo se reparte un total en el tiempo. Es el flujo acumulado
+(cumulative flow) de Performance. Se apilan en el orden de `series`: la primera
+queda abajo.
+
+```jsx
+<AreasApiladas
+  datos={[
+    { nombre: "23 sept", Terminado: 0, "En curso": 4, Pendiente: 26 },
+    { nombre: "24 sept", Terminado: 0, "En curso": 4, Pendiente: 26 },
+    { nombre: "25 sept", Terminado: null, "En curso": null, Pendiente: null },  // null: la pila se corta
+  ]}
+  series={[
+    { clave: "Terminado", color: "var(--verde)" },
+    { clave: "En curso", color: "var(--agua)" },
+    { clave: "Pendiente", color: "var(--tinta-clara)" },
+  ]}
+/>
+```
+
+**Regla del contrato:** igual que en `Lineas`: cada `clave` existe en todas las
+filas y `null` quiere decir "sin dato". Si un día tiene una serie en `null`,
+poné las tres en `null`: una pila a medias no significa nada.
+
+### `BarrasApiladas`
+
+Para comparar categorías viendo a la vez el total y su composición. Son el
+avance por iniciativa y la carga por responsable de Performance. Barras
+horizontales; el alto se calcula solo según la cantidad de filas.
+
+```jsx
+<BarrasApiladas
+  datos={[
+    { nombre: "Epic - LavApp", Terminado: 0, "En curso": 10, Pendiente: 13 },
+    { nombre: "Sin iniciativa", Terminado: 4, "En curso": 6, Pendiente: 23 },
+  ]}
+  series={[                                                  // se apilan en este orden, la primera pegada al eje
+    { clave: "Terminado", color: "var(--verde)" },
+    { clave: "En curso", color: "var(--agua)" },
+    { clave: "Pendiente", color: "var(--tinta-clara)" },
+  ]}
+  anchoEtiquetas={190}                                       // number, opcional: ancho del eje de nombres en px (por defecto 170)
+/>
+```
+
+**Regla del contrato:** cada `clave` existe en todas las filas, con `0` si no
+hay nada. Los `nombre` largos se recortan antes de pasarlos, como en
+`BarrasHorizontales`.
+
 **Colores:** los componentes de gráficos aceptan un token de `globals.css` como
 `var(--agua)`: Recharts lo pasa tal cual al SVG y lo resuelve el navegador. Es la
 forma de no repetir el hex de un token (Performance ya lo usa así).

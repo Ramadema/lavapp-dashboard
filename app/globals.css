@@ -442,6 +442,20 @@ body {
 
 /* ─── Performance ───────────────────────────────────────────────────────── */
 
+/* El detalle de cada grupo debajo de un desglose apilado. */
+.lista-avance {
+  margin: 8px 0 14px;
+  padding-left: 20px;
+  font-size: 13px;
+  color: var(--gris);
+  line-height: 1.7;
+}
+
+.lista-avance strong {
+  color: var(--tinta);
+  font-weight: 600;
+}
+
 .controles {
   display: flex;
   flex-wrap: wrap;

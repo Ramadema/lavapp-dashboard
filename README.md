@@ -103,7 +103,8 @@ filtrado funciona, hacer clic en el chip **Papel/pizarra**: el KPI "Respuestas e
 el segmento" pasa de 40 a 14 y "Gestión manual o nula" sube a 100 %.
 
 **Performance** muestra el sprint en curso de Shortcut: avance en tareas y en
-puntos, días restantes, el burndown día a día, tareas por estado, el tiempo de
+puntos, días restantes, el burndown y el flujo acumulado día a día, tareas por
+estado, el avance por iniciativa, la carga por responsable, el tiempo de
 resolución (cycle time) y las listas de terminadas y pendientes. Arriba hay un
 selector para ver otros sprints y el botón
 **Actualizar**, que trae los datos de Shortcut en el momento. Sin
@@ -394,6 +395,17 @@ curl -X POST http://localhost:3000/api/performance     # lo que hace "Actualizar
   cuándo entró al sprint, cuándo se terminó y el corte de día. La API no da la
   fecha de ingreso como campo: sale del historial de cada story. La línea del
   total del sprint muestra lo que se sumó con el sprint empezado.
+- **Flujo del trabajo día a día (cumulative flow)**: cuántas tareas había en
+  cada etapa —terminada, en curso, pendiente— al cierre de cada día. Usa las
+  mismas fechas y el mismo corte de día que el burndown, más `started_at` para
+  saber cuándo se empezó cada una, así las dos curvas cuentan lo mismo. Si la
+  franja "En curso" se ensancha, el trabajo se está acumulando antes de cerrarse.
+- **Avance por iniciativa**: las tareas de cada epic partidas por etapa, con el
+  porcentaje terminado y los puntos. Las que no tienen epic van en "Sin
+  iniciativa".
+- **Carga por responsable**: lo mismo por persona. Una tarea con dos
+  responsables cuenta entera para cada uno (se informa cuántas están así), y
+  las que no tienen responsable van en "Sin asignar".
 - **Tiempo de resolución (cycle time)**: de `started_at` a `completed_at` de
   cada tarea terminada, con promedio y mediana del sprint. Es la misma cuenta
   que el `cycle_time` de Shortcut.
@@ -519,6 +531,8 @@ En **Performance**, por sprint de Shortcut:
 - Tareas y puntos por columna del tablero
 - Listas de tareas terminadas y pendientes, con estado, iniciativa y responsables
 - Burndown diario en tareas o puntos, con línea ideal y cambios de alcance
+- Flujo acumulado diario: tareas terminadas, en curso y pendientes
+- Avance por iniciativa (epic) y carga por responsable, partidos por etapa
 - Cycle time por tarea terminada, con promedio y mediana
 
 ## Nota metodológica

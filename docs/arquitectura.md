@@ -179,7 +179,7 @@ silencio](convenciones.md#53-fallar-en-silencio) aplicada a una sección entera.
 | `app/page.jsx` | El menú inicial: una tarjeta por sección, agrupadas. Server component. |
 | `app/dashboards/encuesta-lavaderos/page.jsx` | El dashboard de la encuesta. `"use client"`. |
 | `app/dashboards/estado/page.jsx` | `/api/salud` con interfaz: fuente en uso, filas rechazadas, columnas ignoradas. `"use client"`. |
-| `app/dashboards/performance/page.jsx` | El avance del sprint para negocio: selector de sprint, "Actualizar", resumen, burndown en tareas o puntos, tareas por estado, cycle time y listas. Si Shortcut falla, muestra el motivo y no números. `"use client"`. |
+| `app/dashboards/performance/page.jsx` | El avance del sprint para negocio: selector de sprint, "Actualizar", resumen, burndown en tareas o puntos, flujo acumulado, tareas por estado, avance por iniciativa, carga por responsable, cycle time y listas. Si Shortcut falla, muestra el motivo y no números. `"use client"`. |
 | `app/dashboards/{operacion,lavaderos,clientes,facturacion}/page.jsx` | Áreas sin fuente. Encabezado + `SinFuente`. Cada una son 20 líneas: toda la variación está en `lib/secciones.js`. |
 | `app/globals.css` | Tokens de color (`--tinta`, `--agua`, …) y todas las clases. Sin CSS-in-JS. |
 | `components/Navegacion.jsx` | Barra lateral. `"use client"` porque marca el enlace activo con `usePathname`. |
@@ -189,6 +189,8 @@ silencio](convenciones.md#53-fallar-en-silencio) aplicada a una sección entera.
 | `components/BarrasHorizontales.jsx` | Gráfico de barras horizontales (ranking de categorías). |
 | `components/BarrasAgrupadas.jsx` | Gráfico de barras verticales agrupadas (comparar series). |
 | `components/Lineas.jsx` | Gráfico de líneas (evolución en el tiempo). Un `null` corta la línea: es lo que usa el burndown para los días que no pasaron. |
+| `components/AreasApiladas.jsx` | Áreas apiladas (cómo se reparte un total en el tiempo). Es el flujo acumulado de Performance. |
+| `components/BarrasApiladas.jsx` | Barras horizontales apiladas (total y composición por categoría). Avance por iniciativa y carga por responsable de Performance. |
 
 Los contratos de props de los componentes están en
 [agregar-kpis-y-graficos.md](agregar-kpis-y-graficos.md#contratos-de-los-componentes).

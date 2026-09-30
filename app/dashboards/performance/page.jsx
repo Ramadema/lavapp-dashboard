@@ -4,9 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import EncabezadoSeccion from "@/components/EncabezadoSeccion";
 import TarjetaKpi from "@/components/TarjetaKpi";
 import Lineas from "@/components/Lineas";
+import AreasApiladas from "@/components/AreasApiladas";
+import BarrasApiladas from "@/components/BarrasApiladas";
 import BarrasHorizontales from "@/components/BarrasHorizontales";
 import { buscarSeccion, ESTADO_SIN_FUENTE } from "@/lib/secciones";
-import { diaLocal, ESTADOS_SPRINT, ZONA_HORARIA } from "@/lib/kpis/performance";
+import { diaLocal, ESTADOS_SPRINT, ETAPAS, ZONA_HORARIA } from "@/lib/kpis/performance";
 
 const seccion = buscarSeccion("performance");
 
@@ -51,6 +53,22 @@ const SERIES_BURNDOWN = [
   { clave: "Ritmo ideal", color: "var(--gris-suave)", punteada: true },
   { clave: "Total del sprint", color: "var(--naranja)", grosor: 1.5 },
 ];
+
+// Las tres etapas de negocio, en el orden en que se apilan: lo terminado abajo
+// (o pegado al eje) y lo pendiente arriba, que es como se leen el cumulative
+// flow y los desgloses de Shortcut. Las claves son los nombres de ETAPAS para
+// que el grafico diga lo mismo que las tarjetas y las tablas.
+const SERIES_ETAPAS = [
+  { clave: ETAPAS.done, color: "var(--verde)" },
+  { clave: ETAPAS.started, color: "var(--agua)" },
+  { clave: ETAPAS.unstarted, color: "var(--tinta-clara)" },
+];
+
+const porEtapa = (g) => ({
+  [ETAPAS.done]: g.terminadas,
+  [ETAPAS.started]: g.enCurso,
+  [ETAPAS.unstarted]: g.pendientes,
+});
 
 const UNIDADES = [
   { valor: "tareas", texto: "Tareas" },
@@ -243,8 +261,20 @@ function PanelDeError({ error }) {
 }
 
 function Reporte({ reporte }) {
-  const { sprint, resumen, porEstado, burndown, cycleTime, terminadas, pendientes, lectura, problemas } =
-    reporte;
+  const {
+    sprint,
+    resumen,
+    porEstado,
+    burndown,
+    flujo,
+    porIniciativa,
+    porResponsable,
+    cycleTime,
+    terminadas,
+    pendientes,
+    lectura,
+    problemas,
+  } = reporte;
   const tarjeta = tarjetaDeDias(sprint);
 
   return (
@@ -278,6 +308,12 @@ function Reporte({ reporte }) {
       </div>
 
       <PanelBurndown burndown={burndown} sprint={sprint} hayPuntos={resumen.puntos.total > 0} />
+
+      <PanelFlujo flujo={flujo} sprint={sprint} />
+
+      <PanelPorIniciativa porIniciativa={porIniciativa} />
+
+      <PanelPorResponsable porResponsable={porResponsable} />
 
       <section className="panel">
         <h2>Tareas por estado</h2>
@@ -387,6 +423,101 @@ function PanelBurndown({ burndown, sprint, hayPuntos }) {
           {burndown.ingresosEstimados === 1
             ? "De 1 tarea no se pudo saber cuándo entró al sprint: se toma su fecha de creación."
             : `De ${burndown.ingresosEstimados} tareas no se pudo saber cuándo entraron al sprint: se toma su fecha de creación.`}
+        </p>
+      )}
+    </section>
+  );
+}
+
+function PanelFlujo({ flujo, sprint }) {
+  const datos = useMemo(
+    () =>
+      flujo.dias.map((d) => ({
+        nombre: fechaCorta(d.dia),
+        [ETAPAS.done]: d.terminadas,
+        [ETAPAS.started]: d.enCurso,
+        [ETAPAS.unstarted]: d.pendientes,
+      })),
+    [flujo]
+  );
+
+  return (
+    <section className="panel">
+      <h2>Flujo del trabajo día a día</h2>
+      <p className="subtitulo">
+        Cuántas tareas había en cada etapa al cierre de cada día (cumulative flow).
+        Si la franja «En curso» se ensancha, el trabajo se está acumulando antes de
+        cerrarse.
+      </p>
+      <AreasApiladas datos={datos} series={SERIES_ETAPAS} />
+      {sprint.diasParaEmpezar > 0 && (
+        <p className="motivo">
+          El sprint todavía no empezó: las franjas aparecen desde el {fechaCorta(sprint.inicio)}.
+        </p>
+      )}
+    </section>
+  );
+}
+
+// Un desglose por grupo (iniciativa o persona): la barra apilada y, debajo, el
+// avance de cada grupo en una linea. Los nombres largos se recortan para que
+// entren en el eje.
+function Desglose({ grupos }) {
+  const datos = useMemo(
+    () => grupos.map((g) => ({ nombre: recortar(g.nombre, 24), ...porEtapa(g) })),
+    [grupos]
+  );
+  return (
+    <>
+      <BarrasApiladas datos={datos} series={SERIES_ETAPAS} anchoEtiquetas={190} />
+      <ul className="lista-avance">
+        {grupos.map((g) => (
+          <li key={g.nombre}>
+            <strong>{g.nombre}</strong>: {g.terminadas} de {textoDeTareas(g.total)} terminadas
+            {g.pct !== null && ` (${g.pct}%)`}
+            {g.puntos > 0 && ` · ${g.puntosTerminados} de ${g.puntos} puntos`}
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
+function PanelPorIniciativa({ porIniciativa }) {
+  return (
+    <section className="panel">
+      <h2>Avance por iniciativa</h2>
+      <p className="subtitulo">
+        Cómo viene cada epic del sprint: cuánto se terminó, qué está en curso y qué falta
+      </p>
+      {porIniciativa.grupos.length === 0 ? (
+        <p className="motivo">El sprint todavía no tiene tareas cargadas.</p>
+      ) : (
+        <Desglose grupos={porIniciativa.grupos} />
+      )}
+    </section>
+  );
+}
+
+function PanelPorResponsable({ porResponsable }) {
+  const { grupos, compartidas } = porResponsable;
+  return (
+    <section className="panel">
+      <h2>Carga por responsable</h2>
+      <p className="subtitulo">
+        Cuántas tareas tiene cada persona y en qué etapa están
+      </p>
+      {grupos.length === 0 ? (
+        <p className="motivo">El sprint todavía no tiene tareas cargadas.</p>
+      ) : (
+        <Desglose grupos={grupos} />
+      )}
+      {compartidas > 0 && (
+        <p className="motivo">
+          {compartidas === 1
+            ? "1 tarea tiene más de un responsable y cuenta para cada uno."
+            : `${compartidas} tareas tienen más de un responsable y cuentan para cada uno.`}{" "}
+          Por eso las barras pueden sumar más que el total del sprint.
         </p>
       )}
     </section>
