@@ -386,7 +386,8 @@ El campo nuevo tiene que aparecer en la primera respuesta.
 > **Si `ENCUESTAS_CSV_URL` no está configurada, esta verificación no prueba nada.**
 >
 > `/api/salud` devuelve exactamente estas claves: `ok`, `fuente`, `motivo`,
-> `filas`, `csvConfigurado`, `filasRechazadas`, `problemas` y `columnasIgnoradas`.
+> `filas`, `csvConfigurado`, `filasRechazadas`, `problemas`, `columnasIgnoradas`
+> y `shortcutConfigurado`.
 > La lista `faltantes` de `lib/normalizar.js` es interna y solo se usa para armar
 > el string de `motivo`.
 
@@ -401,6 +402,9 @@ trabajo es:
 1. **Fuente de datos.** Si el dashboard nuevo no usa la encuesta, agregá su loader
    en `lib/` siguiendo el patrón de `lib/encuestas.js`: una función `async` que
    devuelve `{ datos, fuente, motivo, problemas }` y **siempre tiene respaldo**.
+   Si la fuente no admite un respaldo en disco sin inventar datos, como
+   `lib/shortcut.js`, el respaldo es el cache de `fetch` (solo guarda respuestas
+   200) y la pantalla dice de cuándo es el dato que muestra.
 2. **Módulo de cálculo** en `lib/kpis/<dominio>.js`, con funciones puras.
 3. **Ruta de API** en `app/api/<dominio>/route.js`. Solo traduce HTTP.
 4. **Página** en `app/dashboards/<slug>/page.jsx`, reusando `components/`.
@@ -423,7 +427,7 @@ Copiá esto en la descripción del PR y marcá cada punto.
 [ ] Los números de /api/kpis coinciden con los que muestra el dashboard
 [ ] Si agregué un campo, está también en data/encuestas.json
 [ ] curl /api/salud → con la planilla configurada: fuente: "planilla", motivo: null, filasRechazadas: 0
-[ ] npm test pasa (obligatorio si toqué lib/csv.js o lib/normalizar.js)
+[ ] npm test pasa (obligatorio si toqué lib/csv.js, lib/normalizar.js o lib/kpis/performance.js)
 [ ] npm run build pasa sin errores ni warnings nuevos
 [ ] Vi el gráfico con barras dibujadas en el navegador, no solo los ejes
 [ ] Cero errores en la consola del navegador
@@ -436,7 +440,7 @@ Copiá esto en la descripción del PR y marcá cada punto.
 No necesitan server:
 
 ```bash
-npm test                     # tests de csv.js y normalizar.js
+npm test                     # tests de csv.js, normalizar.js y kpis/performance.js
 npm run build                # tiene que compilar sin errores
 ```
 

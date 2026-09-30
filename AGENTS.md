@@ -17,12 +17,14 @@ TypeScript, Recharts para gráficos, sin librería de estado ni de CSS.
 
 Romper cualquiera de estos es un error, no una decisión de diseño:
 
-1. **Los datos entran por un solo lugar.** Todo pasa por `lib/encuestas.js`.
-   Ningún componente ni `route.js` lee una fuente externa por su cuenta.
+1. **Cada fuente entra por un solo lugar.** La encuesta por `lib/encuestas.js`,
+   Shortcut por `lib/shortcut.js`. Ningún componente ni `route.js` lee una fuente
+   externa por su cuenta.
 2. **Los `route.js` no calculan.** Leen parámetros, llaman a `lib/`, serializan.
-3. **`lib/kpis/encuesta.js` es puro.** Sin `fetch`, sin React, sin `process.env`.
-4. **Nada falla en silencio.** Un dato que no se entiende se rechaza y se reporta
-   en `/api/salud`. Nunca se ignora calladamente.
+3. **Los módulos de `lib/kpis/` son puros.** Sin `fetch`, sin React, sin `process.env`.
+4. **Nada falla en silencio.** Un dato que no se entiende se rechaza y se reporta:
+   los de la encuesta en `/api/salud`, los de Shortcut en `problemas` de
+   `/api/performance`. Nunca se ignora calladamente.
 5. **Los valores del dominio viven en `VOCABULARIO`** (exportado desde
    `lib/normalizar.js`), no sueltos por el código. Ojo:
    `app/dashboards/encuesta-lavaderos/page.jsx` todavía repite parte del
@@ -45,7 +47,7 @@ práctica: **si tocás un KPI, tenés que editar los dos archivos.**
 Sin server:
 
 ```bash
-npm test          # obligatorio si tocaste lib/csv.js o lib/normalizar.js
+npm test          # obligatorio si tocaste lib/csv.js, lib/normalizar.js o lib/kpis/performance.js
 npm run build
 ```
 
@@ -53,11 +55,16 @@ Con server (`npm run dev` bloquea la terminal: dejalo en una y usá otra):
 
 ```bash
 curl -s localhost:3000/api/salud | python3 -m json.tool
+curl -s localhost:3000/api/performance | python3 -m json.tool
 ```
 
 Con la planilla configurada tiene que decir `fuente: "planilla"`, `motivo: null` y
 `filasRechazadas: 0`. Si dice `fuente: "respaldo"`, la planilla no se leyó y el
 resto del diagnóstico no significa nada.
+
+Con `SHORTCUT_API_TOKEN` configurado, `/api/performance` responde 200 con
+`problemas: []`. Un 501 es que falta el token; un 502 trae en `motivo` lo que
+contestó Shortcut.
 
 Y mirar el backoffice en el navegador:
 
@@ -68,6 +75,8 @@ Y mirar el backoffice en el navegador:
   así que una captura apurada las muestra cortas y parece un bug que no está.
 - Una sección sin fuente (`/dashboards/operacion`) muestra el contrato y **ningún
   número**.
+- `/dashboards/performance` muestra el sprint en curso, cambia al elegir otro en el
+  selector y "Actualizar" cambia la hora de "Datos de Shortcut del…".
 
 <!-- BEGIN:nextjs-agent-rules -->
 

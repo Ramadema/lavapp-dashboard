@@ -2,7 +2,8 @@
 
 Backoffice del proyecto LavApp, desarrollado para el Seminario de Integración
 Profesional. Reúne los tableros internos del producto: la encuesta a 40 lavaderos
-de autos sobre gestión operativa (con datos) y las áreas de gestión —operación,
+de autos sobre gestión operativa (con datos), **Performance**, el avance del
+sprint del equipo leído en vivo de Shortcut, y las áreas de gestión —operación,
 cuentas, clientes y facturación— que van a alimentarse desde la app de gestión.
 
 ## Arquitectura
@@ -13,7 +14,7 @@ se mantiene: cada pantalla consume los endpoints por `fetch`, no accede al dato
 directo.
 
 - **`/app`** — el menú inicial (`page.jsx`), las secciones bajo `/app/dashboards/<slug>/` y los Route Handlers bajo `/app/api`, que exponen la API REST.
-- **`/lib`** — lógica del lado del servidor: `encuestas.js` resuelve la fuente de datos, `csv.js` parsea el CSV, `normalizar.js` valida y traduce los valores, `kpis/encuesta.js` calcula los indicadores, `secciones.js` declara qué secciones existen y qué contrato tiene cada endpoint.
+- **`/lib`** — lógica del lado del servidor: `encuestas.js` resuelve la fuente de datos, `csv.js` parsea el CSV, `normalizar.js` valida y traduce los valores, `kpis/encuesta.js` calcula los indicadores, `secciones.js` declara qué secciones existen y qué contrato tiene cada endpoint. Para Performance, `shortcut.js` lee la API de Shortcut y `kpis/performance.js` arma el reporte del sprint.
 - **`/components`** — navegación, encabezado de sección, estado vacío, tarjetas de KPI y gráficos (Recharts).
 - **`/data`** — `encuestas.json`, las 40 respuestas originales, que además funcionan como respaldo.
 
@@ -46,6 +47,8 @@ No hace falta base de datos ni Docker. Tampoco variables de entorno para
 arrancar: sin configurar nada, la app usa las 40 respuestas de
 `data/encuestas.json`. Para conectar una planilla de Google y tener datos en
 vivo, ver [Datos en vivo desde Google Sheets](#datos-en-vivo-desde-google-sheets).
+Performance necesita el token de Shortcut; sin él, la sección avisa que falta
+configurarlo. Ver [Performance](#performance-avance-del-sprint-desde-shortcut).
 
 ## Cómo ejecutarlo paso a paso
 
@@ -99,6 +102,12 @@ después dibuja las 8 tarjetas de KPI y los 4 gráficos. Para comprobar que el
 filtrado funciona, hacer clic en el chip **Papel/pizarra**: el KPI "Respuestas en
 el segmento" pasa de 40 a 14 y "Gestión manual o nula" sube a 100 %.
 
+**Performance** muestra el sprint en curso de Shortcut: avance en tareas y en
+puntos, días restantes, tareas por estado y las listas de terminadas y
+pendientes. Arriba hay un selector para ver otros sprints y el botón
+**Actualizar**, que trae los datos de Shortcut en el momento. Sin
+`SHORTCUT_API_TOKEN` la sección muestra que falta conectarla.
+
 **Estado del sistema** es `/api/salud` con interfaz: dice si los datos salieron
 de la planilla o del respaldo, y qué filas se rechazaron.
 
@@ -119,6 +128,11 @@ curl "http://localhost:3000/api/kpis?registro=Papel/pizarra"
 curl -i http://localhost:3000/api/operacion
 # HTTP/1.1 501 Not Implemented
 # {"conectada":false,"seccion":"operacion","motivo":"El backoffice todavia no...
+
+# Performance (necesita SHORTCUT_API_TOKEN):
+curl http://localhost:3000/api/performance
+# {"sprint":{"id":29,"nombre":"Sprint 1 - Backlog","estado":"En curso",...
+#  "resumen":{"tareas":{"total":56,"terminadas":4,...
 ```
 
 ### 6. Detener el servidor
@@ -149,6 +163,7 @@ Route (app)
 ├ ƒ /api/kpis
 ├ ƒ /api/lavaderos
 ├ ƒ /api/operacion
+├ ƒ /api/performance
 ├ ƒ /api/respuestas
 ├ ƒ /api/salud
 ├ ○ /dashboards/clientes
@@ -157,17 +172,18 @@ Route (app)
 ├ ○ /dashboards/facturacion
 ├ ○ /dashboards/lavaderos
 ├ ○ /dashboards/operacion
+├ ○ /dashboards/performance
 └ ○ /icon.svg
 
 ○  (Static)   prerendered as static content
 ƒ  (Dynamic)  server-rendered on demand
 ```
 
-Las siete rutas de API tienen que aparecer como dinámicas (`ƒ`): en Vercel se
+Las ocho rutas de API tienen que aparecer como dinámicas (`ƒ`): en Vercel se
 convierten en serverless functions. Si alguna sale como estática (`○`), quedó
-resuelta en tiempo de build y devolvería siempre los mismos datos, ignorando el
-parámetro `?registro=` y **congelando la lectura de la planilla en el momento del
-deploy**.
+resuelta en tiempo de build y devolvería siempre los mismos datos, ignorando los
+parámetros `?registro=` y `?sprint=` y **congelando la lectura de la planilla y de
+Shortcut en el momento del deploy**.
 
 Las páginas sí son estáticas (`○`) y está bien: el HTML no trae datos adentro,
 los pide por `fetch` al abrirse en el navegador.
@@ -280,7 +296,8 @@ curl http://localhost:3000/api/salud
   "csvConfigurado": true,
   "filasRechazadas": 0,
   "problemas": [],
-  "columnasIgnoradas": ["Marca temporal"]
+  "columnasIgnoradas": ["Marca temporal"],
+  "shortcutConfigurado": true
 }
 ```
 
@@ -290,6 +307,8 @@ curl http://localhost:3000/api/salud
 - **`filasRechazadas`** y **`problemas`** — filas que no pasaron la validación,
   con número de fila, campo, valor recibido y motivo. Las filas válidas se sirven
   igual: una celda mal tipeada no tira abajo todo el dashboard.
+- **`shortcutConfigurado`** — si `SHORTCUT_API_TOKEN` está puesto. Nunca el token.
+  El estado de la conexión con Shortcut lo informa `/api/performance`.
 
 ### Cómo se comporta el cache
 
@@ -309,6 +328,88 @@ Ante URL mal puesta, planilla despublicada, error de red o una planilla donde
 ninguna fila es válida, `lib/encuestas.js` cae a `data/encuestas.json` y deja el
 motivo en `/api/salud`. El dashboard nunca queda en blanco, y el fallback nunca
 pasa desapercibido.
+
+## Performance: avance del sprint desde Shortcut
+
+La sección **Performance** (`/dashboards/performance`) muestra el avance de los
+sprints de Shortcut para la gente de negocio, que en el plan Free de Shortcut no
+puede tener usuarios de solo lectura. Todo lo que se ve sale de la API REST v3 de
+Shortcut, leída desde el servidor.
+
+### 1. Crear el token
+
+En Shortcut: **Settings › Account › API Tokens**
+(https://app.shortcut.com/settings/account/api-tokens). Alcanza con un token de
+solo lectura. El token es personal: ve lo mismo que ve quien lo generó.
+
+### 2. Configurarlo
+
+En local, en `.env.local` (está gitignoreado; si no existe, crearlo en la raíz
+del repo):
+
+```bash
+SHORTCUT_API_TOKEN=<el token>
+```
+
+Y reiniciar `npm run dev`: Next lee `.env.local` solo al arrancar.
+
+En Vercel: **Project Settings › Environment Variables**, agregar
+`SHORTCUT_API_TOKEN` y redeployar.
+
+El token nunca llega al navegador: lo lee únicamente `lib/shortcut.js`, en el
+servidor, y no aparece en ninguna respuesta ni en los logs. `/api/salud` solo
+dice `shortcutConfigurado: true/false`.
+
+### 3. Verificar
+
+```bash
+curl http://localhost:3000/api/performance            # el sprint en curso
+curl "http://localhost:3000/api/performance?sprint=29" # un sprint puntual
+curl -X POST http://localhost:3000/api/performance     # lo que hace "Actualizar"
+```
+
+| Respuesta | Qué quiere decir |
+|-----------|------------------|
+| `200` | Reporte del sprint. `problemas` tiene que ser `[]`. |
+| `501` | Falta `SHORTCUT_API_TOKEN`. |
+| `502` | Shortcut falló o rechazó el token; `motivo` dice qué contestó. |
+| `404` | No existe ese sprint, o el workspace todavía no tiene sprints. |
+| `400` | `?sprint=` no es un número. |
+
+### Qué se calcula
+
+- **Avance en tareas**: tareas terminadas sobre el total del sprint. Cada story de
+  Shortcut es una tarea, subtareas incluidas, que es como las cuenta Shortcut.
+  Las archivadas no cuentan.
+- **Avance en puntos**: puntos de las tareas terminadas sobre el total estimado.
+  Una tarea sin estimar suma 0, y la tarjeta dice cuántas hay.
+- **Días restantes**: días corridos hasta el fin del sprint, contando hoy.
+- **Tareas por estado**: una tarjeta por columna del tablero, en su orden.
+- **Terminadas y pendientes**: título, estado, iniciativa (el epic),
+  responsables y puntos.
+
+Las reglas exactas están firmadas con `@decision` en `lib/kpis/performance.js`.
+Los días se cortan en hora de Buenos Aires.
+
+### Cómo se comporta el cache
+
+La API de Shortcut acepta 200 requests por minuto. Para no gastarlas en cada
+carga de página, `lib/shortcut.js` cachea con *stale-while-revalidate*: los
+sprints y sus stories se releen cada 5 minutos, y los workflows, las personas y
+los epics cada 15. Un reporte leído en frío cuesta 5 requests.
+
+**Actualizar** lee de Shortcut sin pasar por el cache y después lo vence, así
+que la próxima carga de cualquiera también trae el dato nuevo. La pantalla
+siempre dice de cuándo es el dato ("Datos de Shortcut del…") y avisa si tiene
+más de 30 minutos.
+
+### Si Shortcut falla
+
+No hay respaldo en disco: inventar un sprint sería peor que no mostrarlo. El
+respaldo es el cache, que solo guarda respuestas 200: mientras Shortcut falla se
+sigue sirviendo la última lectura buena. Si no hay ninguna, la pantalla muestra
+el motivo en lugar de los números. Si falla "Actualizar", quedan en pantalla los
+datos anteriores con un aviso.
 
 ## Problemas conocidos
 
@@ -374,6 +475,9 @@ vercel --prod    # deploy manual desde la terminal
 | GET | `/api/kpis` | KPIs agregados calculados en el servidor |
 | GET | `/api/kpis?registro=Papel/pizarra` | KPIs del segmento filtrado por método de registro |
 | GET | `/api/salud` | Health check y estado de la fuente de datos (ver [Datos en vivo](#datos-en-vivo-desde-google-sheets)) |
+| GET | `/api/performance` | Reporte del sprint en curso de Shortcut (ver [Performance](#performance-avance-del-sprint-desde-shortcut)) |
+| GET | `/api/performance?sprint=29` | Reporte de un sprint puntual |
+| POST | `/api/performance?sprint=29` | Lo mismo leyendo de Shortcut sin cache: es el botón "Actualizar" |
 
 El dashboard consume **`/api/respuestas`** y calcula los KPIs en el cliente para
 que el filtro por método de registro no pegue al servidor en cada clic.
@@ -389,6 +493,13 @@ externo.
 - % de consultas frecuentes de tiempo de espera — fricción con el cliente
 - Promedios Likert (1–5) de dificultad para mantener el orden y estimar tiempos
 - Distribuciones: método de registro, principal dificultad declarada, criterio de orden
+
+En **Performance**, por sprint de Shortcut:
+
+- % de avance en tareas y en puntos, con las tareas sin estimar informadas aparte
+- Días restantes (o días para empezar, si es un sprint próximo)
+- Tareas y puntos por columna del tablero
+- Listas de tareas terminadas y pendientes, con estado, iniciativa y responsables
 
 ## Nota metodológica
 

@@ -222,16 +222,17 @@ suscribirse, tocar el DOM.
 ## 8. Antes de abrir el PR
 
 ```bash
-npm test          # tests de lib/csv.js y lib/normalizar.js
+npm test          # tests de lib/csv.js, lib/normalizar.js y lib/kpis/performance.js
 npm run build     # sin errores ni warnings nuevos
 ```
 
 Más el checklist de
 [agregar-kpis-y-graficos.md](agregar-kpis-y-graficos.md#checklist-antes-de-dar-por-terminado).
 
-> **Sobre tests:** hoy hay suite solo para las dos piezas puras
-> (`lib/csv.js` y `lib/normalizar.js`), en `test/normalizar.test.mjs`, sin
-> framework. **Si tocás alguna de esas dos, agregá el caso al test.** Para el
+> **Sobre tests:** hoy hay suite para las piezas puras: `lib/csv.js` y
+> `lib/normalizar.js` en `test/normalizar.test.mjs`, y `lib/kpis/performance.js`
+> en `test/performance.test.mjs`, sin framework. **Si tocás alguna, agregá el
+> caso al test.** Para el
 > resto la verificación es manual y está en las recetas; cuando algo se vuelva
 > puro y testeable, sumale tests en vez de solo verificar a mano.
 >
