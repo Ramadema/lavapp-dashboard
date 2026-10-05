@@ -377,6 +377,16 @@ body {
   position: relative;
 }
 
+/* La dona no tiene interaccion por teclado: ni el SVG ni las porciones (Recharts
+   les pone tabindex) tienen que dibujar un recuadro de foco al hacer clic. */
+.torta svg:focus,
+.torta .recharts-wrapper:focus,
+.torta .recharts-sector:focus,
+.torta .recharts-pie-sector:focus,
+.torta path:focus {
+  outline: none;
+}
+
 .torta-centro {
   position: absolute;
   left: 50%;
