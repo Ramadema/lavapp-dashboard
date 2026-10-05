@@ -8,6 +8,9 @@ import AreasApiladas from "@/components/AreasApiladas";
 import BarrasApiladas from "@/components/BarrasApiladas";
 import BarrasAgrupadas from "@/components/BarrasAgrupadas";
 import BarrasHorizontales from "@/components/BarrasHorizontales";
+import Torta from "@/components/Torta";
+import Plegable from "@/components/Plegable";
+import BarraDeProgreso from "@/components/BarraDeProgreso";
 import { buscarSeccion, ESTADO_SIN_FUENTE } from "@/lib/secciones";
 import { diaLocal, ESTADOS_SPRINT, ETAPAS, ZONA_HORARIA } from "@/lib/kpis/performance";
 
@@ -80,6 +83,28 @@ const UNIDADES = [
 // cuarto destino: ni terminado ni pendiente, se saco del alcance.
 const MOVIDA = "Movida a otro sprint";
 const SERIES_COMPROMISO = [...SERIES_ETAPAS, { clave: MOVIDA, color: "var(--naranja)" }];
+
+// Los mismos colores de las series, indexados por nombre, para las donas.
+const COLORES_ETAPAS = Object.fromEntries(SERIES_COMPROMISO.map((s) => [s.clave, s.color]));
+
+const COMPROMETIDO = "Comprometido";
+const AGREGADO = "Agregado";
+const COLORES_ORIGEN = { [COMPROMETIDO]: "var(--tinta-clara)", [AGREGADO]: "var(--naranja)" };
+
+// Para la dona de columnas del tablero, en el orden del tablero: de lo que
+// espera (claros) a lo que esta en curso (agua) y lo que ya casi sale (naranja).
+const PALETA_COLUMNAS = [
+  "var(--tinta-clara)",
+  "var(--tinta-tenue)",
+  "var(--agua)",
+  "var(--agua-oscura)",
+  "var(--naranja)",
+  "var(--gris-suave)",
+];
+
+// Cuantas filas se ven antes de pedir "Ver N mas".
+const FILAS_VISIBLES = 5;
+const GRUPOS_VISIBLES = 6;
 
 const SERIES_RITMO = [
   { clave: "Entraron", color: "var(--naranja)" },
@@ -339,6 +364,8 @@ function Reporte({ reporte, pedidoDeHistorial }) {
         />
       </div>
 
+      <ResumenVisual resumen={resumen} compromiso={compromiso} />
+
       <PanelCompromiso compromiso={compromiso} sprint={sprint} />
 
       <PanelBurndown burndown={burndown} sprint={sprint} hayPuntos={resumen.puntos.total > 0} />
@@ -379,13 +406,19 @@ function Reporte({ reporte, pedidoDeHistorial }) {
       <section className="panel">
         <h2>Terminadas ({terminadas.length})</h2>
         <p className="subtitulo">Las tareas cerradas del sprint, la más reciente primero</p>
-        <TablaDeTareas tareas={terminadas} vacia="Todavía no se terminó ninguna tarea." />
+        <Plegable items={terminadas} visibles={FILAS_VISIBLES}>
+          {(porcion) => (
+            <TablaDeTareas tareas={porcion} vacia="Todavía no se terminó ninguna tarea." />
+          )}
+        </Plegable>
       </section>
 
       <section className="panel">
         <h2>Pendientes ({pendientes.length})</h2>
         <p className="subtitulo">Lo que falta terminar, empezando por lo más avanzado</p>
-        <TablaDeTareas tareas={pendientes} vacia="No queda nada pendiente." />
+        <Plegable items={pendientes} visibles={FILAS_VISIBLES}>
+          {(porcion) => <TablaDeTareas tareas={porcion} vacia="No queda nada pendiente." />}
+        </Plegable>
       </section>
 
       {problemas.length > 0 && <Problemas problemas={problemas} />}
@@ -535,7 +568,9 @@ function PanelPorIniciativa({ porIniciativa }) {
       {porIniciativa.grupos.length === 0 ? (
         <p className="motivo">El sprint todavía no tiene tareas cargadas.</p>
       ) : (
-        <Desglose grupos={porIniciativa.grupos} />
+        <Plegable items={porIniciativa.grupos} visibles={GRUPOS_VISIBLES}>
+          {(porcion) => <Desglose grupos={porcion} />}
+        </Plegable>
       )}
     </section>
   );
@@ -552,7 +587,9 @@ function PanelPorResponsable({ porResponsable }) {
       {grupos.length === 0 ? (
         <p className="motivo">El sprint todavía no tiene tareas cargadas.</p>
       ) : (
-        <Desglose grupos={grupos} />
+        <Plegable items={grupos} visibles={GRUPOS_VISIBLES}>
+          {(porcion) => <Desglose grupos={porcion} />}
+        </Plegable>
       )}
       {compartidas > 0 && (
         <p className="motivo">
@@ -600,12 +637,16 @@ function PanelCycleTime({ cycleTime }) {
               detalle="la mitad de las tareas tardó menos que esto"
             />
           </div>
-          <BarrasHorizontales
-            datos={barras}
-            color="var(--agua)"
-            etiquetaValor="Días"
-            anchoEtiquetas={240}
-          />
+          <Plegable items={barras} visibles={FILAS_VISIBLES}>
+            {(porcion) => (
+              <BarrasHorizontales
+                datos={porcion}
+                color="var(--agua)"
+                etiquetaValor="Días"
+                anchoEtiquetas={240}
+              />
+            )}
+          </Plegable>
         </>
       )}
       {sinDatos > 0 && (
@@ -615,6 +656,64 @@ function PanelCycleTime({ cycleTime }) {
             : `${sinDatos} tareas terminadas no tienen fecha de inicio y no se midieron.`}
         </p>
       )}
+    </section>
+  );
+}
+
+// Las tres donas de arriba: lo que se lee en diez segundos.
+function ResumenVisual({ resumen, compromiso }) {
+  const { comprometidas, agregadas, alcance } = compromiso;
+  const avance = [
+    { nombre: ETAPAS.done, valor: resumen.tareas.terminadas },
+    { nombre: ETAPAS.started, valor: resumen.tareas.enCurso },
+    { nombre: ETAPAS.unstarted, valor: resumen.tareas.pendientes },
+  ];
+  const cumplimiento = [
+    { nombre: ETAPAS.done, valor: comprometidas.terminadas },
+    { nombre: ETAPAS.started, valor: comprometidas.enCurso },
+    { nombre: ETAPAS.unstarted, valor: comprometidas.pendientes },
+    { nombre: MOVIDA, valor: comprometidas.movidas },
+  ];
+  const origen = [
+    { nombre: COMPROMETIDO, valor: comprometidas.total },
+    { nombre: AGREGADO, valor: agregadas.total },
+  ];
+  return (
+    <section className="panel">
+      <h2>El sprint de un vistazo</h2>
+      <p className="subtitulo">
+        Cuánto está terminado, cuánto de lo prometido se cumplió y cuánto del trabajo se sumó
+        con el sprint ya empezado
+      </p>
+      <div className="tres-columnas">
+        <div>
+          <p className="titulo-grafico">Avance del sprint</p>
+          <Torta
+            datos={avance}
+            colores={COLORES_ETAPAS}
+            centro={conPorcentaje(resumen.tareas.pct)}
+            detalle={`${resumen.tareas.terminadas} de ${textoDeTareas(resumen.tareas.total)}`}
+          />
+        </div>
+        <div>
+          <p className="titulo-grafico">Compromiso cumplido</p>
+          <Torta
+            datos={cumplimiento}
+            colores={COLORES_ETAPAS}
+            centro={conPorcentaje(comprometidas.pct)}
+            detalle={`${comprometidas.terminadas} de ${textoDeTareas(comprometidas.total)}`}
+          />
+        </div>
+        <div>
+          <p className="titulo-grafico">De dónde salió el trabajo</p>
+          <Torta
+            datos={origen}
+            colores={COLORES_ORIGEN}
+            centro={conPorcentaje(alcance.pctAgregado)}
+            detalle="se sumó después"
+          />
+        </div>
+      </div>
     </section>
   );
 }
@@ -686,11 +785,15 @@ function PanelCompromiso({ compromiso, sprint }) {
         </p>
       )}
       <h3 className="subtitulo">Comprometidas sin terminar ({sinTerminar.length})</h3>
-      <TablaDeTareas
-        tareas={sinTerminar}
-        vacia="Todo lo comprometido está terminado."
-        mostrarDestino
-      />
+      <Plegable items={sinTerminar} visibles={FILAS_VISIBLES}>
+        {(porcion) => (
+          <TablaDeTareas
+            tareas={porcion}
+            vacia="Todo lo comprometido está terminado."
+            mostrarDestino
+          />
+        )}
+      </Plegable>
     </section>
   );
 }
@@ -793,7 +896,7 @@ function PanelHistorial({ pedido, sprintActual }) {
                 <tr>
                   <th>Sprint</th>
                   <th>Comprometidas</th>
-                  <th>Cumplidas</th>
+                  <th>Cumplimiento</th>
                   <th>Agregadas</th>
                   <th>Movidas</th>
                   <th>Terminadas</th>
@@ -810,8 +913,18 @@ function PanelHistorial({ pedido, sprintActual }) {
                       </span>
                     </td>
                     <td className="sin-corte">{s.comprometidas}</td>
-                    <td className="sin-corte">
-                      {s.cumplidas} {s.pctCumplimiento !== null && `(${s.pctCumplimiento}%)`}
+                    <td>
+                      <BarraDeProgreso
+                        pct={s.pctCumplimiento}
+                        color={
+                          s.estado === ESTADOS_SPRINT.done && s.pctCumplimiento !== null && s.pctCumplimiento < 100
+                            ? "var(--alerta)"
+                            : "var(--verde)"
+                        }
+                        texto={`${s.cumplidas} de ${s.comprometidas}${
+                          s.pctCumplimiento !== null ? ` · ${s.pctCumplimiento}%` : ""
+                        }`}
+                      />
                     </td>
                     <td className="sin-corte">
                       {s.agregadas}
@@ -858,6 +971,18 @@ function PanelTiempoEnSprint({ tiempoEnSprint, tiempoPorColumna }) {
     () => tiempoPorColumna.columnas.map((c) => ({ nombre: c.nombre, valor: c.promedioDias })),
     [tiempoPorColumna]
   );
+  // Donde se acumulan los dias de espera: los dias totales de cada columna.
+  const reparto = useMemo(
+    () => ({
+      datos: tiempoPorColumna.columnas.map((c) => ({ nombre: c.nombre, valor: c.diasTotales })),
+      colores: Object.fromEntries(
+        tiempoPorColumna.columnas.map((c, i) => [c.nombre, PALETA_COLUMNAS[i % PALETA_COLUMNAS.length]])
+      ),
+      total: tiempoPorColumna.columnas.reduce((t, c) => t + c.diasTotales, 0),
+      mayor: [...tiempoPorColumna.columnas].sort((a, b) => b.diasTotales - a.diasTotales)[0],
+    }),
+    [tiempoPorColumna]
+  );
 
   return (
     <section className="panel">
@@ -884,12 +1009,16 @@ function PanelTiempoEnSprint({ tiempoEnSprint, tiempoPorColumna }) {
               detalle="la mitad de las tareas tardó menos que esto"
             />
           </div>
-          <BarrasHorizontales
-            datos={barras}
-            color="var(--agua)"
-            etiquetaValor="Días en el sprint"
-            anchoEtiquetas={240}
-          />
+          <Plegable items={barras} visibles={FILAS_VISIBLES}>
+            {(porcion) => (
+              <BarrasHorizontales
+                datos={porcion}
+                color="var(--agua)"
+                etiquetaValor="Días en el sprint"
+                anchoEtiquetas={240}
+              />
+            )}
+          </Plegable>
         </>
       )}
       {sinDatos > 0 && (
@@ -901,8 +1030,26 @@ function PanelTiempoEnSprint({ tiempoEnSprint, tiempoPorColumna }) {
       )}
       {columnas.length > 0 && (
         <>
-          <h3 className="subtitulo">Días promedio en cada columna</h3>
-          <BarrasHorizontales datos={columnas} color="var(--naranja)" etiquetaValor="Días promedio" />
+          <h3 className="subtitulo">Dónde espera el trabajo</h3>
+          <div className="dos-columnas">
+            <div>
+              <p className="titulo-grafico">Reparto de los días entre columnas</p>
+              <Torta
+                datos={reparto.datos}
+                colores={reparto.colores}
+                centro={reparto.mayor ? reparto.mayor.nombre : "–"}
+                detalle={
+                  reparto.total > 0 && reparto.mayor
+                    ? `${Math.round((reparto.mayor.diasTotales / reparto.total) * 100)}% de los días`
+                    : "sin datos"
+                }
+              />
+            </div>
+            <div>
+              <p className="titulo-grafico">Días promedio en cada columna</p>
+              <BarrasHorizontales datos={columnas} color="var(--naranja)" etiquetaValor="Días promedio" />
+            </div>
+          </div>
           <ul className="lista-avance">
             {tiempoPorColumna.columnas.map((c) => (
               <li key={c.id}>
