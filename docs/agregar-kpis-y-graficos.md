@@ -176,12 +176,11 @@ Son las tres donas de "El sprint de un vistazo" en Performance.
 **Regla del contrato:** cada `nombre` de `datos` tiene que tener su color en
 `colores`. Las categorías en `0` no se dibujan ni aparecen en la leyenda (la
 leyenda la arma Recharts a partir de las porciones, en su propio orden). Con
-todo en `0` el centro muestra "–". No tiene tooltip flotante a propósito:
-tapaba el número del centro. Al pasar el mouse por una porción, el centro
-muestra esa porción (cantidad, porcentaje y nombre) y las demás se atenúan; la
-leyenda también trae cantidad y porcentaje para leerla sin mouse. Va sin la
-capa de accesibilidad de Recharts, que hacía enfocable el SVG y el navegador
-dibujaba un recuadro al hacer clic.
+todo en `0` el centro muestra "–". El tooltip flota por encima del texto del
+centro (z-index en `globals.css`): si se cruzan, lo tapa entero en vez de
+mezclar los textos. La leyenda también trae cantidad y porcentaje, para leerla
+sin mouse. Va sin la capa de accesibilidad de Recharts, que hacía enfocable el
+SVG y el navegador dibujaba un recuadro al hacer clic.
 
 ### `Plegable`
 

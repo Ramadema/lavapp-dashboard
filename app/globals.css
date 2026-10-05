@@ -393,6 +393,20 @@ body {
   transform: translate(-50%, -50%);
   text-align: center;
   pointer-events: none;
+  z-index: 1;
+}
+
+/* El tooltip flota por encima del texto del centro: si se cruzan, lo tapa entero. */
+.torta .recharts-tooltip-wrapper {
+  z-index: 2;
+}
+
+.torta .recharts-default-tooltip {
+  background: var(--blanco) !important;
+  border: 1px solid var(--borde) !important;
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(16, 49, 75, 0.12);
+  font-size: 12px;
 }
 
 .torta-centro strong {
