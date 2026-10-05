@@ -95,13 +95,15 @@ Navegador
    ▼
 app/api/performance/route.js
    │  obtenerSprints() · elegirSprintPorDefecto() · obtenerSprint(id)
+   │  obtenerMovidas(id, posteriores)   ← las tareas que se le sacaron al sprint
+   │  (/historial: sprintsParaHistorial() · obtenerHistorialDeSprints(ids))
    ▼
 lib/shortcut.js ──▶ API REST v3 de Shortcut (token en SHORTCUT_API_TOKEN)
    │                 cache de Next: 5 min sprints y stories, 15 min catálogos,
    │                 historial de cada story guardado por versión
    ▼
-respuestas crudas ──▶ lib/kpis/performance.js ──▶ armarReporte()
-                         resumen · burndown · cycle time
+respuestas crudas ──▶ lib/kpis/performance.js ──▶ armarReporte() · armarHistorial()
+                         resumen · compromiso · burndown · ritmo · cycle time
 ```
 
 Shortcut no tiene respaldo en disco: el respaldo es el propio cache, que solo
@@ -142,7 +144,7 @@ fallan lo hacen en silencio.
 | Archivo | Responsabilidad |
 |---------|-----------------|
 | `lib/kpis/encuesta.js` | `calcularKpis(datos)` → objeto de indicadores. Funciones puras, sin efectos. |
-| `lib/kpis/performance.js` | `armarReporte(respuestasDeShortcut, { ahora })` → el reporte del sprint: resumen, tareas por estado, listas, burndown (`calcularBurndown`, con la fecha de ingreso de cada tarea sacada de su historial por `fechaDeIngreso`) y cycle time (`calcularCycleTime`). También `elegirSprintPorDefecto`, `ETAPAS` y `diaLocal`, que usa la pantalla. Recibe la hora por parámetro para que los tests la fijen. |
+| `lib/kpis/performance.js` | `armarReporte(respuestasDeShortcut, { ahora })` → el reporte del sprint: resumen, tareas por estado, listas, burndown (`calcularBurndown`, con la fecha de ingreso de cada tarea sacada de su historial por `fechaDeIngreso`), compromiso (`calcularCompromiso`: comprometidas, agregadas, movidas, proyección), ritmo diario (`calcularRitmo`), cycle time (`calcularCycleTime`), tiempo en el sprint (`calcularTiempoEnSprint`) y por columna (`calcularTiempoPorColumna`, del historial). `armarHistorial` arma la fila de cada sprint para `/historial`. También `elegirSprintPorDefecto`, `sprintsPosteriores`, `sprintsParaHistorial`, `ETAPAS` y `diaLocal`, que usa la pantalla. Recibe la hora por parámetro para que los tests la fijen. |
 | `lib/secciones.js` | `SECCIONES`, `GRUPOS`, `buscarSeccion`, `cuerpoSinFuente`. Declara qué secciones existen, su ruta, su endpoint y el contrato de ese endpoint. Puro: sin React, sin `fetch`, sin `process.env`. |
 
 > `lib/secciones.js` lo leen las dos capas de arriba: la presentación para dibujar
@@ -159,6 +161,7 @@ fallan lo hacen en silencio.
 | `GET /api/salud` | `app/api/salud/route.js` | Health check + qué fuente se usó y qué filas se rechazaron. |
 | `GET /api/performance[?sprint=]` | `app/api/performance/route.js` | Reporte de un sprint de Shortcut (sin `?sprint=`, el que está en curso). `501` sin token, `502` si Shortcut falló, `404` si el sprint no existe. |
 | `POST /api/performance[?sprint=]` | `app/api/performance/route.js` | Lo mismo leyendo de Shortcut sin cache, y vence el cache para las cargas siguientes. Es el botón "Actualizar". |
+| `GET|POST /api/performance/historial` | `app/api/performance/historial/route.js` | Una fila por sprint (en curso o terminado, los últimos 8) con lo comprometido, lo cumplido, lo agregado y lo movido a otro sprint. Aparte porque lee las tareas y el historial de cada sprint. `POST` = sin cache. |
 | `GET /api/operacion` | `app/api/operacion/route.js` | `501` + contrato. Sin fuente conectada. |
 | `GET /api/lavaderos` | `app/api/lavaderos/route.js` | `501` + contrato. Sin fuente conectada. |
 | `GET /api/clientes` | `app/api/clientes/route.js` | `501` + contrato. Sin fuente conectada. |
@@ -191,6 +194,9 @@ silencio](convenciones.md#53-fallar-en-silencio) aplicada a una sección entera.
 | `components/Lineas.jsx` | Gráfico de líneas (evolución en el tiempo). Un `null` corta la línea: es lo que usa el burndown para los días que no pasaron. |
 | `components/AreasApiladas.jsx` | Áreas apiladas (cómo se reparte un total en el tiempo). Es el flujo acumulado de Performance. |
 | `components/BarrasApiladas.jsx` | Barras horizontales apiladas (total y composición por categoría). Avance por iniciativa y carga por responsable de Performance. |
+| `components/Torta.jsx` | Dona para repartir un total entre 2 a 4 categorías, con el número clave en el centro. "El sprint de un vistazo" de Performance. |
+| `components/Plegable.jsx` | Muestra los primeros N elementos y un botón para ver el resto. Envuelve tablas, listas y barras largas de Performance. |
+| `components/BarraDeProgreso.jsx` | Avance de 0 a 100 con el porcentaje al lado, para tablas. El cumplimiento por sprint del historial. |
 
 Los contratos de props de los componentes están en
 [agregar-kpis-y-graficos.md](agregar-kpis-y-graficos.md#contratos-de-los-componentes).
