@@ -6,6 +6,7 @@ import TarjetaKpi from "@/components/TarjetaKpi";
 import Lineas from "@/components/Lineas";
 import AreasApiladas from "@/components/AreasApiladas";
 import BarrasApiladas from "@/components/BarrasApiladas";
+import BarrasAgrupadas from "@/components/BarrasAgrupadas";
 import BarrasHorizontales from "@/components/BarrasHorizontales";
 import { buscarSeccion, ESTADO_SIN_FUENTE } from "@/lib/secciones";
 import { diaLocal, ESTADOS_SPRINT, ETAPAS, ZONA_HORARIA } from "@/lib/kpis/performance";
@@ -75,6 +76,29 @@ const UNIDADES = [
   { valor: "puntos", texto: "Puntos" },
 ];
 
+// Las etapas mas lo que se fue a otro sprint, que para el compromiso es un
+// cuarto destino: ni terminado ni pendiente, se saco del alcance.
+const MOVIDA = "Movida a otro sprint";
+const SERIES_COMPROMISO = [...SERIES_ETAPAS, { clave: MOVIDA, color: "var(--naranja)" }];
+
+const SERIES_RITMO = [
+  { clave: "Entraron", color: "var(--naranja)" },
+  { clave: "Terminadas", color: "var(--verde)" },
+];
+
+const SERIES_HISTORIAL = [
+  { clave: "Comprometidas", color: "var(--tinta-clara)" },
+  { clave: "Cumplidas", color: "var(--verde)" },
+  { clave: "Agregadas", color: "var(--naranja)" },
+];
+
+// Dias de calendario enteros o con un decimal (promedios): 0 es "el mismo dia".
+function diasDeCalendario(n) {
+  if (n === null) return "–";
+  if (n === 0) return "el mismo día";
+  return dias(n);
+}
+
 async function pedirReporte(sprint, metodo) {
   const url = seccion.endpoint + (sprint ? `?sprint=${sprint}` : "");
   let res;
@@ -143,6 +167,9 @@ export default function PaginaPerformance() {
   const [aviso, setAviso] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [actualizando, setActualizando] = useState(false);
+  // El historial de sprints se pide aparte (es mas caro); "Actualizar" lo
+  // vuelve a pedir sin cache, igual que al reporte.
+  const [pedidoDeHistorial, setPedidoDeHistorial] = useState({ n: 0, metodo: "GET" });
 
   useEffect(() => {
     let vigente = true;
@@ -169,6 +196,7 @@ export default function PaginaPerformance() {
 
   async function actualizar() {
     setActualizando(true);
+    setPedidoDeHistorial((p) => ({ n: p.n + 1, metodo: "POST" }));
     const r = await pedirReporte(sprintPedido ?? reporte?.sprint.id, "POST");
     setActualizando(false);
     if (r.reporte) {
@@ -232,7 +260,7 @@ export default function PaginaPerformance() {
         ) : error ? (
           <PanelDeError error={error} />
         ) : (
-          reporte && <Reporte reporte={reporte} />
+          reporte && <Reporte reporte={reporte} pedidoDeHistorial={pedidoDeHistorial} />
         )}
       </main>
     </>
@@ -260,7 +288,7 @@ function PanelDeError({ error }) {
   );
 }
 
-function Reporte({ reporte }) {
+function Reporte({ reporte, pedidoDeHistorial }) {
   const {
     sprint,
     resumen,
@@ -269,7 +297,11 @@ function Reporte({ reporte }) {
     flujo,
     porIniciativa,
     porResponsable,
+    compromiso,
+    ritmo,
     cycleTime,
+    tiempoEnSprint,
+    tiempoPorColumna,
     terminadas,
     pendientes,
     lectura,
@@ -307,7 +339,13 @@ function Reporte({ reporte }) {
         />
       </div>
 
+      <PanelCompromiso compromiso={compromiso} sprint={sprint} />
+
       <PanelBurndown burndown={burndown} sprint={sprint} hayPuntos={resumen.puntos.total > 0} />
+
+      <PanelRitmo ritmo={ritmo} sprint={sprint} />
+
+      <PanelHistorial pedido={pedidoDeHistorial} sprintActual={sprint.id} />
 
       <PanelFlujo flujo={flujo} sprint={sprint} />
 
@@ -334,6 +372,8 @@ function Reporte({ reporte }) {
         )}
       </section>
 
+      <PanelTiempoEnSprint tiempoEnSprint={tiempoEnSprint} tiempoPorColumna={tiempoPorColumna} />
+
       <PanelCycleTime cycleTime={cycleTime} />
 
       <section className="panel">
@@ -353,8 +393,10 @@ function Reporte({ reporte }) {
       <p className="nota">
         Fuente: Shortcut. Cada tarea es una story de Shortcut, subtareas incluidas; la
         iniciativa es el epic al que pertenece y los puntos son la estimación de
-        esfuerzo que carga el equipo. Los datos se releen solos cada pocos minutos y
-        «Actualizar» los trae de Shortcut en el momento.
+        esfuerzo que carga el equipo. Lo comprometido es lo que ya estaba en el sprint
+        al cierre de su primer día; una tarea que se movió a otro sprint sigue
+        contando como comprometida y no cumplida. Los datos se releen solos cada pocos
+        minutos y «Actualizar» los trae de Shortcut en el momento.
         {resumen.tareas.archivadas > 0 &&
           ` No se cuentan ${resumen.tareas.archivadas} tareas archivadas.`}
       </p>
@@ -577,7 +619,312 @@ function PanelCycleTime({ cycleTime }) {
   );
 }
 
-function TablaDeTareas({ tareas, vacia }) {
+function PanelCompromiso({ compromiso, sprint }) {
+  const { comprometidas, agregadas, sinTerminar, proyeccion } = compromiso;
+  const datos = useMemo(
+    () => [
+      { nombre: "Comprometido", ...porEtapa(comprometidas), [MOVIDA]: comprometidas.movidas },
+      { nombre: "Agregado", ...porEtapa(agregadas), [MOVIDA]: agregadas.movidas },
+    ],
+    [comprometidas, agregadas]
+  );
+  const movidas = comprometidas.movidas + agregadas.movidas;
+
+  return (
+    <section className="panel">
+      <h2>Compromiso del sprint</h2>
+      <p className="subtitulo">
+        Qué se planificó al cierre del primer día ({fechaCorta(sprint.inicio)}), cuánto de
+        eso se cumplió, y qué se sumó o se sacó con el sprint empezado
+      </p>
+      <div className="grilla-kpis">
+        <TarjetaKpi
+          etiqueta="Comprometidas"
+          valor={comprometidas.total}
+          detalle={`tareas al cierre del ${fechaCorta(sprint.inicio)}`}
+        />
+        <TarjetaKpi
+          etiqueta="Cumplidas"
+          valor={conPorcentaje(comprometidas.pct)}
+          detalle={`${comprometidas.terminadas} de ${textoDeTareas(comprometidas.total)} comprometidas`}
+          critico={comprometidas.pct !== null && sprint.diasRestantes === 0 && comprometidas.pct < 100}
+        />
+        <TarjetaKpi
+          etiqueta="Agregadas en el sprint"
+          valor={agregadas.total}
+          detalle={
+            agregadas.total === 0
+              ? "no se sumó nada con el sprint empezado"
+              : `${agregadas.terminadas} terminadas · ${conPorcentaje(agregadas.pct)}`
+          }
+        />
+        <TarjetaKpi
+          etiqueta="Movidas a otro sprint"
+          valor={movidas}
+          detalle={
+            movidas === 0
+              ? "nada se sacó del sprint"
+              : `${comprometidas.movidas} eran comprometidas`
+          }
+        />
+        {proyeccion && (
+          <TarjetaKpi
+            etiqueta="Proyección al cierre"
+            valor={`${proyeccion.terminadasAlCierre} de ${proyeccion.total}`}
+            detalle={`estimación: ${proyeccion.terminadasPorDia} por día en ${dias(
+              proyeccion.diasTranscurridos
+            )} transcurridos`}
+            critico={proyeccion.pct !== null && proyeccion.pct < 100}
+          />
+        )}
+      </div>
+      <BarrasApiladas datos={datos} series={SERIES_COMPROMISO} anchoEtiquetas={120} />
+      {proyeccion && (
+        <p className="motivo">
+          La proyección es una regla de tres con el ritmo de los días que ya pasaron, no un
+          dato de Shortcut: sirve para ver si el sprint llega, no para prometerlo.
+        </p>
+      )}
+      <h3 className="subtitulo">Comprometidas sin terminar ({sinTerminar.length})</h3>
+      <TablaDeTareas
+        tareas={sinTerminar}
+        vacia="Todo lo comprometido está terminado."
+        mostrarDestino
+      />
+    </section>
+  );
+}
+
+function PanelRitmo({ ritmo, sprint }) {
+  const datos = useMemo(
+    () =>
+      ritmo.dias.map((d) => ({
+        nombre: fechaCorta(d.dia),
+        Entraron: d.entraron,
+        Terminadas: d.terminadas,
+      })),
+    [ritmo]
+  );
+  return (
+    <section className="panel">
+      <h2>Ritmo de resolución día a día</h2>
+      <p className="subtitulo">
+        Cuántas tareas entraron al sprint y cuántas se terminaron cada día. La primera
+        barra de «Entraron» es con lo que arrancó el sprint.
+      </p>
+      {datos.length === 0 ? (
+        <p className="motivo">
+          El sprint todavía no empezó: las barras aparecen desde el {fechaCorta(sprint.inicio)}.
+        </p>
+      ) : (
+        <BarrasAgrupadas datos={datos} series={SERIES_RITMO} />
+      )}
+    </section>
+  );
+}
+
+async function pedirHistorial(metodo) {
+  let res;
+  try {
+    res = await fetch(seccion.endpoint + "/historial", { method: metodo });
+  } catch {
+    return { error: "No se pudo conectar con el backoffice." };
+  }
+  const cuerpo = await res.json().catch(() => null);
+  if (!res.ok) return { error: cuerpo?.motivo ?? `El backoffice respondió HTTP ${res.status}.` };
+  return { historial: cuerpo };
+}
+
+// El historial de sprints se pide a su propio endpoint: lee las tareas y el
+// historial de cada sprint, y no tiene por que frenar la carga del sprint actual.
+function PanelHistorial({ pedido, sprintActual }) {
+  const [historial, setHistorial] = useState(null);
+  const [error, setError] = useState(null);
+  const [cargando, setCargando] = useState(true);
+
+  useEffect(() => {
+    let vigente = true;
+    setCargando(true);
+    pedirHistorial(pedido.metodo).then((r) => {
+      if (!vigente) return;
+      setCargando(false);
+      if (r.historial) {
+        setHistorial(r.historial);
+        setError(null);
+      } else {
+        setError(r.error);
+      }
+    });
+    return () => {
+      vigente = false;
+    };
+  }, [pedido]);
+
+  const datos = useMemo(
+    () =>
+      (historial?.sprints ?? []).map((s) => ({
+        nombre: recortar(s.nombre, 18),
+        Comprometidas: s.comprometidas,
+        Cumplidas: s.cumplidas,
+        Agregadas: s.agregadas,
+      })),
+    [historial]
+  );
+
+  return (
+    <section className="panel">
+      <h2>Historial de sprints</h2>
+      <p className="subtitulo">
+        Sprint por sprint: cuánto se comprometió, cuánto de eso se cumplió y cuánto se sumó
+        en el camino. Para ver si lo planificado se termina en el período previsto.
+      </p>
+      {cargando ? (
+        <p className="motivo">Consultando los sprints en Shortcut…</p>
+      ) : error ? (
+        <p className="motivo">No se pudo armar el historial: {error}</p>
+      ) : historial.sprints.length === 0 ? (
+        <p className="motivo">Todavía no hay sprints empezados para comparar.</p>
+      ) : (
+        <>
+          <BarrasAgrupadas datos={datos} series={SERIES_HISTORIAL} />
+          <div className="contrato">
+            <table>
+              <thead>
+                <tr>
+                  <th>Sprint</th>
+                  <th>Comprometidas</th>
+                  <th>Cumplidas</th>
+                  <th>Agregadas</th>
+                  <th>Movidas</th>
+                  <th>Terminadas</th>
+                  <th>Puntos</th>
+                </tr>
+              </thead>
+              <tbody>
+                {historial.sprints.map((s) => (
+                  <tr key={s.id}>
+                    <td>
+                      {s.id === sprintActual ? <strong>{s.nombre}</strong> : s.nombre}
+                      <span className="subtexto">
+                        {s.estado.toLowerCase()} · {fechaCorta(s.inicio)} al {fechaCorta(s.fin)}
+                      </span>
+                    </td>
+                    <td className="sin-corte">{s.comprometidas}</td>
+                    <td className="sin-corte">
+                      {s.cumplidas} {s.pctCumplimiento !== null && `(${s.pctCumplimiento}%)`}
+                    </td>
+                    <td className="sin-corte">
+                      {s.agregadas}
+                      {s.agregadas > 0 && (
+                        <span className="subtexto">{s.agregadasTerminadas} terminadas</span>
+                      )}
+                    </td>
+                    <td className="sin-corte">{s.movidas}</td>
+                    <td className="sin-corte">
+                      {s.terminadas} de {s.total} {s.pctTerminado !== null && `(${s.pctTerminado}%)`}
+                    </td>
+                    <td className="sin-corte">
+                      {s.puntosTotales > 0 ? `${s.puntosTerminados} de ${s.puntosTotales}` : "–"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {historial.problemas.length > 0 && (
+            <p className="motivo">
+              {historial.problemas.length === 1
+                ? "1 dato de Shortcut no se pudo leer o traducir al armar el historial."
+                : `${historial.problemas.length} datos de Shortcut no se pudieron leer o traducir al armar el historial.`}
+            </p>
+          )}
+          <p className="motivo">
+            Una tarea que se movió de un sprint a otro cuenta en el de origen como no cumplida.
+            Las que se sacaron al backlog no se ven: Shortcut no las lista en ningún sprint.
+          </p>
+        </>
+      )}
+    </section>
+  );
+}
+
+function PanelTiempoEnSprint({ tiempoEnSprint, tiempoPorColumna }) {
+  const { promedioDias, medianaDias, tareas, sinDatos } = tiempoEnSprint;
+  const barras = useMemo(
+    () => tareas.map((t) => ({ nombre: recortar(`sc-${t.id} ${t.titulo}`, 30), valor: t.dias })),
+    [tareas]
+  );
+  const columnas = useMemo(
+    () => tiempoPorColumna.columnas.map((c) => ({ nombre: c.nombre, valor: c.promedioDias })),
+    [tiempoPorColumna]
+  );
+
+  return (
+    <section className="panel">
+      <h2>Tiempo en el sprint</h2>
+      <p className="subtitulo">
+        Cuántos días pasaron desde que cada tarea entró al sprint hasta que se terminó, y en
+        qué columnas del tablero se queda el trabajo
+      </p>
+      {tareas.length === 0 ? (
+        <p className="motivo">Todavía no hay tareas terminadas para medir.</p>
+      ) : (
+        <>
+          <div className="grilla-kpis">
+            <TarjetaKpi
+              etiqueta="Promedio"
+              valor={diasDeCalendario(promedioDias)}
+              detalle={
+                tareas.length === 1 ? "sobre 1 tarea terminada" : `sobre ${tareas.length} tareas terminadas`
+              }
+            />
+            <TarjetaKpi
+              etiqueta="Mediana"
+              valor={diasDeCalendario(medianaDias)}
+              detalle="la mitad de las tareas tardó menos que esto"
+            />
+          </div>
+          <BarrasHorizontales
+            datos={barras}
+            color="var(--agua)"
+            etiquetaValor="Días en el sprint"
+            anchoEtiquetas={240}
+          />
+        </>
+      )}
+      {sinDatos > 0 && (
+        <p className="motivo">
+          {sinDatos === 1
+            ? "1 tarea terminada no tiene fecha de terminación y no se midió."
+            : `${sinDatos} tareas terminadas no tienen fecha de terminación y no se midieron.`}
+        </p>
+      )}
+      {columnas.length > 0 && (
+        <>
+          <h3 className="subtitulo">Días promedio en cada columna</h3>
+          <BarrasHorizontales datos={columnas} color="var(--naranja)" etiquetaValor="Días promedio" />
+          <ul className="lista-avance">
+            {tiempoPorColumna.columnas.map((c) => (
+              <li key={c.id}>
+                <strong>{c.nombre}</strong>: {c.promedioDias} días en promedio, mediana {c.medianaDias},
+                sobre {textoDeTareas(c.tareas)}
+              </li>
+            ))}
+          </ul>
+          <p className="motivo">
+            Reconstruido del historial de cada tarea terminada, desde que se creó hasta que se
+            terminó. Sirve aunque las tarjetas salten directo a Done, que es cuando el cycle
+            time de abajo da cero.
+            {tiempoPorColumna.sinDatos > 0 &&
+              ` ${textoDeTareas(tiempoPorColumna.sinDatos)} sin historial legible no se midieron.`}
+          </p>
+        </>
+      )}
+    </section>
+  );
+}
+
+function TablaDeTareas({ tareas, vacia, mostrarDestino = false }) {
   if (tareas.length === 0) return <p className="motivo">{vacia}</p>;
   return (
     <div className="contrato">
@@ -589,6 +936,7 @@ function TablaDeTareas({ tareas, vacia }) {
             <th>Iniciativa</th>
             <th>Responsable</th>
             <th>Puntos</th>
+            {mostrarDestino && <th>Sprint</th>}
           </tr>
         </thead>
         <tbody>
@@ -614,6 +962,11 @@ function TablaDeTareas({ tareas, vacia }) {
               <td className="sin-corte">{t.epic ?? "–"}</td>
               <td>{t.responsables.length > 0 ? t.responsables.join(", ") : "Sin asignar"}</td>
               <td className="sin-corte">{t.puntos ?? "–"}</td>
+              {mostrarDestino && (
+                <td className="sin-corte">
+                  {t.movidaA ? `Movida a ${t.movidaA.nombre ?? `sprint ${t.movidaA.id}`}` : "Este"}
+                </td>
+              )}
             </tr>
           ))}
         </tbody>
