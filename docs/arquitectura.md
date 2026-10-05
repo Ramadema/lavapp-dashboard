@@ -194,6 +194,9 @@ silencio](convenciones.md#53-fallar-en-silencio) aplicada a una sección entera.
 | `components/Lineas.jsx` | Gráfico de líneas (evolución en el tiempo). Un `null` corta la línea: es lo que usa el burndown para los días que no pasaron. |
 | `components/AreasApiladas.jsx` | Áreas apiladas (cómo se reparte un total en el tiempo). Es el flujo acumulado de Performance. |
 | `components/BarrasApiladas.jsx` | Barras horizontales apiladas (total y composición por categoría). Avance por iniciativa y carga por responsable de Performance. |
+| `components/Torta.jsx` | Dona para repartir un total entre 2 a 4 categorías, con el número clave en el centro. "El sprint de un vistazo" de Performance. |
+| `components/Plegable.jsx` | Muestra los primeros N elementos y un botón para ver el resto. Envuelve tablas, listas y barras largas de Performance. |
+| `components/BarraDeProgreso.jsx` | Avance de 0 a 100 con el porcentaje al lado, para tablas. El cumplimiento por sprint del historial. |
 
 Los contratos de props de los componentes están en
 [agregar-kpis-y-graficos.md](agregar-kpis-y-graficos.md#contratos-de-los-componentes).

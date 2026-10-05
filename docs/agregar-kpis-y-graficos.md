@@ -157,6 +157,47 @@ horizontales; el alto se calcula solo según la cantidad de filas.
 hay nada. Los `nombre` largos se recortan antes de pasarlos, como en
 `BarrasHorizontales`.
 
+### `Torta`
+
+Una dona para repartir un total entre **pocas categorías (2 a 4)**; con más,
+las barras horizontales se leen mejor. En el centro va el número que importa.
+Son las tres donas de "El sprint de un vistazo" en Performance.
+
+```jsx
+<Torta
+  datos={[{ nombre: "Terminado", valor: 15 }, { nombre: "En curso", valor: 33 }]}  // [{nombre, valor}]
+  colores={{ Terminado: "var(--verde)", "En curso": "var(--agua)" }}              // color por nombre
+  centro="21%"                                                                      // string o number
+  detalle="terminado"                                                              // string, opcional
+  alto={220}                                                                       // number, opcional
+/>
+```
+
+**Regla del contrato:** cada `nombre` de `datos` tiene que tener su color en
+`colores`. Las categorías en `0` no se dibujan ni aparecen en la leyenda (la
+leyenda la arma Recharts a partir de las porciones, en su propio orden). Con
+todo en `0` el centro muestra "–".
+
+### `Plegable`
+
+No es un gráfico: muestra los primeros `visibles` elementos y un botón «Ver N
+más». `children` es una función que recibe la porción a dibujar, así envuelve
+una tabla, una lista o un gráfico de barras sin que ellos sepan nada.
+
+```jsx
+<Plegable items={tareas} visibles={5}>
+  {(porcion) => <TablaDeTareas tareas={porcion} />}
+</Plegable>
+```
+
+### `BarraDeProgreso`
+
+Un avance de 0 a 100 con el porcentaje al lado, para leerlo dentro de una tabla.
+
+```jsx
+<BarraDeProgreso pct={8.3} color="var(--verde)" texto="2 de 24" />  // texto opcional: reemplaza al "%"
+```
+
 **Colores:** los componentes de gráficos aceptan un token de `globals.css` como
 `var(--agua)`: Recharts lo pasa tal cual al SVG y lo resuelve el navegador. Es la
 forma de no repetir el hex de un token (Performance ya lo usa así).

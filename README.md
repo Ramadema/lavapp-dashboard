@@ -103,8 +103,9 @@ filtrado funciona, hacer clic en el chip **Papel/pizarra**: el KPI "Respuestas e
 el segmento" pasa de 40 a 14 y "Gestión manual o nula" sube a 100 %.
 
 **Performance** muestra el sprint en curso de Shortcut: avance en tareas y en
-puntos, días restantes, el compromiso del sprint (qué se planificó y cuánto se
-cumplió), el burndown, el ritmo de entradas y salidas por día, el historial
+puntos, días restantes, tres donas de un vistazo (avance, compromiso cumplido y
+de dónde salió el trabajo), el compromiso del sprint (qué se planificó y cuánto
+se cumplió), el burndown, el ritmo de entradas y salidas por día, el historial
 sprint a sprint, el flujo acumulado, tareas por estado, el avance por
 iniciativa, la carga por responsable, el tiempo en el sprint y por columna, el
 cycle time y las listas de terminadas y pendientes. Arriba hay un
@@ -438,6 +439,8 @@ curl http://localhost:3000/api/performance/historial   # el historial de sprints
   terminó; 0 es "el mismo día". Mide lo que ve negocio aunque la tarjeta haya
   saltado de "To Do" a "Done" sin pasar por "In Progress", que es cuando el
   cycle time da cero.
+- **Listas plegadas**: las tablas y las barras por tarea muestran 5 filas y un
+  botón «Ver N más»; los desgloses por iniciativa y por responsable, 6 grupos.
 - **Días por columna**: cuánto estuvo cada tarea terminada en cada columna del
   tablero, reconstruido de los cambios de `workflow_state_id` del historial,
   desde que se creó hasta que se terminó. Promedio, mediana y cuántas tareas
