@@ -103,9 +103,11 @@ filtrado funciona, hacer clic en el chip **Papel/pizarra**: el KPI "Respuestas e
 el segmento" pasa de 40 a 14 y "Gestión manual o nula" sube a 100 %.
 
 **Performance** muestra el sprint en curso de Shortcut: avance en tareas y en
-puntos, días restantes, el burndown y el flujo acumulado día a día, tareas por
-estado, el avance por iniciativa, la carga por responsable, el tiempo de
-resolución (cycle time) y las listas de terminadas y pendientes. Arriba hay un
+puntos, días restantes, el compromiso del sprint (qué se planificó y cuánto se
+cumplió), el burndown, el ritmo de entradas y salidas por día, el historial
+sprint a sprint, el flujo acumulado, tareas por estado, el avance por
+iniciativa, la carga por responsable, el tiempo en el sprint y por columna, el
+cycle time y las listas de terminadas y pendientes. Arriba hay un
 selector para ver otros sprints y el botón
 **Actualizar**, que trae los datos de Shortcut en el momento. Sin
 `SHORTCUT_API_TOKEN` la sección muestra que falta conectarla.
@@ -368,6 +370,7 @@ dice `shortcutConfigurado: true/false`.
 curl http://localhost:3000/api/performance            # el sprint en curso
 curl "http://localhost:3000/api/performance?sprint=29" # un sprint puntual
 curl -X POST http://localhost:3000/api/performance     # lo que hace "Actualizar"
+curl http://localhost:3000/api/performance/historial   # el historial de sprints
 ```
 
 | Respuesta | Qué quiere decir |
@@ -409,6 +412,36 @@ curl -X POST http://localhost:3000/api/performance     # lo que hace "Actualizar
 - **Tiempo de resolución (cycle time)**: de `started_at` a `completed_at` de
   cada tarea terminada, con promedio y mediana del sprint. Es la misma cuenta
   que el `cycle_time` de Shortcut.
+- **Compromiso del sprint**: lo *comprometido* es lo que ya estaba en el sprint
+  al cierre de su primer día (hora de Buenos Aires), la misma regla con la que el
+  burndown fija el alcance inicial; lo *agregado* es lo que entró después. De
+  cada grupo: total, terminadas, en curso, pendientes y *movidas* a otro sprint.
+  Una tarea que se sacó del sprint sigue contando como comprometida (o agregada)
+  y no cumplida: se la encuentra en el sprint de destino por
+  `previous_iteration_ids` y su historial dice cuándo entró y cuándo salió. Las
+  que se movieron al backlog no se ven (Shortcut no las lista en ningún sprint).
+  La lista "Comprometidas sin terminar" es lo que se mira en la retrospectiva.
+- **Proyección al cierre**: una regla de tres, las terminadas por día completo
+  transcurrido por los días que quedan, con tope en el total. Es una
+  estimación, no un dato de Shortcut; la pantalla lo dice. Solo para un sprint
+  en curso con al menos un día completo.
+- **Ritmo de resolución**: por cada día transcurrido, cuántas tareas entraron al
+  sprint y cuántas se terminaron. Lo anterior al inicio entra el primer día.
+- **Historial de sprints** (`/api/performance/historial`): una fila por sprint
+  en curso o terminado, los últimos 8, con comprometidas, cumplidas, agregadas,
+  movidas, terminadas sobre el total y puntos. Lee las tareas y el historial de
+  cada sprint, por eso es un endpoint aparte y la pantalla lo carga por
+  separado. Las tareas movidas entre sprints de la ventana se atribuyen al de
+  origen como no cumplidas.
+- **Tiempo en el sprint**: días de calendario desde que cada tarea terminada
+  entró al sprint (o desde el inicio del sprint, si entró antes) hasta que se
+  terminó; 0 es "el mismo día". Mide lo que ve negocio aunque la tarjeta haya
+  saltado de "To Do" a "Done" sin pasar por "In Progress", que es cuando el
+  cycle time da cero.
+- **Días por columna**: cuánto estuvo cada tarea terminada en cada columna del
+  tablero, reconstruido de los cambios de `workflow_state_id` del historial,
+  desde que se creó hasta que se terminó. Promedio, mediana y cuántas tareas
+  pasaron por cada una. Las columnas de tipo done no se miden.
 
 Las reglas exactas están firmadas con `@decision` en `lib/kpis/performance.js`.
 Una limitación de la API: solo lista las tareas que hoy están en el sprint, así
