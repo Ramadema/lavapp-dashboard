@@ -550,6 +550,7 @@ console.log("### Compromiso del sprint");
     c.sinTerminar.map((t) => [t.id, t.movidaA]),
     [[2, null], [5, { id: 70, nombre: "Sprint 2" }]]
   );
+  check("alcance: cuanto del total se sumo despues", c.alcance, { total: 5, pctAgregado: 40 });
   check("proyeccion: regla de tres sobre los dias completos transcurridos", c.proyeccion, {
     diasTranscurridos: 7, terminadasPorDia: 0.3, terminadasAlCierre: 4, total: 4, pct: 100,
   });
@@ -627,9 +628,9 @@ console.log("### Tiempo por columna");
   };
   const c = calcularTiempoPorColumna(tareas, historiales, [WORKFLOW]);
   check("una fila por columna recorrida, en el orden del tablero, sin Done", c.columnas.map((x) => x.nombre), ["To Do", "In Progress", "In Review"]);
-  check("To Do: 2, 1 y 1 dias", c.columnas[0], { id: TO_DO, nombre: "To Do", etapa: "Pendiente", tareas: 3, promedioDias: 1.3, medianaDias: 1 });
-  check("In Progress: medio dia", c.columnas[1], { id: IN_PROGRESS, nombre: "In Progress", etapa: "En curso", tareas: 1, promedioDias: 0.5, medianaDias: 0.5 });
-  check("In Review: un dia y medio", c.columnas[2], { id: IN_REVIEW, nombre: "In Review", etapa: "En curso", tareas: 1, promedioDias: 1.5, medianaDias: 1.5 });
+  check("To Do: 2, 1 y 1 dias", c.columnas[0], { id: TO_DO, nombre: "To Do", etapa: "Pendiente", tareas: 3, diasTotales: 4, promedioDias: 1.3, medianaDias: 1 });
+  check("In Progress: medio dia", c.columnas[1], { id: IN_PROGRESS, nombre: "In Progress", etapa: "En curso", tareas: 1, diasTotales: 0.5, promedioDias: 0.5, medianaDias: 0.5 });
+  check("In Review: un dia y medio", c.columnas[2], { id: IN_REVIEW, nombre: "In Review", etapa: "En curso", tareas: 1, diasTotales: 1.5, promedioDias: 1.5, medianaDias: 1.5 });
   check("terminada sin historial no se mide; la no terminada no cuenta", [c.medidas, c.sinDatos], [3, 1]);
 }
 
