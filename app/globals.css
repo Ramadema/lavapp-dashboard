@@ -357,6 +357,103 @@ body {
   gap: 20px;
 }
 
+.tres-columnas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 20px;
+}
+
+/* ─── Donas, pliegues y barras de progreso ──────────────────────────────── */
+
+.titulo-grafico {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gris);
+  margin: 0 0 4px;
+  text-align: center;
+}
+
+.torta {
+  position: relative;
+}
+
+/* La dona no tiene interaccion por teclado: ni el SVG ni las porciones (Recharts
+   les pone tabindex) tienen que dibujar un recuadro de foco al hacer clic. */
+.torta svg:focus,
+.torta .recharts-wrapper:focus,
+.torta .recharts-sector:focus,
+.torta .recharts-pie-sector:focus,
+.torta path:focus {
+  outline: none;
+}
+
+.torta-centro {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* El tooltip flota por encima del texto del centro: si se cruzan, lo tapa entero. */
+.torta .recharts-tooltip-wrapper {
+  z-index: 2;
+}
+
+.torta .recharts-default-tooltip {
+  background: var(--blanco) !important;
+  border: 1px solid var(--borde) !important;
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(16, 49, 75, 0.12);
+  font-size: 12px;
+}
+
+.torta-centro strong {
+  display: block;
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--tinta);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.torta-centro span {
+  font-size: 12px;
+  color: var(--gris-suave);
+}
+
+.plegable {
+  margin: 4px 0 14px;
+}
+
+.progreso {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 140px;
+}
+
+.progreso-pista {
+  flex: 1;
+  height: 8px;
+  background: var(--espuma);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progreso-relleno {
+  height: 100%;
+  border-radius: 999px;
+}
+
+.progreso span {
+  font-size: 12px;
+  color: var(--gris);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 /* ─── Estado sin fuente y contratos de API ──────────────────────────────── */
 
 .sin-fuente {
@@ -438,6 +535,105 @@ body {
   font-size: 14px;
   color: var(--gris);
   line-height: 1.7;
+}
+
+/* ─── Performance ───────────────────────────────────────────────────────── */
+
+/* El detalle de cada grupo debajo de un desglose apilado. */
+.lista-avance {
+  margin: 8px 0 14px;
+  padding-left: 20px;
+  font-size: 13px;
+  color: var(--gris);
+  line-height: 1.7;
+}
+
+.lista-avance strong {
+  color: var(--tinta);
+  font-weight: 600;
+}
+
+.controles {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  margin-top: 18px;
+}
+
+/* min-width: 0 en el label y en el select: sin eso, en pantallas angostas el
+   nombre largo del sprint empuja el select fuera de la pantalla. */
+.selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--gris);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.selector select {
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--tinta);
+  background: var(--blanco);
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  padding: 7px 10px;
+  min-width: 0;
+  max-width: 100%;
+  text-overflow: ellipsis;
+}
+
+.lectura {
+  font-size: 12px;
+  color: var(--gris-suave);
+}
+
+.chip:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.aviso {
+  background: rgba(235, 104, 52, 0.08);
+  border: 1px solid rgba(235, 104, 52, 0.35);
+  color: #8a3a14;
+  border-radius: 10px;
+  padding: 12px 16px;
+  font-size: 14px;
+  line-height: 1.5;
+  margin-bottom: 14px;
+}
+
+/* Dentro de un panel las tarjetas pierden el borde: si no, quedan cajas dentro
+   de cajas. */
+.panel .kpi {
+  background: var(--espuma);
+  border-color: transparent;
+}
+
+.panel .grilla-kpis {
+  margin-bottom: 12px;
+}
+
+.subtexto {
+  display: block;
+  font-size: 12px;
+  color: var(--gris-suave);
+  margin-top: 2px;
+}
+
+.id-tarea {
+  font-size: 12px;
+  color: var(--agua-oscura);
+  margin-left: 6px;
+  white-space: nowrap;
+}
+
+.contrato td.sin-corte {
+  white-space: nowrap;
 }
 
 /* ─── Estados de carga y error ──────────────────────────────────────────── */

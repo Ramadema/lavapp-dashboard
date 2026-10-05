@@ -26,7 +26,7 @@
 | Funciones y variables | `camelCase`, verbo si hace algo | `obtenerEncuestas`, `normalizarFilas` |
 | Componentes React | `PascalCase`, describe la forma no el dato | `BarrasHorizontales` |
 | Archivos de componente | igual que el componente + `.jsx` | `BarrasHorizontales.jsx` |
-| Archivos de `lib/` | `kebab-case` o una palabra, `.js` | `kpis.js`, `normalizar.js` |
+| Archivos de `lib/` | `kebab-case` o una palabra, `.js` | `kpis/encuesta.js`, `normalizar.js` |
 | Constantes de módulo | `SCREAMING_SNAKE_CASE` | `VOCABULARIO`, `SEGUNDOS_CACHE` |
 | Rutas y slugs | `kebab-case` | `app/dashboards/encuesta-lavaderos/` |
 | Claves de salida de la API | `camelCase`, del negocio | `gestionManualONula` |
@@ -119,7 +119,7 @@ revisión.
 
 ### 5.1 Lógica de negocio duplicada
 
-El caso vivo es `lib/kpis.js` vs. el `useMemo` de `app/dashboards/encuesta-lavaderos/page.jsx`
+El caso vivo es `lib/kpis/encuesta.js` vs. el `useMemo` de `app/dashboards/encuesta-lavaderos/page.jsx`
 ([deuda conocida](arquitectura.md#1-el-cálculo-de-kpis-está-duplicado)). **No
 agregues duplicaciones nuevas.** Si necesitás el mismo cálculo en dos lugares,
 extraelo a una función pura en `lib/` y llamala desde los dos.
@@ -222,16 +222,17 @@ suscribirse, tocar el DOM.
 ## 8. Antes de abrir el PR
 
 ```bash
-npm test          # tests de lib/csv.js y lib/normalizar.js
+npm test          # tests de lib/csv.js, lib/normalizar.js y lib/kpis/performance.js
 npm run build     # sin errores ni warnings nuevos
 ```
 
 Más el checklist de
 [agregar-kpis-y-graficos.md](agregar-kpis-y-graficos.md#checklist-antes-de-dar-por-terminado).
 
-> **Sobre tests:** hoy hay suite solo para las dos piezas puras
-> (`lib/csv.js` y `lib/normalizar.js`), en `test/normalizar.test.mjs`, sin
-> framework. **Si tocás alguna de esas dos, agregá el caso al test.** Para el
+> **Sobre tests:** hoy hay suite para las piezas puras: `lib/csv.js` y
+> `lib/normalizar.js` en `test/normalizar.test.mjs`, y `lib/kpis/performance.js`
+> en `test/performance.test.mjs`, sin framework. **Si tocás alguna, agregá el
+> caso al test.** Para el
 > resto la verificación es manual y está en las recetas; cuando algo se vuelva
 > puro y testeable, sumale tests en vez de solo verificar a mano.
 >

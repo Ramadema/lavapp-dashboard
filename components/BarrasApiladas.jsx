@@ -7,16 +7,16 @@ import {
   XAxis,
   YAxis,
   Tooltip,
+  Legend,
   CartesianGrid,
 } from "recharts";
 
-export default function BarrasHorizontales({
-  datos,
-  color,
-  etiquetaValor = "Respuestas",
-  anchoEtiquetas = 170,
-}) {
-  const alto = Math.max(180, datos.length * 42 + 40);
+// Barras horizontales apiladas: una barra por categoria, partida en las series,
+// para ver a la vez el total de cada una y como se compone. Se apilan en el
+// orden de `series`: la primera queda pegada al eje. El alto se calcula solo
+// segun la cantidad de filas.
+export default function BarrasApiladas({ datos, series, anchoEtiquetas = 170 }) {
+  const alto = Math.max(180, datos.length * 42 + 60);
   return (
     <div style={{ width: "100%", height: alto }}>
       <ResponsiveContainer>
@@ -41,11 +41,18 @@ export default function BarrasHorizontales({
             axisLine={false}
             tickLine={false}
           />
-          <Tooltip
-            cursor={{ fill: "rgba(15,163,177,0.06)" }}
-            formatter={(v) => [v, etiquetaValor]}
-          />
-          <Bar dataKey="valor" fill={color} radius={[0, 4, 4, 0]} barSize={20} />
+          <Tooltip cursor={{ fill: "rgba(16,49,75,0.05)" }} />
+          <Legend wrapperStyle={{ fontSize: 12 }} iconType="square" iconSize={10} />
+          {series.map((s, i) => (
+            <Bar
+              key={s.clave}
+              dataKey={s.clave}
+              stackId="pila"
+              fill={s.color}
+              barSize={20}
+              radius={i === series.length - 1 ? [0, 4, 4, 0] : 0}
+            />
+          ))}
         </BarChart>
       </ResponsiveContainer>
     </div>
