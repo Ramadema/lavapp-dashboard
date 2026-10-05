@@ -1,18 +1,25 @@
 "use client";
 
-import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from "recharts";
+import { ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 
-// Alto que reserva la leyenda abajo: el centro de la dona queda ese medio alto
-// mas arriba que el centro del contenedor, y el texto del centro lo compensa.
-const ALTO_LEYENDA = 30;
+// Alto que reserva la leyenda abajo (entra en dos renglones si hay cuatro
+// categorias): el centro de la dona queda ese medio alto mas arriba que el
+// centro del contenedor, y el texto del centro lo compensa.
+const ALTO_LEYENDA = 44;
 
 // Dona para repartir un total entre pocas categorias (2 a 4: con mas, usar
 // barras). En el centro va el numero que importa (`centro`) y debajo una
-// aclaracion (`detalle`). Sin animacion: las capturas y las primeras lecturas
-// la ven entera desde el primer frame.
-export default function Torta({ datos, colores, centro, detalle, alto = 220 }) {
+// aclaracion (`detalle`). Sin tooltip: flotaba sobre el numero del centro y lo
+// tapaba; las cantidades y los porcentajes van en la leyenda, siempre a la
+// vista. Sin animacion: las capturas y las primeras lecturas la ven entera.
+export default function Torta({ datos, colores, centro, detalle, alto = 230 }) {
   const total = datos.reduce((t, d) => t + d.valor, 0);
   const porciones = datos.filter((d) => d.valor > 0);
+  const valorDe = Object.fromEntries(datos.map((d) => [d.nombre, d.valor]));
+  const leyenda = (nombre) => {
+    const valor = valorDe[nombre] ?? 0;
+    return `${nombre} ${valor} (${total > 0 ? Math.round((valor / total) * 100) : 0}%)`;
+  };
   return (
     <div className="torta" style={{ width: "100%", height: alto }}>
       <ResponsiveContainer>
@@ -31,18 +38,13 @@ export default function Torta({ datos, colores, centro, detalle, alto = 220 }) {
               <Cell key={d.nombre} fill={colores[d.nombre]} />
             ))}
           </Pie>
-          <Tooltip
-            formatter={(valor, nombre) => [
-              `${valor} (${total > 0 ? Math.round((valor / total) * 100) : 0}%)`,
-              nombre,
-            ]}
-          />
           <Legend
-            wrapperStyle={{ fontSize: 12 }}
+            wrapperStyle={{ fontSize: 12, lineHeight: "20px" }}
             iconType="circle"
             iconSize={8}
             verticalAlign="bottom"
             height={ALTO_LEYENDA}
+            formatter={leyenda}
           />
         </PieChart>
       </ResponsiveContainer>

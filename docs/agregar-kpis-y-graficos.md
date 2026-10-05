@@ -176,7 +176,9 @@ Son las tres donas de "El sprint de un vistazo" en Performance.
 **Regla del contrato:** cada `nombre` de `datos` tiene que tener su color en
 `colores`. Las categorías en `0` no se dibujan ni aparecen en la leyenda (la
 leyenda la arma Recharts a partir de las porciones, en su propio orden). Con
-todo en `0` el centro muestra "–".
+todo en `0` el centro muestra "–". No tiene tooltip a propósito: flotaba sobre
+el número del centro y lo tapaba; la cantidad y el porcentaje de cada porción
+van en la leyenda.
 
 ### `Plegable`
 
