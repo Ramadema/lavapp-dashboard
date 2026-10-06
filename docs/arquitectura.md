@@ -61,6 +61,40 @@ importar de las de abajo, nunca de las de arriba ni de sus hermanas.
   `lib/shortcut.js`. Ningún otro archivo lee la planilla, el JSON, la API de
   Shortcut ni ninguna otra fuente futura.
 
+## Acceso
+
+No es una capa más: corre **antes** de todas. `proxy.js` atiende cada pedido
+(salvo los assets), lee la cookie de sesión y decide: sin sesión, las pantallas
+van a `/login` y la API responde `401`; con sesión de un rol que no ve esa ruta,
+la pantalla redirige a lo que sí ve y la API responde `403`. Si pasa, deja
+usuario y rol en dos headers internos (que antes borra del pedido entrante) y
+los server components los leen con `sesionDelPedido()`. Nadie más valida la
+cookie.
+
+```
+Navegador ──cookie lavapp_backoffice──▶ proxy.js
+                                          │  leerSesion()        lib/auth.js  (lee BACKOFFICE_*)
+                                          │  puedeVer(rol, ruta) lib/auth/permisos.js
+                                          ▼
+                       x-backoffice-usuario / x-backoffice-rol
+                                          │
+                        ┌─────────────────┴──────────────────┐
+                        ▼                                    ▼
+             app/layout.jsx · app/page.jsx          app/api/**/route.js
+             (barra y menú según el rol)            (ya no miran la sesión)
+```
+
+| Archivo | Responsabilidad |
+|---------|-----------------|
+| `proxy.js` | La puerta. Rutas públicas (`/login`, `/api/auth/*`), redirecciones y `401`/`403`. Matcher: todo salvo `_next/static`, `_next/image` y el icono. |
+| `lib/auth.js` | **Único lector de las contraseñas y del secreto** (`BACKOFFICE_ADMIN_PASSWORD`, `BACKOFFICE_VISITORS_PASSWORD`, `BACKOFFICE_SESSION_SECRET`). `autenticar`, `cookieDeSesion`, `cookieDeSalida`, `leerSesion`, `variablesFaltantes`. Los usuarios fijos viven en `USUARIOS`. |
+| `lib/auth/permisos.js` | Puro. `ROLES`, qué secciones ve cada rol (`SLUGS_POR_ROL`, con `@decision`), `seccionesVisibles`, `gruposVisibles`, `rutaInicial`, `describirRol`, `puedeVer(rol, ruta)`. Lo leen el proxy, la barra, el menú y el login: una sola fuente de verdad. |
+| `lib/auth/sesion.js` | Puro. Firma y lectura del token (HMAC-SHA256 con Web Crypto), comparación en tiempo constante y los nombres de los headers internos. Secreto y hora por parámetro. |
+| `lib/auth/pedido.js` | `sesionDelPedido()`: la sesión que dejó el proxy en los headers, para `app/layout.jsx` y `app/page.jsx`. Aparte de `lib/auth.js` para que el proxy no arrastre `next/headers`. |
+
+El detalle para el usuario (variables, Vercel, cómo entra cada rol) está en el
+[README](../README.md#acceso-usuarios-y-roles).
+
 ## Flujo de datos
 
 ```
@@ -134,6 +168,7 @@ guarda respuestas 200. El detalle está en el
 |---------|-----------|
 | `test/normalizar.test.mjs` | `lib/csv.js` y `lib/normalizar.js`. Sin framework, se corre con `npm test`. Incluye regresiones de los cuatro bugs de la revisión del 2026-08-27. |
 | `test/performance.test.mjs` | `lib/kpis/performance.js`, con payloads que tienen la forma exacta de la API de Shortcut y un "ahora" fijo. También corre con `npm test`. |
+| `test/auth.test.mjs` | `lib/auth/permisos.js` (qué ve y qué abre cada rol) y `lib/auth/sesion.js` (firma, token manipulado, vencido, otro secreto). Secreto y hora fijos. `lib/auth.js` no: es la unión con `process.env` y se verifica con `curl`. |
 
 Son las piezas puras del repo: entran datos, salen datos, sin red ni React.
 Por eso son las que tienen tests, y las que más los necesitan porque cuando
@@ -159,6 +194,8 @@ fallan lo hacen en silencio.
 | `GET /api/respuestas` | `app/api/respuestas/route.js` | Array de respuestas normalizadas. **Es la que consume el dashboard de la encuesta.** |
 | `GET /api/kpis[?registro=]` | `app/api/kpis/route.js` | KPIs calculados en el servidor. Para consumo externo. |
 | `GET /api/salud` | `app/api/salud/route.js` | Health check + qué fuente se usó y qué filas se rechazaron. |
+| `POST /api/auth/login` | `app/api/auth/login/route.js` | `{ usuario, rol }` + la cookie de sesión. `401` si no coinciden, `400` si falta un campo, `503` si faltan variables de acceso. |
+| `POST /api/auth/logout` | `app/api/auth/logout/route.js` | `204` y la cookie borrada. |
 | `GET /api/performance[?sprint=]` | `app/api/performance/route.js` | Reporte de un sprint de Shortcut (sin `?sprint=`, el que está en curso). `501` sin token, `502` si Shortcut falló, `404` si el sprint no existe. |
 | `POST /api/performance[?sprint=]` | `app/api/performance/route.js` | Lo mismo leyendo de Shortcut sin cache, y vence el cache para las cargas siguientes. Es el botón "Actualizar". |
 | `GET|POST /api/performance/historial` | `app/api/performance/historial/route.js` | Una fila por sprint (en curso o terminado, los últimos 8) con lo comprometido, lo cumplido, lo agregado y lo movido a otro sprint. Aparte porque lee las tareas y el historial de cada sprint. `POST` = sin cache. |
@@ -166,6 +203,9 @@ fallan lo hacen en silencio.
 | `GET /api/lavaderos` | `app/api/lavaderos/route.js` | `501` + contrato. Sin fuente conectada. |
 | `GET /api/clientes` | `app/api/clientes/route.js` | `501` + contrato. Sin fuente conectada. |
 | `GET /api/facturacion` | `app/api/facturacion/route.js` | `501` + contrato. Sin fuente conectada. |
+
+Todos salvo los de `/api/auth` llegan ya con sesión: el proxy corta antes con
+`401` o `403`, así que ningún `route.js` mira la cookie.
 
 **Por qué `501` y no otra cosa.** Un `404` diría "esta ruta no existe", y existe.
 Un `200` con un array vacío diría "no hay datos", y es mentira: datos hay, lo que
@@ -178,14 +218,16 @@ silencio](convenciones.md#53-fallar-en-silencio) aplicada a una sección entera.
 
 | Archivo | Responsabilidad |
 |---------|-----------------|
-| `app/layout.jsx` | Layout raíz: barra lateral con la marca y la navegación, y el área de contenido. `metadata`, importa `globals.css`. |
-| `app/page.jsx` | El menú inicial: una tarjeta por sección, agrupadas. Server component. |
+| `app/layout.jsx` | Layout raíz. Lee la sesión del pedido: con sesión, barra lateral con la marca, la navegación del rol y el bloque de sesión; sin sesión (solo pasa en `/login`), el contenido solo. `metadata`, importa `globals.css`. |
+| `app/page.jsx` | El menú inicial: una tarjeta por sección que el rol puede abrir, agrupadas. Server component. |
+| `app/login/page.jsx` | El formulario de acceso. `"use client"`. Pide a `/api/auth/login` y recarga la página entera para que el layout arme la barra; respeta `?volver=` solo si es una ruta propia que el rol puede ver. |
 | `app/dashboards/encuesta-lavaderos/page.jsx` | El dashboard de la encuesta. `"use client"`. |
 | `app/dashboards/estado/page.jsx` | `/api/salud` con interfaz: fuente en uso, filas rechazadas, columnas ignoradas. `"use client"`. |
 | `app/dashboards/performance/page.jsx` | El avance del sprint para negocio: selector de sprint, "Actualizar", resumen, burndown en tareas o puntos, flujo acumulado, tareas por estado, avance por iniciativa, carga por responsable, cycle time y listas. Si Shortcut falla, muestra el motivo y no números. `"use client"`. |
 | `app/dashboards/{operacion,lavaderos,clientes,facturacion}/page.jsx` | Áreas sin fuente. Encabezado + `SinFuente`. Cada una son 20 líneas: toda la variación está en `lib/secciones.js`. |
 | `app/globals.css` | Tokens de color (`--tinta`, `--agua`, …) y todas las clases. Sin CSS-in-JS. |
-| `components/Navegacion.jsx` | Barra lateral. `"use client"` porque marca el enlace activo con `usePathname`. |
+| `components/Navegacion.jsx` | Barra lateral. Recibe el rol y dibuja solo lo que puede abrir (sin "Inicio" para quien ve una sola sección). `"use client"` porque marca el enlace activo con `usePathname`. |
+| `components/Sesion.jsx` | Quién está adentro, qué ve y el botón "Salir". `"use client"`. |
 | `components/EncabezadoSeccion.jsx` | Encabezado de página: título, subtítulo y señal de estado opcional. |
 | `components/SinFuente.jsx` | Estado vacío de una sección sin conectar. **Pide el contrato al endpoint, no lo lee del registro local**, para que la pantalla no pueda prometer algo que la API no publica. |
 | `components/TarjetaKpi.jsx` | Tarjeta de un indicador numérico. |

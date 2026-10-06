@@ -15,7 +15,8 @@ directo.
 
 - **`/app`** — el menú inicial (`page.jsx`), las secciones bajo `/app/dashboards/<slug>/` y los Route Handlers bajo `/app/api`, que exponen la API REST.
 - **`/lib`** — lógica del lado del servidor: `encuestas.js` resuelve la fuente de datos, `csv.js` parsea el CSV, `normalizar.js` valida y traduce los valores, `kpis/encuesta.js` calcula los indicadores, `secciones.js` declara qué secciones existen y qué contrato tiene cada endpoint. Para Performance, `shortcut.js` lee la API de Shortcut y `kpis/performance.js` arma el reporte del sprint.
-- **`/components`** — navegación, encabezado de sección, estado vacío, tarjetas de KPI y gráficos (Recharts).
+- **`proxy.js` y `/lib/auth`** — el acceso: dos usuarios fijos (`admin` y `visitors`), la sesión en una cookie firmada y qué sección ve cada rol. Ver [Acceso](#acceso-usuarios-y-roles).
+- **`/components`** — navegación, encabezado de sección, estado vacío, bloque de sesión, tarjetas de KPI y gráficos (Recharts).
 - **`/data`** — `encuestas.json`, las 40 respuestas originales, que además funcionan como respaldo.
 
 ```
@@ -43,9 +44,10 @@ Handlers ni el dashboard saben de dónde salió el dato.
 | Node.js | 20 o superior | `node -v` |
 | npm | la que viene con Node (probado con 11.13) | `npm -v` |
 
-No hace falta base de datos ni Docker. Tampoco variables de entorno para
-arrancar: sin configurar nada, la app usa las 40 respuestas de
-`data/encuestas.json`. Para conectar una planilla de Google y tener datos en
+No hace falta base de datos ni Docker. Para entrar hacen falta tres variables
+de entorno: las contraseñas de los dos usuarios y el secreto de la sesión, ver
+[Acceso](#acceso-usuarios-y-roles). Para los datos no hace falta configurar
+nada: sin planilla, la app usa las 40 respuestas de `data/encuestas.json`. Para conectar una planilla de Google y tener datos en
 vivo, ver [Datos en vivo desde Google Sheets](#datos-en-vivo-desde-google-sheets).
 Performance necesita el token de Shortcut; sin él, la sección avisa que falta
 configurarlo. Ver [Performance](#performance-avance-del-sprint-desde-shortcut).
@@ -69,11 +71,15 @@ Instala Next.js 16, React 19 y Recharts. Descarga además el binario nativo de
 SWC (~85 MB) que corresponde a tu sistema operativo; si eso falla, ver
 [Problemas conocidos](#problemas-conocidos).
 
-### 3. Levantar el servidor de desarrollo
+### 3. Configurar el acceso y levantar el servidor de desarrollo
 
 ```bash
+cp .env.example .env.local   # y completar las tres variables BACKOFFICE_*
 npm run dev
 ```
+
+Las variables están explicadas en [Acceso](#acceso-usuarios-y-roles). Next lee
+`.env.local` solo al arrancar: si se cambia, reiniciar `npm run dev`.
 
 Salida esperada:
 
@@ -85,7 +91,9 @@ Salida esperada:
 
 ### 4. Abrir el backoffice
 
-Ir a **http://localhost:3000**.
+Ir a **http://localhost:3000**. La primera pantalla es el login: entrar con
+`admin` y la contraseña de `BACKOFFICE_ADMIN_PASSWORD`. Con `visitors` se ve
+únicamente Performance.
 
 Un solo proceso sirve el front y la API: no hace falta un segundo servidor ni
 configurar proxies. La raíz es el menú, con una tarjeta por sección y su estado:
@@ -118,26 +126,39 @@ de la planilla o del respaldo, y qué filas se rechazaron.
 
 ### 5. Verificar la API (opcional)
 
+La API pide la misma sesión que las pantallas. Primero el login, guardando la
+cookie en un archivo, y después cada pedido con esa cookie:
+
 ```bash
-curl http://localhost:3000/api/salud
+curl -c /tmp/sesion.txt -X POST http://localhost:3000/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"usuario":"admin","contrasena":"<BACKOFFICE_ADMIN_PASSWORD>"}'
+# {"usuario":"admin","rol":"admin"}
+
+curl -b /tmp/sesion.txt http://localhost:3000/api/salud
 # {"ok":true,"fuente":"respaldo","motivo":"ENCUESTAS_CSV_URL no esta configurada",
 #  "filas":40,"csvConfigurado":false,"filasRechazadas":0,...
 
-curl http://localhost:3000/api/kpis
+curl -b /tmp/sesion.txt http://localhost:3000/api/kpis
 # {"n":40,"gestionManualONula":{"valor":32,"pct":80},...
 
-curl "http://localhost:3000/api/kpis?registro=Papel/pizarra"
+curl -b /tmp/sesion.txt "http://localhost:3000/api/kpis?registro=Papel/pizarra"
 # {"n":14,"gestionManualONula":{"valor":14,"pct":100},...
 
 # Las areas todavia no conectadas responden 501 con su contrato:
-curl -i http://localhost:3000/api/operacion
+curl -i -b /tmp/sesion.txt http://localhost:3000/api/operacion
 # HTTP/1.1 501 Not Implemented
 # {"conectada":false,"seccion":"operacion","motivo":"El backoffice todavia no...
 
 # Performance (necesita SHORTCUT_API_TOKEN):
-curl http://localhost:3000/api/performance
+curl -b /tmp/sesion.txt http://localhost:3000/api/performance
 # {"sprint":{"id":29,"nombre":"Sprint 1 - Backlog","estado":"En curso",...
 #  "resumen":{"tareas":{"total":56,"terminadas":4,...
+
+# Sin cookie, cualquier endpoint responde 401; con la sesion de visitors, los
+# que no son de Performance responden 403.
+curl -i http://localhost:3000/api/salud
+# HTTP/1.1 401 Unauthorized
 ```
 
 ### 6. Detener el servidor
@@ -147,6 +168,59 @@ curl http://localhost:3000/api/performance
 ```bash
 lsof -ti:3000 -sTCP:LISTEN | xargs kill
 ```
+
+## Acceso: usuarios y roles
+
+El backoffice pide usuario y contraseña. Hay dos usuarios fijos y no hay base
+de datos de usuarios: las contraseñas viven en variables de entorno.
+
+| Usuario | Qué ve | A dónde entra |
+|---------|--------|---------------|
+| `admin` | Todo: las secciones, el menú y toda la API. | El menú inicial. |
+| `visitors` | Solo **Performance** y sus endpoints (`/api/performance*`). Para compartir el avance del proyecto con gente de afuera del equipo. | Directo a Performance. En la barra lateral no ve ninguna otra sección. |
+
+### Variables
+
+| Variable | Qué es |
+|----------|--------|
+| `BACKOFFICE_ADMIN_PASSWORD` | La contraseña de `admin`. |
+| `BACKOFFICE_VISITORS_PASSWORD` | La contraseña de `visitors`. |
+| `BACKOFFICE_SESSION_SECRET` | Con qué se firma la cookie de sesión. Un texto largo y aleatorio: `openssl rand -base64 32`. Cambiarlo cierra todas las sesiones abiertas. |
+
+En desarrollo van en `.env.local` (gitignoreado; reiniciar `npm run dev` después
+de tocarlo). En Vercel: **Project Settings › Environment Variables**, las tres,
+marcadas para **Production y Preview**, y redeployar. Sin ellas los previews no
+dejan entrar. Si falta alguna, el login responde `503` y la pantalla dice cuál
+(el nombre de la variable, nunca el valor).
+
+Cambiar una contraseña es cambiar la variable y redeployar. Las sesiones ya
+abiertas siguen válidas hasta vencer; para cerrarlas todas, cambiar también el
+secreto.
+
+### Cómo funciona
+
+- `proxy.js` corre antes de cualquier pantalla o endpoint. Sin sesión, las
+  pantallas redirigen a `/login` (y vuelven a donde iban después de entrar) y
+  la API responde `401`. Con sesión de un rol que no ve esa sección, la pantalla
+  redirige a lo que sí ve y la API responde `403`.
+- La sesión es una cookie `lavapp_backoffice` firmada con HMAC-SHA256
+  (`HttpOnly`, `SameSite=Lax`, `Secure` en producción) que dura 7 días. No se
+  guarda nada en el servidor: lo que hace que Vercel no necesite ninguna base ni
+  Redis. Una cookie manipulada o vencida equivale a no tener sesión.
+- Las contraseñas las lee únicamente `lib/auth.js`, en el servidor. Se comparan
+  en tiempo constante y un login fallido no dice si el usuario existe. Nunca se
+  loguean ni aparecen en una respuesta.
+- Qué ve cada rol está en un solo lugar, `lib/auth/permisos.js`, y de ahí lo
+  leen el proxy, la barra lateral, el menú y el login. Agregar un usuario es
+  agregarlo a `USUARIOS` en `lib/auth.js` con su variable; cambiar lo que ve un
+  rol es tocar `SLUGS_POR_ROL` en `lib/auth/permisos.js`, con firma `@decision`.
+
+### Endpoints de acceso
+
+| Método | Ruta | Respuesta |
+|--------|------|-----------|
+| POST | `/api/auth/login` | Recibe `{ "usuario", "contrasena" }`. `200` con `{ usuario, rol }` y la cookie; `401` si no coinciden; `400` si falta un campo; `503` si al backoffice le faltan variables. |
+| POST | `/api/auth/logout` | Borra la cookie. `204` siempre. |
 
 ## Probar el build de producción en local
 
@@ -161,37 +235,44 @@ El build tiene que terminar con esta tabla de rutas:
 
 ```
 Route (app)
-┌ ○ /
-├ ○ /_not-found
+┌ ƒ /
+├ ƒ /_not-found
+├ ƒ /api/auth/login
+├ ƒ /api/auth/logout
 ├ ƒ /api/clientes
 ├ ƒ /api/facturacion
 ├ ƒ /api/kpis
 ├ ƒ /api/lavaderos
 ├ ƒ /api/operacion
 ├ ƒ /api/performance
+├ ƒ /api/performance/historial
 ├ ƒ /api/respuestas
 ├ ƒ /api/salud
-├ ○ /dashboards/clientes
-├ ○ /dashboards/encuesta-lavaderos
-├ ○ /dashboards/estado
-├ ○ /dashboards/facturacion
-├ ○ /dashboards/lavaderos
-├ ○ /dashboards/operacion
-├ ○ /dashboards/performance
-└ ○ /icon.svg
+├ ƒ /dashboards/clientes
+├ ƒ /dashboards/encuesta-lavaderos
+├ ƒ /dashboards/estado
+├ ƒ /dashboards/facturacion
+├ ƒ /dashboards/lavaderos
+├ ƒ /dashboards/operacion
+├ ƒ /dashboards/performance
+├ ○ /icon.svg
+└ ƒ /login
+ƒ Proxy (Middleware)
 
 ○  (Static)   prerendered as static content
 ƒ  (Dynamic)  server-rendered on demand
 ```
 
-Las ocho rutas de API tienen que aparecer como dinámicas (`ƒ`): en Vercel se
+Las rutas de API tienen que aparecer como dinámicas (`ƒ`): en Vercel se
 convierten en serverless functions. Si alguna sale como estática (`○`), quedó
 resuelta en tiempo de build y devolvería siempre los mismos datos, ignorando los
 parámetros `?registro=` y `?sprint=` y **congelando la lectura de la planilla y de
 Shortcut en el momento del deploy**.
 
-Las páginas sí son estáticas (`○`) y está bien: el HTML no trae datos adentro,
-los pide por `fetch` al abrirse en el navegador.
+Las páginas también salen dinámicas (`ƒ`) desde que hay login: el layout lee la
+sesión de cada pedido para armar la barra lateral según el rol. El HTML sigue
+sin traer datos adentro: los pide por `fetch` al abrirse en el navegador. La
+línea `ƒ Proxy (Middleware)` es `proxy.js`, el que pide la sesión.
 
 ## Datos en vivo desde Google Sheets
 
@@ -286,10 +367,11 @@ En Vercel: **Project Settings › Environment Variables**, agregar
 
 ### 5. Verificar de dónde están saliendo los datos
 
-`/api/salud` dice qué fuente se usó y qué se rechazó:
+`/api/salud` dice qué fuente se usó y qué se rechazó (con la cookie de sesión,
+ver [Acceso](#acceso-usuarios-y-roles)):
 
 ```bash
-curl http://localhost:3000/api/salud
+curl -b /tmp/sesion.txt http://localhost:3000/api/salud
 ```
 
 ```json
@@ -367,11 +449,13 @@ dice `shortcutConfigurado: true/false`.
 
 ### 3. Verificar
 
+Con la cookie de sesión de [Acceso](#acceso-usuarios-y-roles):
+
 ```bash
-curl http://localhost:3000/api/performance            # el sprint en curso
-curl "http://localhost:3000/api/performance?sprint=29" # un sprint puntual
-curl -X POST http://localhost:3000/api/performance     # lo que hace "Actualizar"
-curl http://localhost:3000/api/performance/historial   # el historial de sprints
+curl -b /tmp/sesion.txt http://localhost:3000/api/performance            # el sprint en curso
+curl -b /tmp/sesion.txt "http://localhost:3000/api/performance?sprint=29" # un sprint puntual
+curl -b /tmp/sesion.txt -X POST http://localhost:3000/api/performance     # lo que hace "Actualizar"
+curl -b /tmp/sesion.txt http://localhost:3000/api/performance/historial   # el historial de sprints
 ```
 
 | Respuesta | Qué quiere decir |
@@ -533,6 +617,11 @@ build custom. Cada push publica una preview y `main` va a producción.
 vercel --prod    # deploy manual desde la terminal
 ```
 
+Las variables de entorno (`ENCUESTAS_CSV_URL`, `SHORTCUT_API_TOKEN` y las tres
+`BACKOFFICE_*` de [Acceso](#acceso-usuarios-y-roles)) se cargan en **Project
+Settings › Environment Variables**. Las de acceso tienen que estar marcadas para
+Production y Preview: sin ellas, un preview muestra el login pero no deja entrar.
+
 ## Endpoints de la API
 
 | Método | Ruta | Descripción |
@@ -544,6 +633,11 @@ vercel --prod    # deploy manual desde la terminal
 | GET | `/api/performance` | Reporte del sprint en curso de Shortcut (ver [Performance](#performance-avance-del-sprint-desde-shortcut)) |
 | GET | `/api/performance?sprint=29` | Reporte de un sprint puntual |
 | POST | `/api/performance?sprint=29` | Lo mismo leyendo de Shortcut sin cache: es el botón "Actualizar" |
+| POST | `/api/auth/login` | Abre la sesión: `{ "usuario", "contrasena" }` → cookie (ver [Acceso](#acceso-usuarios-y-roles)) |
+| POST | `/api/auth/logout` | Cierra la sesión |
+
+Todos los endpoints salvo los de `/api/auth` piden la cookie de sesión: `401`
+sin ella y `403` si el rol no ve esa sección.
 
 El dashboard consume **`/api/respuestas`** y calcula los KPIs en el cliente para
 que el filtro por método de registro no pegue al servidor en cada clic.
