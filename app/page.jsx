@@ -1,8 +1,13 @@
 import Link from "next/link";
 import EncabezadoSeccion from "@/components/EncabezadoSeccion";
-import { GRUPOS, seccionesDelGrupo } from "@/lib/secciones";
+import { gruposVisibles, seccionesVisibles } from "@/lib/auth/permisos";
+import { sesionDelPedido } from "@/lib/auth/pedido";
 
-export default function Inicio() {
+// El menu muestra solo las secciones que el rol puede abrir: ofrecer una
+// tarjeta que termina en un redirect seria un boton roto.
+export default async function Inicio() {
+  const rol = (await sesionDelPedido())?.rol;
+
   return (
     <>
       <EncabezadoSeccion
@@ -11,11 +16,11 @@ export default function Inicio() {
       />
 
       <main className="contenedor">
-        {GRUPOS.map((grupo) => (
+        {gruposVisibles(rol).map((grupo) => (
           <section key={grupo} className="grupo">
             <h2>{grupo}</h2>
             <div className="grilla-secciones">
-              {seccionesDelGrupo(grupo).map((seccion) => (
+              {seccionesVisibles(rol, grupo).map((seccion) => (
                 <Link
                   key={seccion.slug}
                   href={seccion.ruta}
