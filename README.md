@@ -3,8 +3,10 @@
 Backoffice del proyecto LavApp, desarrollado para el Seminario de Integración
 Profesional. Reúne los tableros internos del producto: la encuesta a 40 lavaderos
 de autos sobre gestión operativa (con datos), **Performance**, el avance del
-sprint del equipo leído en vivo de Shortcut, y las áreas de gestión —operación,
-cuentas, clientes y facturación— que van a alimentarse desde la app de gestión.
+sprint del equipo leído en vivo de Shortcut, y las cuatro secciones de **Gestión**
+—Operación, Lavaderos y sucursales, Clientes y vehículos, Facturación y
+suscripciones— leídas en vivo de la app de gestión de LavApp (`lavapp-backend`)
+a través de su API de backoffice.
 
 ## Arquitectura
 
@@ -14,9 +16,9 @@ se mantiene: cada pantalla consume los endpoints por `fetch`, no accede al dato
 directo.
 
 - **`/app`** — el menú inicial (`page.jsx`), las secciones bajo `/app/dashboards/<slug>/` y los Route Handlers bajo `/app/api`, que exponen la API REST.
-- **`/lib`** — lógica del lado del servidor: `encuestas.js` resuelve la fuente de datos, `csv.js` parsea el CSV, `normalizar.js` valida y traduce los valores, `kpis/encuesta.js` calcula los indicadores, `secciones.js` declara qué secciones existen y qué contrato tiene cada endpoint. Para Performance, `shortcut.js` lee la API de Shortcut y `kpis/performance.js` arma el reporte del sprint.
+- **`/lib`** — lógica del lado del servidor: `encuestas.js` resuelve la fuente de datos, `csv.js` parsea el CSV, `normalizar.js` valida y traduce los valores, `kpis/encuesta.js` calcula los indicadores, `secciones.js` declara qué secciones existen y qué contrato tiene cada endpoint. Para Performance, `shortcut.js` lee la API de Shortcut y `kpis/performance.js` arma el reporte del sprint. Para Gestión, `gestion.js` lee la API de backoffice de la app de gestión y `kpis/{operacion,lavaderos,clientes,facturacion}.js` arman cada tablero; `kpis/tiempo.js` es el tiempo y la estadística que comparten.
 - **`proxy.js` y `/lib/auth`** — el acceso: dos usuarios fijos (`admin` y `visitors`), la sesión en una cookie firmada y qué sección ve cada rol. Ver [Acceso](#acceso-usuarios-y-roles).
-- **`/components`** — navegación, encabezado de sección, estado vacío, bloque de sesión, tarjetas de KPI y gráficos (Recharts).
+- **`/components`** — navegación, encabezado de sección, la sección remota (carga, «Actualizar» y errores de una fuente), bloque de sesión, tarjetas de KPI y gráficos (Recharts).
 - **`/data`** — `encuestas.json`, las 40 respuestas originales, que además funcionan como respaldo.
 
 ```
@@ -96,13 +98,13 @@ Ir a **http://localhost:3000**. La primera pantalla es el login: entrar con
 únicamente Performance.
 
 Un solo proceso sirve el front y la API: no hace falta un segundo servidor ni
-configurar proxies. La raíz es el menú, con una tarjeta por sección y su estado:
-**Con datos** o **Sin fuente**.
+configurar proxies. La raíz es el menú, con una tarjeta por sección.
 
-Las secciones marcadas *Sin fuente* (Operación, Lavaderos, Clientes,
-Facturación) ya tienen ruta y endpoint, pero el endpoint responde `501` hasta que
-se conecte la app de gestión. Muestran el contrato que van a consumir, no números
-inventados.
+Las secciones de Gestión (Operación, Lavaderos y sucursales, Clientes y
+vehículos, Facturación y suscripciones) leen la app de gestión: sin
+`GESTION_API_URL` y `GESTION_API_KEY` sus endpoints responden `501` y la pantalla
+dice que falta conectarla, sin números inventados. Ver
+[Gestión](#gestión-las-secciones-que-leen-la-app-de-gestión).
 
 Para ver datos de verdad, entrar a **Encuesta a lavaderos**. La página arranca
 mostrando *"Cargando encuesta…"* mientras hace el `fetch` a `/api/respuestas`, y
@@ -145,10 +147,11 @@ curl -b /tmp/sesion.txt http://localhost:3000/api/kpis
 curl -b /tmp/sesion.txt "http://localhost:3000/api/kpis?registro=Papel/pizarra"
 # {"n":14,"gestionManualONula":{"valor":14,"pct":100},...
 
-# Las areas todavia no conectadas responden 501 con su contrato:
-curl -i -b /tmp/sesion.txt http://localhost:3000/api/operacion
-# HTTP/1.1 501 Not Implemented
-# {"conectada":false,"seccion":"operacion","motivo":"El backoffice todavia no...
+# Gestion (necesita GESTION_API_URL y GESTION_API_KEY; sin ellas responde 501 con su contrato):
+curl -b /tmp/sesion.txt "http://localhost:3000/api/operacion?dias=7"
+# {"conectada":true,"periodo":{"dias":7,...},"totales":{"ordenes":18,"entregadas":18,...
+curl -b /tmp/sesion.txt http://localhost:3000/api/facturacion
+# {"conectada":true,"totales":{"cuentasConPlan":2,"mrrPorPlanes":[{"moneda":"ARS","valor":190000}],...
 
 # Performance (necesita SHORTCUT_API_TOKEN):
 curl -b /tmp/sesion.txt http://localhost:3000/api/performance
@@ -561,6 +564,99 @@ sigue sirviendo la última lectura buena. Si no hay ninguna, la pantalla muestra
 el motivo en lugar de los números. Si falla "Actualizar", quedan en pantalla los
 datos anteriores con un aviso.
 
+## Gestión: las secciones que leen la app de gestión
+
+Operación, Lavaderos y sucursales, Clientes y vehículos y Facturación y
+suscripciones leen en vivo la **API de backoffice de la app de gestión de
+LavApp** (`lavapp-backend`, rutas `GET /backoffice/*`). Es la misma app que usan
+los lavaderos; acá se mira lo que esa app produce.
+
+### Variables
+
+| Variable | Para qué |
+|----------|----------|
+| `GESTION_API_URL` | La URL del backend, sin barra final. En local, `http://localhost:8080`; en Vercel, la del backend publicado. |
+| `GESTION_API_KEY` | La clave compartida. Es **el mismo valor** que `BACKOFFICE_API_KEY` en el backend: se genera una vez con `openssl rand -base64 32` y se carga en los dos lados. |
+
+Las lee únicamente `lib/gestion.js`, en el servidor: la clave viaja al backend
+en el header `X-Backoffice-Key` y nunca llega al navegador, a un log ni a una
+respuesta. `/api/salud` solo informa `gestionConfigurada: true/false`.
+
+Sin alguna de las dos, los cuatro endpoints responden `501` con su contrato y la
+pantalla dice «Sin conectar» y qué falta, sin números. Con las dos pero con la
+app de gestión caída o con otra clave, responden `502` con el motivo en
+criollo (y el status al final, para quien lo tenga que arreglar).
+
+### Cómo se conecta
+
+```
+Navegador
+   │  fetch /api/operacion?dias=30      (POST = botón "Actualizar")
+   ▼
+app/api/operacion/route.js
+   │  obtenerOrdenes({ desde, hasta })
+   ▼
+lib/gestion.js ──▶ GET {GESTION_API_URL}/backoffice/ordenes?desde=&hasta=
+   │                 header X-Backoffice-Key · cache de fetch de Next, 60 s
+   ▼
+filas crudas ──▶ lib/kpis/operacion.js ──▶ armarOperacion() ──▶ JSON a la pantalla
+```
+
+El backend devuelve **una fila por entidad con contadores, sin KPIs**: qué es
+una cuenta activa, un cliente recurrente o el MRR se decide y se firma acá, en
+`lib/kpis/*.js`, con `@decision`. Las lecturas se cachean 60 segundos para que
+una pantalla abierta no pegue al backend en cada carga; «Actualizar» (un `POST`)
+lee sin cache y vence el cache de las cuatro secciones. Cada pantalla dice de
+cuándo es el dato («Datos de la app de gestión del…») y lo marca como
+desactualizado si pasaron más de 30 minutos. Si «Actualizar» falla, quedan en
+pantalla los datos anteriores con un aviso.
+
+Una fila del backend que no se entiende (un estado desconocido, una fecha
+ilegible) **no entra en los números**: se descarta y se lista en `problemas`,
+y la pantalla avisa cuántas quedaron afuera.
+
+### Qué calcula cada sección
+
+- **Operación** (`?dias=7|30|90`, 30 por defecto): en cola, en lavado y listos
+  **ahora** (aunque hayan llegado antes del período); órdenes, entregadas y
+  canceladas del período; demora promedio y mediana (de la llegada a la
+  entrega), espera (de la llegada al inicio del lavado) y lavado (del inicio al
+  fin); llegadas y entregas por día; por lavadero y por servicio; las últimas
+  órdenes. La llegada es el `created_at` de la orden porque la app de gestión
+  pisa `ingreso` al iniciar el lavado.
+- **Lavaderos y sucursales**: cuentas activas (con alguna orden tocada en los
+  últimos 30 días), sin actividad y suspendidas; altas del mes y por mes; por
+  plan y por ciudad; el padrón.
+- **Clientes y vehículos**: recurrentes (2 o más lavados en los últimos 90
+  días), nuevos del mes, vehículos, lavados por cliente; cuántas veces vuelven;
+  por lavadero; la lista de clientes.
+- **Facturación y suscripciones**: el MRR por planes asignados (el precio
+  mensual del plan de cada cuenta activa, lo único con datos hoy) y el MRR de
+  las suscripciones activas; suscripciones con cobros impagos (un cobro vencido,
+  fallido o pendiente con la fecha pasada); el catálogo de planes y las
+  suscripciones. Hoy la app de gestión asigna el plan directo a la cuenta y no
+  crea suscripciones ni cobros: la lista llega vacía y la pantalla lo dice.
+
+### Verificar
+
+```bash
+curl -s -c /tmp/sesion.txt -X POST localhost:3000/api/auth/login -H 'Content-Type: application/json' \
+  -d '{"usuario":"admin","contrasena":"<BACKOFFICE_ADMIN_PASSWORD>"}'
+curl -s -b /tmp/sesion.txt "localhost:3000/api/operacion?dias=7" | python3 -m json.tool
+curl -s -b /tmp/sesion.txt localhost:3000/api/lavaderos | python3 -m json.tool
+curl -s -b /tmp/sesion.txt localhost:3000/api/clientes | python3 -m json.tool
+curl -s -b /tmp/sesion.txt localhost:3000/api/facturacion | python3 -m json.tool
+```
+
+Con las variables tienen que decir `conectada: true` y `problemas: []`. En el
+navegador, las cuatro muestran la señal **Conectada** y gráficos dibujados; en
+Operación, los chips de 7, 30 y 90 días cambian los números.
+
+Para probarlo en local hace falta el backend corriendo con `BACKOFFICE_API_KEY`
+(ver su README, sección "API de backoffice"). En Vercel, las secciones quedan
+«Sin conectar» hasta que el backend tenga una URL pública y se carguen las dos
+variables.
+
 ## Problemas conocidos
 
 ### macOS Apple Silicon: "Turbopack is not supported on this platform"
@@ -617,8 +713,9 @@ build custom. Cada push publica una preview y `main` va a producción.
 vercel --prod    # deploy manual desde la terminal
 ```
 
-Las variables de entorno (`ENCUESTAS_CSV_URL`, `SHORTCUT_API_TOKEN` y las tres
-`BACKOFFICE_*` de [Acceso](#acceso-usuarios-y-roles)) se cargan en **Project
+Las variables de entorno (`ENCUESTAS_CSV_URL`, `SHORTCUT_API_TOKEN`, las tres
+`BACKOFFICE_*` de [Acceso](#acceso-usuarios-y-roles) y las dos `GESTION_*` de
+[Gestión](#gestión-las-secciones-que-leen-la-app-de-gestión)) se cargan en **Project
 Settings › Environment Variables**. Las de acceso tienen que estar marcadas para
 Production y Preview: sin ellas, un preview muestra el login pero no deja entrar.
 
@@ -633,6 +730,11 @@ Production y Preview: sin ellas, un preview muestra el login pero no deja entrar
 | GET | `/api/performance` | Reporte del sprint en curso de Shortcut (ver [Performance](#performance-avance-del-sprint-desde-shortcut)) |
 | GET | `/api/performance?sprint=29` | Reporte de un sprint puntual |
 | POST | `/api/performance?sprint=29` | Lo mismo leyendo de Shortcut sin cache: es el botón "Actualizar" |
+| GET | `/api/operacion?dias=30` | Operación leída de la app de gestión: cola de ahora, órdenes del período (7, 30 o 90 días) y tiempos (ver [Gestión](#gestión-las-secciones-que-leen-la-app-de-gestión)) |
+| GET | `/api/lavaderos` | El padrón de cuentas: plan, sucursales, actividad y altas |
+| GET | `/api/clientes` | Los clientes finales: vehículos, lavados y recurrencia |
+| GET | `/api/facturacion` | Planes con sus cuentas y suscripciones con sus cobros |
+| POST | `/api/operacion`, `/api/lavaderos`, `/api/clientes`, `/api/facturacion` | Lo mismo leyendo la app de gestión sin cache: es el botón "Actualizar" |
 | POST | `/api/auth/login` | Abre la sesión: `{ "usuario", "contrasena" }` → cookie (ver [Acceso](#acceso-usuarios-y-roles)) |
 | POST | `/api/auth/logout` | Cierra la sesión |
 

@@ -48,10 +48,9 @@ export default async function Inicio() {
         ))}
 
         <p className="nota">
-          Las secciones marcadas <strong>Sin fuente</strong> ya tienen su ruta y su
-          endpoint, pero el endpoint responde 501 hasta que se conecte la app de
-          gestión. Ninguna pantalla muestra números inventados: si no hay dato, lo
-          dice.
+          Cada sección lee su fuente al abrirse. Si la fuente no está configurada
+          en este servidor o no responde, la pantalla lo dice en vez de mostrar
+          números: ninguna muestra un dato inventado.
         </p>
       </main>
     </>
