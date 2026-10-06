@@ -1,9 +1,11 @@
 import obtenerEncuestas from "@/lib/encuestas";
 import { shortcutConfigurado } from "@/lib/shortcut";
+import { gestionConfigurada } from "@/lib/gestion";
 
 // GET /api/salud — health check y estado de la fuente de datos.
-// De Shortcut solo dice si el token esta configurado, nunca el token: el estado
-// de la conexion lo informa /api/performance, que es la que la usa.
+// De Shortcut y de la app de gestion solo dice si el acceso esta configurado,
+// nunca el token ni la clave: el estado de cada conexion lo informa la seccion
+// que la usa (/api/performance, /api/operacion y las otras tres de Gestion).
 export async function GET() {
   const { datos, fuente, motivo, problemas, columnasIgnoradas, filasRechazadas } =
     await obtenerEncuestas();
@@ -18,5 +20,6 @@ export async function GET() {
     problemas: problemas.slice(0, 20),
     columnasIgnoradas,
     shortcutConfigurado: shortcutConfigurado(),
+    gestionConfigurada: gestionConfigurada(),
   });
 }

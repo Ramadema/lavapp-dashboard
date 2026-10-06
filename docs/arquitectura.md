@@ -11,10 +11,10 @@ Backoffice y API de backoffice del proyecto LavApp. La app principal es otra
 cosa y vive en otro lado; acá se concentran:
 
 1. **Dashboards de KPIs** — mediciones que el equipo necesita ver, organizados
-   en secciones bajo `app/dashboards/`. Hoy tres tienen datos (la encuesta a
-   lavaderos, Performance con el avance del sprint desde Shortcut, y el estado
-   del sistema); las cuatro áreas de gestión existen con su ruta y su endpoint,
-   esperando que se conecte la app.
+   en secciones bajo `app/dashboards/`. Todas tienen fuente: la encuesta a
+   lavaderos (una planilla), Performance (el avance del sprint desde Shortcut),
+   las cuatro de Gestión (la API de backoffice de la app de gestión de LavApp) y
+   el estado del sistema.
 2. **La API REST que los alimenta** — Route Handlers bajo `app/api/`, que también
    quedan disponibles para consumo externo.
 
@@ -38,11 +38,14 @@ importar de las de abajo, nunca de las de arriba ni de sus hermanas.
 ├─────────────────────────────────────────────────────────────┤
 │ 2. DOMINIO        lib/kpis/encuesta.js                      │
 │                   lib/kpis/performance.js                   │
+│                   lib/kpis/{operacion,lavaderos,clientes,   │
+│                     facturacion}.js · lib/kpis/tiempo.js    │
 │                   cálculo de indicadores. Funciones puras.  │
 ├─────────────────────────────────────────────────────────────┤
 │ 1. DATOS          una sola puerta de entrada por fuente:    │
 │                   lib/encuestas.js  ← la encuesta           │
 │                   lib/shortcut.js   ← Shortcut              │
+│                   lib/gestion.js    ← la app de gestión     │
 │                   lib/normalizar.js · lib/csv.js            │
 │                   data/encuestas.json (respaldo)            │
 └─────────────────────────────────────────────────────────────┘
@@ -58,8 +61,9 @@ importar de las de abajo, nunca de las de arriba ni de sus hermanas.
 - La capa de dominio **no sabe de HTTP ni de React**. Funciones puras: mismos
   datos de entrada, mismo resultado. Eso las hace testeables sin levantar nada.
 - Cada fuente tiene un único loader: la encuesta `lib/encuestas.js`, Shortcut
-  `lib/shortcut.js`. Ningún otro archivo lee la planilla, el JSON, la API de
-  Shortcut ni ninguna otra fuente futura.
+  `lib/shortcut.js`, la app de gestión `lib/gestion.js`. Ningún otro archivo lee
+  la planilla, el JSON, la API de Shortcut, la API de backoffice ni ninguna otra
+  fuente futura.
 
 ## Acceso
 
@@ -144,6 +148,31 @@ Shortcut no tiene respaldo en disco: el respaldo es el propio cache, que solo
 guarda respuestas 200. El detalle está en el
 [README](../README.md#performance-avance-del-sprint-desde-shortcut).
 
+Las cuatro secciones de Gestión leen la app de gestión con el mismo esquema, una
+ruta de la API de backoffice por sección:
+
+```
+Navegador
+   │  fetch /api/operacion?dias=      (POST = botón "Actualizar")
+   │  fetch /api/lavaderos · /api/clientes · /api/facturacion
+   ▼
+app/api/<seccion>/route.js
+   │  obtenerOrdenes() · obtenerLavaderos() · obtenerClientes() · obtenerPlanes() + obtenerSuscripciones()
+   ▼
+lib/gestion.js ──▶ GET {GESTION_API_URL}/backoffice/{ordenes,lavaderos,clientes,planes,suscripciones}
+   │                 header X-Backoffice-Key (GESTION_API_KEY) · cache de fetch de Next, 60 s
+   ▼
+filas crudas (una por entidad, con contadores) ──▶ lib/kpis/{operacion,lavaderos,clientes,facturacion}.js
+                                                      armar<Seccion>(filas, { ahora, leidoEl })
+                                                      totales · series · tablas · lectura · problemas
+```
+
+El backend no calcula KPIs: qué es una cuenta activa, un cliente recurrente o
+el MRR se decide acá, en los módulos puros, con firma `@decision`. Si faltan
+las variables, `lib/gestion/respuestas.js` contesta `501` con el contrato; si
+la app de gestión falla, `502` con el motivo. El detalle está en el
+[README](../README.md#gestión-las-secciones-que-leen-la-app-de-gestión).
+
 ## Mapa de archivos
 
 ### Capa de datos
@@ -155,6 +184,8 @@ guarda respuestas 200. El detalle está en el
 | `lib/normalizar.js` | Traduce la planilla al vocabulario canónico y valida. `CAMPOS`, `VOCABULARIO`, `ALIAS`, `PATRONES_PREGUNTA`. | Al agregar una pregunta, una opción nueva o una etiqueta nueva del formulario. |
 | `data/encuestas.json` | Las 40 respuestas originales. Doble función: dato inicial y respaldo. | Ver la advertencia de abajo. |
 | `lib/shortcut.js` | Único archivo que habla con la API de Shortcut. Lee `SHORTCUT_API_TOKEN`, cachea con tag `shortcut`, traduce los errores HTTP a un `motivo` legible y devuelve las respuestas crudas. Pide el historial de cada story (para saber cuándo entró al sprint) de a 5 y cacheado por versión: con el `updated_at` de la story en un header, solo se vuelve a pedir el de las que cambiaron. El token no sale nunca de acá. | Al pedir un dato nuevo a Shortcut o cambiar los tiempos de cache. |
+| `lib/gestion.js` | Único archivo que habla con la API de backoffice de la app de gestión. Lee `GESTION_API_URL` y `GESTION_API_KEY`, manda la clave en `X-Backoffice-Key`, cachea 60 s con tag `gestion`, traduce los errores HTTP (y el `detail` del `problem+json` del backend) a un `motivo` legible y devuelve las filas crudas. `obtenerOrdenes`, `obtenerLavaderos`, `obtenerClientes`, `obtenerPlanes`, `obtenerSuscripciones`, `vencerCache`, `gestionConfigurada`. La clave no sale nunca de acá. | Al pedir un dato nuevo al backend o cambiar el cache. |
+| `lib/gestion/respuestas.js` | `sinDatos(slug, resultado)`: la respuesta común de los cuatro `route.js` de Gestión cuando el loader no pudo leer (`501` sin variables, `502` si la app de gestión falló). | Al cambiar cómo se informa un fallo de la app de gestión. |
 
 > **Cuidado con `data/encuestas.json`:** se importa directo en
 > `lib/encuestas.js` y **no pasa por la normalización**. Si agregás un campo a
@@ -169,6 +200,7 @@ guarda respuestas 200. El detalle está en el
 | `test/normalizar.test.mjs` | `lib/csv.js` y `lib/normalizar.js`. Sin framework, se corre con `npm test`. Incluye regresiones de los cuatro bugs de la revisión del 2026-08-27. |
 | `test/performance.test.mjs` | `lib/kpis/performance.js`, con payloads que tienen la forma exacta de la API de Shortcut y un "ahora" fijo. También corre con `npm test`. |
 | `test/auth.test.mjs` | `lib/auth/permisos.js` (qué ve y qué abre cada rol) y `lib/auth/sesion.js` (firma, token manipulado, vencido, otro secreto). Secreto y hora fijos. `lib/auth.js` no: es la unión con `process.env` y se verifica con `curl`. |
+| `test/gestion.test.mjs` | `lib/kpis/tiempo.js` y los cuatro módulos de Gestión (`operacion`, `lavaderos`, `clientes`, `facturacion`), con filas que tienen la forma exacta de `GET /backoffice/*` y un "ahora" fijo: períodos, totales, minutos por orden, recurrencia, MRR, impagos y las filas rechazadas. También corre con `npm test`. |
 
 Son las piezas puras del repo: entran datos, salen datos, sin red ni React.
 Por eso son las que tienen tests, y las que más los necesitan porque cuando
@@ -180,7 +212,12 @@ fallan lo hacen en silencio.
 |---------|-----------------|
 | `lib/kpis/encuesta.js` | `calcularKpis(datos)` → objeto de indicadores. Funciones puras, sin efectos. |
 | `lib/kpis/performance.js` | `armarReporte(respuestasDeShortcut, { ahora })` → el reporte del sprint: resumen, tareas por estado, listas, burndown (`calcularBurndown`, con la fecha de ingreso de cada tarea sacada de su historial por `fechaDeIngreso`), compromiso (`calcularCompromiso`: comprometidas, agregadas, movidas, proyección), ritmo diario (`calcularRitmo`), cycle time (`calcularCycleTime`), tiempo en el sprint (`calcularTiempoEnSprint`) y por columna (`calcularTiempoPorColumna`, del historial). `armarHistorial` arma la fila de cada sprint para `/historial`. También `elegirSprintPorDefecto`, `sprintsPosteriores`, `sprintsParaHistorial`, `ETAPAS` y `diaLocal`, que usa la pantalla. Recibe la hora por parámetro para que los tests la fijen. |
-| `lib/secciones.js` | `SECCIONES`, `GRUPOS`, `buscarSeccion`, `cuerpoSinFuente`. Declara qué secciones existen, su ruta, su endpoint y el contrato de ese endpoint. Puro: sin React, sin `fetch`, sin `process.env`. |
+| `lib/kpis/tiempo.js` | Lo que comparten los módulos de KPIs: `ZONA_HORARIA`, `diaLocal`, `mesLocal`, `instante` (una fecha que no se entiende es `null`), `promedio`, `mediana`, `contar`, `describirLectura` y `MINUTOS_PARA_DESACTUALIZADO`. `performance.js` los reexporta. |
+| `lib/kpis/operacion.js` | `armarOperacion(ordenes, { ahora, dias, leidoEl })` → el tablero de Operación: `periodo` (`periodo(dias, ahora)`, redondeado al minuto para que el cache sirva), `totales` (del período y de ahora), demora/espera/lavado promedio, `porDia`, `porLavadero`, `porServicio`, `porEstado`, `ordenes` con sus minutos y `problemas`. `ESTADOS`, `ESTADOS_ABIERTOS` y `PERIODOS` son el contrato con el backend y la pantalla. |
+| `lib/kpis/lavaderos.js` | `armarLavaderos(lavaderos, { ahora, leidoEl })` → cuentas activas (`DIAS_ACTIVA`, con `@decision`), inactivas y suspendidas, altas del mes y por mes (`ultimosMeses`), por plan y por ciudad, el padrón ordenado por actividad. |
+| `lib/kpis/clientes.js` | `armarClientes(clientes, { ahora, leidoEl })` → recurrentes (`DIAS_RECURRENCIA`, `LAVADOS_PARA_RECURRENTE`, con `@decision`), nuevos del mes, vehículos, lavados por cliente, `distribucionLavados` (`TRAMOS_DE_LAVADOS`), por lavadero y la lista. `desdeRecurrencia(ahora)` es la fecha de corte que se le pide al backend. |
+| `lib/kpis/facturacion.js` | `armarFacturacion({ planes, suscripciones }, { ahora, leidoEl })` → MRR por planes asignados y de suscripciones, por moneda y mensualizado (`MESES_POR_PERIODICIDAD`, con `@decision`), suscripciones impagas (con `@decision`), el catálogo y la lista. |
+| `lib/secciones.js` | `SECCIONES`, `GRUPOS`, `buscarSeccion`, `cuerpoSinFuente(slug, motivo)`. Declara qué secciones existen, su ruta, su endpoint y el contrato de ese endpoint. Puro: sin React, sin `fetch`, sin `process.env`. |
 
 > `lib/secciones.js` lo leen las dos capas de arriba: la presentación para dibujar
 > la navegación y el menú, y los `route.js` de las áreas sin conectar para
@@ -199,10 +236,10 @@ fallan lo hacen en silencio.
 | `GET /api/performance[?sprint=]` | `app/api/performance/route.js` | Reporte de un sprint de Shortcut (sin `?sprint=`, el que está en curso). `501` sin token, `502` si Shortcut falló, `404` si el sprint no existe. |
 | `POST /api/performance[?sprint=]` | `app/api/performance/route.js` | Lo mismo leyendo de Shortcut sin cache, y vence el cache para las cargas siguientes. Es el botón "Actualizar". |
 | `GET|POST /api/performance/historial` | `app/api/performance/historial/route.js` | Una fila por sprint (en curso o terminado, los últimos 8) con lo comprometido, lo cumplido, lo agregado y lo movido a otro sprint. Aparte porque lee las tareas y el historial de cada sprint. `POST` = sin cache. |
-| `GET /api/operacion` | `app/api/operacion/route.js` | `501` + contrato. Sin fuente conectada. |
-| `GET /api/lavaderos` | `app/api/lavaderos/route.js` | `501` + contrato. Sin fuente conectada. |
-| `GET /api/clientes` | `app/api/clientes/route.js` | `501` + contrato. Sin fuente conectada. |
-| `GET /api/facturacion` | `app/api/facturacion/route.js` | `501` + contrato. Sin fuente conectada. |
+| `GET\|POST /api/operacion[?dias=7\|30\|90]` | `app/api/operacion/route.js` | Operación leída de la app de gestión (30 días sin `?dias=`). `400` con otro valor de `dias`, `501` sin `GESTION_*`, `502` si la app de gestión falló. `POST` = sin cache. |
+| `GET\|POST /api/lavaderos` | `app/api/lavaderos/route.js` | El padrón de cuentas. Mismos códigos. |
+| `GET\|POST /api/clientes` | `app/api/clientes/route.js` | Los clientes finales, con los lavados de los últimos 90 días. Mismos códigos. |
+| `GET\|POST /api/facturacion` | `app/api/facturacion/route.js` | Planes y suscripciones (dos lecturas al backend, en paralelo). Mismos códigos. |
 
 Todos salvo los de `/api/auth` llegan ya con sesión: el proxy corta antes con
 `401` o `403`, así que ningún `route.js` mira la cookie.
@@ -213,6 +250,9 @@ falta es la conexión — y la pantalla no podría distinguir los dos casos, as�
 mostraría ceros como si fueran una medición. `501 Not Implemented` dice lo único
 cierto: la ruta está, la fuente no. Es la [regla de no fallar en
 silencio](convenciones.md#53-fallar-en-silencio) aplicada a una sección entera.
+Hoy pasa cuando faltan `GESTION_API_URL` o `GESTION_API_KEY`; si las variables
+están pero la app de gestión no responde, es `502` con el motivo: el error es
+del servicio de atrás, no de este.
 
 ### Capa de presentación
 
@@ -224,12 +264,12 @@ silencio](convenciones.md#53-fallar-en-silencio) aplicada a una sección entera.
 | `app/dashboards/encuesta-lavaderos/page.jsx` | El dashboard de la encuesta. `"use client"`. |
 | `app/dashboards/estado/page.jsx` | `/api/salud` con interfaz: fuente en uso, filas rechazadas, columnas ignoradas. `"use client"`. |
 | `app/dashboards/performance/page.jsx` | El avance del sprint para negocio: selector de sprint, "Actualizar", resumen, burndown en tareas o puntos, flujo acumulado, tareas por estado, avance por iniciativa, carga por responsable, cycle time y listas. Si Shortcut falla, muestra el motivo y no números. `"use client"`. |
-| `app/dashboards/{operacion,lavaderos,clientes,facturacion}/page.jsx` | Áreas sin fuente. Encabezado + `SinFuente`. Cada una son 20 líneas: toda la variación está en `lib/secciones.js`. |
+| `app/dashboards/{operacion,lavaderos,clientes,facturacion}/page.jsx` | Las secciones de Gestión. Cada una envuelve su tablero en `SeccionRemota` y dibuja tarjetas, gráficos y tablas con lo que devuelve su endpoint; Operación suma los chips de período (7, 30, 90 días). `"use client"`. |
 | `app/globals.css` | Tokens de color (`--tinta`, `--agua`, …) y todas las clases. Sin CSS-in-JS. |
 | `components/Navegacion.jsx` | Barra lateral. Recibe el rol y dibuja solo lo que puede abrir (sin "Inicio" para quien ve una sola sección). `"use client"` porque marca el enlace activo con `usePathname`. |
 | `components/Sesion.jsx` | Quién está adentro, qué ve y el botón "Salir". `"use client"`. |
 | `components/EncabezadoSeccion.jsx` | Encabezado de página: título, subtítulo y señal de estado opcional. |
-| `components/SinFuente.jsx` | Estado vacío de una sección sin conectar. **Pide el contrato al endpoint, no lo lee del registro local**, para que la pantalla no pueda prometer algo que la API no publica. |
+| `components/SeccionRemota.jsx` | Una sección que pide sus datos a su propio endpoint: encabezado con señal (Conectada, Sin conectar, Sin datos, Datos desactualizados), controles propios, «Actualizar» (`POST`), «Datos de … del …», el panel de carga, el de error (`501` dice qué falta, otro error dice el motivo) y el aviso de filas rechazadas. `children` recibe la respuesta y dibuja el tablero. Si «Actualizar» falla, deja lo que ya estaba con un aviso. `"use client"`. |
 | `components/TarjetaKpi.jsx` | Tarjeta de un indicador numérico. |
 | `components/BarrasHorizontales.jsx` | Gráfico de barras horizontales (ranking de categorías). |
 | `components/BarrasAgrupadas.jsx` | Gráfico de barras verticales agrupadas (comparar series). |
@@ -260,10 +300,14 @@ app/
     <nuevo-dominio>/route.js
 lib/
   secciones.js                  → declarar la seccion acá primero
-  encuestas.js, shortcut.js     → un loader por fuente de datos
+  encuestas.js, shortcut.js,
+  gestion.js                    → un loader por fuente de datos
   kpis/
     encuesta.js                 → los KPIs de la encuesta
     performance.js              → el avance del sprint de Shortcut
+    operacion.js, lavaderos.js,
+    clientes.js, facturacion.js → las secciones de Gestión
+    tiempo.js                   → zona horaria, días, promedios: compartido
     <nuevo-dominio>.js          → un módulo de cálculo por dominio
 ```
 
@@ -277,8 +321,9 @@ Reglas para el dashboard nuevo:
    coincidir con el `slug` del registro.
 2. **Un módulo de cálculo por dominio** en `lib/kpis/<dominio>.js`. No metas
    KPIs de dominios distintos en el mismo archivo.
-3. **Una ruta de API por dominio** bajo `app/api/<dominio>/`. Mientras no tenga
-   fuente, que devuelva `cuerpoSinFuente(slug)` con `ESTADO_SIN_FUENTE`.
+3. **Una ruta de API por dominio** bajo `app/api/<dominio>/`. Si la fuente no
+   está configurada, que devuelva `cuerpoSinFuente(slug, motivo)` con
+   `ESTADO_SIN_FUENTE` (las de Gestión lo hacen con `lib/gestion/respuestas.js`).
 4. **Reusá los componentes de `components/`.** Si necesitás un tipo de gráfico
    que no existe, creá el componente genérico en `components/` — no un componente
    específico de ese dashboard.

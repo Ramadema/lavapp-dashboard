@@ -537,8 +537,8 @@ trabajo es:
    en `lib/` siguiendo el patrón de `lib/encuestas.js`: una función `async` que
    devuelve `{ datos, fuente, motivo, problemas }` y **siempre tiene respaldo**.
    Si la fuente no admite un respaldo en disco sin inventar datos, como
-   `lib/shortcut.js`, el respaldo es el cache de `fetch` (solo guarda respuestas
-   200) y la pantalla dice de cuándo es el dato que muestra.
+   `lib/shortcut.js` o `lib/gestion.js`, el respaldo es el cache de `fetch` (solo
+   guarda respuestas 200) y la pantalla dice de cuándo es el dato que muestra.
 2. **Módulo de cálculo** en `lib/kpis/<dominio>.js`, con funciones puras.
 3. **Ruta de API** en `app/api/<dominio>/route.js`. Solo traduce HTTP.
 4. **Página** en `app/dashboards/<slug>/page.jsx`, reusando `components/`.
