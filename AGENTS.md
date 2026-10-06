@@ -18,8 +18,10 @@ TypeScript, Recharts para gráficos, sin librería de estado ni de CSS.
 Romper cualquiera de estos es un error, no una decisión de diseño:
 
 1. **Cada fuente entra por un solo lugar.** La encuesta por `lib/encuestas.js`,
-   Shortcut por `lib/shortcut.js`. Ningún componente ni `route.js` lee una fuente
-   externa por su cuenta.
+   Shortcut por `lib/shortcut.js`, la app de gestión por `lib/gestion.js` (el
+   único que lee `GESTION_API_URL` y `GESTION_API_KEY`; la clave no se loguea ni
+   se devuelve). Ningún componente ni `route.js` lee una fuente externa por su
+   cuenta.
 2. **Los `route.js` no calculan.** Leen parámetros, llaman a `lib/`, serializan.
 3. **Los módulos de `lib/kpis/` son puros.** Sin `fetch`, sin React, sin `process.env`.
 4. **Nada falla en silencio.** Un dato que no se entiende se rechaza y se reporta:
@@ -52,7 +54,7 @@ práctica: **si tocás un KPI, tenés que editar los dos archivos.**
 Sin server:
 
 ```bash
-npm test          # obligatorio si tocaste lib/csv.js, lib/normalizar.js, lib/kpis/performance.js o lib/auth/*
+npm test          # obligatorio si tocaste lib/csv.js, lib/normalizar.js, lib/kpis/* o lib/auth/*
 npm run build
 ```
 
@@ -64,6 +66,8 @@ curl -s -c /tmp/sesion.txt -X POST localhost:3000/api/auth/login -H 'Content-Typ
   -d '{"usuario":"admin","contrasena":"<BACKOFFICE_ADMIN_PASSWORD>"}'
 curl -s -b /tmp/sesion.txt localhost:3000/api/salud | python3 -m json.tool
 curl -s -b /tmp/sesion.txt localhost:3000/api/performance | python3 -m json.tool
+curl -s -b /tmp/sesion.txt "localhost:3000/api/operacion?dias=7" | python3 -m json.tool
+curl -s -b /tmp/sesion.txt localhost:3000/api/facturacion | python3 -m json.tool
 ```
 
 Sin cookie, cualquier endpoint responde `401`. Con la cookie de `visitors`, los
@@ -77,6 +81,12 @@ Con `SHORTCUT_API_TOKEN` configurado, `/api/performance` responde 200 con
 `problemas: []`. Un 501 es que falta el token; un 502 trae en `motivo` lo que
 contestó Shortcut.
 
+Con `GESTION_API_URL` y `GESTION_API_KEY` configuradas (y el backend corriendo
+con `BACKOFFICE_API_KEY`), `/api/operacion`, `/api/lavaderos`, `/api/clientes` y
+`/api/facturacion` responden 200 con `conectada: true` y `problemas: []`. Un 501
+es que faltan las variables; un 502 trae en `motivo` lo que pasó con la app de
+gestión (clave distinta, backend caído, ruta inexistente).
+
 Y mirar el backoffice en el navegador:
 
 - Sin sesión, `/` redirige a `/login`. Con `visitors`, la barra lateral muestra
@@ -87,8 +97,12 @@ Y mirar el backoffice en el navegador:
   ejes, y los números cambian al usar los chips de filtro. Ojo al sacar
   conclusiones de un screenshot inmediato: Recharts anima las barras desde cero,
   así que una captura apurada las muestra cortas y parece un bug que no está.
-- Una sección sin fuente (`/dashboards/operacion`) muestra el contrato y **ningún
-  número**.
+- Las cuatro de Gestión (`/dashboards/operacion`, `/dashboards/lavaderos`,
+  `/dashboards/clientes`, `/dashboards/facturacion`) muestran la señal
+  **Conectada**, tarjetas con números y gráficos dibujados; en Operación los
+  chips de 7, 30 y 90 días cambian los números y «Actualizar» cambia la hora de
+  «Datos de la app de gestión del…». Sin las variables `GESTION_*` muestran
+  «Sin conectar», qué variable falta y **ningún número**.
 - `/dashboards/performance` muestra el sprint en curso, cambia al elegir otro en el
   selector y "Actualizar" cambia la hora de "Datos de Shortcut del…".
 
