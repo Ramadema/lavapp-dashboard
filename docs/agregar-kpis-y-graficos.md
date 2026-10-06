@@ -272,14 +272,18 @@ solo deja de estar alineada con la otra fila.
 
 ### Paso 4 — verificar
 
-`npm run dev` bloquea la terminal, así que va en una y los `curl` en otra:
+`npm run dev` bloquea la terminal, así que va en una y los `curl` en otra. La
+API pide sesión: el primer `curl` es el login, que guarda la cookie (ver
+[Acceso](../README.md#acceso-usuarios-y-roles) en el README).
 
 ```bash
 # terminal 1
 npm run dev
 
 # terminal 2
-curl -s "http://localhost:3000/api/kpis" | python3 -m json.tool | grep -A2 usanSistema
+curl -s -c /tmp/sesion.txt -X POST localhost:3000/api/auth/login -H 'Content-Type: application/json' \
+  -d '{"usuario":"admin","contrasena":"<BACKOFFICE_ADMIN_PASSWORD>"}'
+curl -s -b /tmp/sesion.txt "http://localhost:3000/api/kpis" | python3 -m json.tool | grep -A2 usanSistema
 ```
 
 Y en el navegador: la tarjeta aparece, el número coincide con el de la API, y
@@ -435,7 +439,7 @@ const ALIAS = {
 };
 ```
 
-**Verificación:** `curl -s localhost:3000/api/salud | python3 -m json.tool`.
+**Verificación:** `curl -s -b /tmp/sesion.txt localhost:3000/api/salud | python3 -m json.tool` (con la cookie del login).
 Con la planilla configurada tiene que dar `fuente: "planilla"`, `motivo: null` y
 `filasRechazadas: 0`. Si el valor no está en el vocabulario, esas filas aparecen
 en `problemas` con motivo `"valor no reconocido"` — **no se cuentan mal en
@@ -500,8 +504,8 @@ Archivo: `lib/normalizar.js`.
 **Verificación:**
 
 ```bash
-curl -s localhost:3000/api/salud | python3 -m json.tool
-curl -s localhost:3000/api/respuestas | python3 -c "import sys,json; print(json.load(sys.stdin)[0])"
+curl -s -b /tmp/sesion.txt localhost:3000/api/salud | python3 -m json.tool
+curl -s -b /tmp/sesion.txt localhost:3000/api/respuestas | python3 -c "import sys,json; print(json.load(sys.stdin)[0])"
 ```
 
 El campo nuevo tiene que aparecer en la primera respuesta.
@@ -582,10 +586,12 @@ corriendo en una y usá otra para los `curl`.
 npm run dev                  # dev server en :3000
 # o bien: npm start          # server de producción, lo que corre en Vercel
 
-# terminal 2
-curl -s localhost:3000/api/salud | python3 -m json.tool
-curl -s localhost:3000/api/kpis | python3 -m json.tool
-curl -s "localhost:3000/api/kpis?registro=Papel/pizarra" | python3 -m json.tool
+# terminal 2 (la API pide sesion: primero el login, que guarda la cookie)
+curl -s -c /tmp/sesion.txt -X POST localhost:3000/api/auth/login -H 'Content-Type: application/json' \
+  -d '{"usuario":"admin","contrasena":"<BACKOFFICE_ADMIN_PASSWORD>"}'
+curl -s -b /tmp/sesion.txt localhost:3000/api/salud | python3 -m json.tool
+curl -s -b /tmp/sesion.txt localhost:3000/api/kpis | python3 -m json.tool
+curl -s -b /tmp/sesion.txt "localhost:3000/api/kpis?registro=Papel/pizarra" | python3 -m json.tool
 ```
 
 Para bajar un server que quedó en segundo plano:

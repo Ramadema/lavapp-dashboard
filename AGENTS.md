@@ -34,6 +34,11 @@ Romper cualquiera de estos es un error, no una decisión de diseño:
    se escriben a mano en un `.jsx`.
 6. **El dashboard filtra sobre `datos`, no sobre `respuestas`.** Usar
    `respuestas` hace que el gráfico ignore el filtro activo.
+7. **El acceso entra por un solo lugar.** `proxy.js` decide qué pedido pasa y
+   `lib/auth.js` es el único que lee las contraseñas y el secreto
+   (`BACKOFFICE_*`). Qué ve cada rol vive en `lib/auth/permisos.js`. Ningún
+   `route.js` ni componente valida la sesión por su cuenta, y una contraseña o
+   un token no se loguea ni se devuelve nunca.
 
 ## Deuda conocida: no la arregles sin permiso
 
@@ -47,16 +52,22 @@ práctica: **si tocás un KPI, tenés que editar los dos archivos.**
 Sin server:
 
 ```bash
-npm test          # obligatorio si tocaste lib/csv.js, lib/normalizar.js o lib/kpis/performance.js
+npm test          # obligatorio si tocaste lib/csv.js, lib/normalizar.js, lib/kpis/performance.js o lib/auth/*
 npm run build
 ```
 
-Con server (`npm run dev` bloquea la terminal: dejalo en una y usá otra):
+Con server (`npm run dev` bloquea la terminal: dejalo en una y usá otra). La API
+pide sesión, así que el primer `curl` es el login, que guarda la cookie:
 
 ```bash
-curl -s localhost:3000/api/salud | python3 -m json.tool
-curl -s localhost:3000/api/performance | python3 -m json.tool
+curl -s -c /tmp/sesion.txt -X POST localhost:3000/api/auth/login -H 'Content-Type: application/json' \
+  -d '{"usuario":"admin","contrasena":"<BACKOFFICE_ADMIN_PASSWORD>"}'
+curl -s -b /tmp/sesion.txt localhost:3000/api/salud | python3 -m json.tool
+curl -s -b /tmp/sesion.txt localhost:3000/api/performance | python3 -m json.tool
 ```
+
+Sin cookie, cualquier endpoint responde `401`. Con la cookie de `visitors`, los
+que no son `/api/performance*` responden `403`.
 
 Con la planilla configurada tiene que decir `fuente: "planilla"`, `motivo: null` y
 `filasRechazadas: 0`. Si dice `fuente: "respaldo"`, la planilla no se leyó y el
@@ -68,6 +79,9 @@ contestó Shortcut.
 
 Y mirar el backoffice en el navegador:
 
+- Sin sesión, `/` redirige a `/login`. Con `visitors`, la barra lateral muestra
+  solo Performance, `/dashboards/estado` redirige a Performance y "Salir" vuelve
+  al login. Con `admin` se ve todo.
 - `/` lista las secciones y ninguna queda sin tarjeta.
 - `/dashboards/encuesta-lavaderos`: el gráfico tiene **barras dibujadas**, no solo
   ejes, y los números cambian al usar los chips de filtro. Ojo al sacar
