@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "node test/normalizar.test.mjs && node test/performance.test.mjs"
+    "test": "node test/normalizar.test.mjs && node test/performance.test.mjs && node test/auth.test.mjs"
   },
   "dependencies": {
     "next": "^16.3.3",
