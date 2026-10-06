@@ -82,6 +82,12 @@ export default function PaginaEstado() {
                 detalle="ENCUESTAS_CSV_URL"
                 critico={!salud.csvConfigurado}
               />
+              <TarjetaKpi
+                etiqueta="App de gestión configurada"
+                valor={salud.gestionConfigurada ? "Sí" : "No"}
+                detalle="GESTION_API_URL y GESTION_API_KEY"
+                critico={!salud.gestionConfigurada}
+              />
             </div>
 
             {enRespaldo && (

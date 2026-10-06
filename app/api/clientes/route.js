@@ -1,11 +1,26 @@
-import { cuerpoSinFuente, ESTADO_SIN_FUENTE } from "@/lib/secciones";
+import { obtenerClientes, vencerCache } from "@/lib/gestion";
+import { sinDatos } from "@/lib/gestion/respuestas";
+import { armarClientes, desdeRecurrencia } from "@/lib/kpis/clientes";
 
-// GET /api/clientes — todavia sin fuente detras.
-//
-// Responde 501 con el contrato que va a cumplir cuando se conecte la app de
-// gestion. Devolver 200 con un array vacio seria peor: la pantalla no podria
-// distinguir "no hay datos" de "no hay conexion" y el tablero mostraria ceros
-// como si fueran una medicion.
+// GET /api/clientes — los clientes finales de los lavaderos, leidos de la app de
+// gestion, con sus lavados de los ultimos 90 dias para medir recurrencia.
 export async function GET() {
-  return Response.json(cuerpoSinFuente("clientes"), { status: ESTADO_SIN_FUENTE });
+  return responder({ fresco: false });
+}
+
+// POST /api/clientes — lo mismo sin cache: el boton "Actualizar".
+export async function POST() {
+  return responder({ fresco: true });
+}
+
+async function responder({ fresco }) {
+  const ahora = new Date();
+  const clientes = await obtenerClientes({ desde: desdeRecurrencia(ahora), fresco });
+  if (!clientes.datos) return sinDatos("clientes", clientes);
+  if (fresco) vencerCache();
+
+  return Response.json({
+    conectada: true,
+    ...armarClientes(clientes.datos, { ahora, leidoEl: [clientes.leidoEl] }),
+  });
 }
