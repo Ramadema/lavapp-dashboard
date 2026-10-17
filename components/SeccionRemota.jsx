@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import EncabezadoSeccion from "@/components/EncabezadoSeccion";
 import { ESTADO_SIN_FUENTE } from "@/lib/secciones";
 import { diaYHora } from "@/lib/formato";
@@ -78,12 +78,22 @@ export default function SeccionRemota({ seccion, fuente, parametros = {}, contro
   const [respuesta, setRespuesta] = useState({ url: null, datos: null, error: null });
   const [aviso, setAviso] = useState(null);
   const [actualizando, setActualizando] = useState(false);
+  // El pedido que ya esta en curso, para no dispararlo dos veces. En desarrollo
+  // React monta cada efecto dos veces a proposito (StrictMode) y, sin esto, el
+  // navegador pide todo por duplicado: ensucia la pestaña Red y hace trabajar
+  // de mas a la app de gestion. Guardar la promesa y no el resultado es lo que
+  // permite que el segundo montaje se cuelgue del mismo pedido en vez de
+  // quedarse esperando una respuesta que ya nadie va a escuchar.
+  const enVuelo = useRef(null);
   const cargando = respuesta.url !== url;
   const { datos, error } = cargando ? { datos: null, error: null } : respuesta;
 
   useEffect(() => {
     let vigente = true;
-    pedirSeccion(url, "GET").then((r) => {
+    if (enVuelo.current?.url !== url) {
+      enVuelo.current = { url, pedido: pedirSeccion(url, "GET") };
+    }
+    enVuelo.current.pedido.then((r) => {
       if (!vigente) return;
       setRespuesta({ url, datos: r.datos ?? null, error: r.error ?? null });
       setAviso(null);
