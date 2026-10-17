@@ -11,8 +11,10 @@ import BarrasHorizontales from "@/components/BarrasHorizontales";
 import Torta from "@/components/Torta";
 import Plegable from "@/components/Plegable";
 import BarraDeProgreso from "@/components/BarraDeProgreso";
+import Insignia from "@/components/Insignia";
 import { buscarSeccion, ESTADO_SIN_FUENTE } from "@/lib/secciones";
 import { diaLocal, ESTADOS_SPRINT, ETAPAS, ZONA_HORARIA } from "@/lib/kpis/performance";
+import { SIN_ASIGNAR, SIN_ROL, TIPOS_DE_METRICA } from "@/lib/kpis/equipo";
 
 const seccion = buscarSeccion("performance");
 
@@ -116,6 +118,23 @@ const SERIES_HISTORIAL = [
   { clave: "Cumplidas", color: "var(--verde)" },
   { clave: "Agregadas", color: "var(--naranja)" },
 ];
+
+// Paneles de equipo: tareas y puntos por rol, y horas dentro de lo pactado
+// contra las que lo exceden.
+const SERIES_POR_ROL = [
+  { clave: "Tareas", color: "var(--agua)" },
+  { clave: "Puntos", color: "var(--tinta-tenue)" },
+];
+const DENTRO_DE_LO_PACTADO = "Dentro de lo pactado";
+const EXTRAS = "Horas extras";
+const SERIES_HORAS = [
+  { clave: DENTRO_DE_LO_PACTADO, color: "var(--agua)" },
+  { clave: EXTRAS, color: "var(--alerta)" },
+];
+const INTEGRANTES_VISIBLES = 10;
+const horas = (n) => (n === null || n === undefined ? "–" : `${n} h`);
+const listar = (nombres) =>
+  nombres.length <= 2 ? nombres.join(" y ") : `${nombres.slice(0, -1).join(", ")} y ${nombres.at(-1)}`;
 
 // Dias de calendario enteros o con un decimal (promedios): 0 es "el mismo dia".
 function diasDeCalendario(n) {
@@ -327,6 +346,7 @@ function Reporte({ reporte, pedidoDeHistorial }) {
     cycleTime,
     tiempoEnSprint,
     tiempoPorColumna,
+    equipo,
     terminadas,
     pendientes,
     lectura,
@@ -380,6 +400,18 @@ function Reporte({ reporte, pedidoDeHistorial }) {
 
       <PanelPorResponsable porResponsable={porResponsable} />
 
+      <PanelOkrs equipo={equipo} />
+
+      <PanelPorRol porRol={equipo.porRol} />
+
+      <PanelWip wip={equipo.wip} />
+
+      <PanelCargaPorIntegrante carga={equipo.carga} />
+
+      <PanelHoras horas={equipo.horas} sprint={sprint} />
+
+      <PanelEfectividad horas={equipo.horas} metas={equipo.configuracion.metas} />
+
       <section className="panel">
         <h2>Tareas por estado</h2>
         <p className="subtitulo">En qué columna del tablero está hoy cada tarea del sprint</p>
@@ -428,8 +460,10 @@ function Reporte({ reporte, pedidoDeHistorial }) {
         iniciativa es el epic al que pertenece y los puntos son la estimación de
         esfuerzo que carga el equipo. Lo comprometido es lo que ya estaba en el sprint
         al cierre de su primer día; una tarea que se movió a otro sprint sigue
-        contando como comprometida y no cumplida. Los datos se releen solos cada pocos
-        minutos y «Actualizar» los trae de Shortcut en el momento.
+        contando como comprometida y no cumplida. El rol y las horas pactadas de cada
+        integrante, las horas por punto y las metas de los OKR salen de{" "}
+        <code>data/equipo.json</code>, que mantiene el equipo. Los datos se releen solos cada
+        pocos minutos y «Actualizar» los trae de Shortcut en el momento.
         {resumen.tareas.archivadas > 0 &&
           ` No se cuentan ${resumen.tareas.archivadas} tareas archivadas.`}
       </p>
@@ -1157,5 +1191,369 @@ function Problemas({ problemas }) {
         </table>
       </div>
     </details>
+  );
+}
+
+// ---- Equipo: KPIs y OKRs sobre roles, carga y horas -------------------------
+
+function AvisoDeConfiguracion({ configuracion }) {
+  const { integrantes, sinRol, sinHoras, fueraDeLaConfiguracion, horasPorPunto } = configuracion;
+  const avisos = [];
+  if (integrantes === 0) {
+    avisos.push("No hay integrantes cargados en data/equipo.json: todos salen como sin rol.");
+  } else {
+    if (sinRol.length > 0) avisos.push(`Sin rol en data/equipo.json: ${listar(sinRol)}.`);
+    if (sinHoras.length > 0) avisos.push(`Sin horas semanales pactadas: ${listar(sinHoras)}.`);
+  }
+  if (fueraDeLaConfiguracion.length > 0) {
+    avisos.push(`Con tareas en Shortcut pero fuera de data/equipo.json: ${listar(fueraDeLaConfiguracion)}.`);
+  }
+  if (!horasPorPunto) avisos.push("Falta horasPorPunto: no se calculan horas, utilización ni efectividad.");
+  if (avisos.length === 0) return null;
+  return <p className="motivo">{avisos.join(" ")}</p>;
+}
+
+function Leyenda() {
+  return (
+    <p className="leyenda-metricas">
+      {Object.entries(TIPOS_DE_METRICA).map(([tipo, clase]) => (
+        <span key={tipo}>
+          <Insignia tipo={tipo} />
+          {clase.nombre}: {tipo === "okr" ? "tiene una meta acordada" : "se mira, no tiene meta"}
+        </span>
+      ))}
+    </p>
+  );
+}
+
+function detalleDeOkr(okr, { bugs, horas: h }) {
+  if (okr.clave === "bugsRatio") {
+    if (bugs.historiasTerminadas === 0) return "todavía no hay historias terminadas para comparar";
+    return `${bugs.bugsAbiertosEnSprint} ${bugs.bugsAbiertosEnSprint === 1 ? "bug abierto" : "bugs abiertos"} en el sprint sobre ${
+      bugs.historiasTerminadas
+    } ${bugs.historiasTerminadas === 1 ? "historia terminada" : "historias terminadas"}`;
+  }
+  if (!h.configurado) return "falta horasPorPunto en data/equipo.json";
+  if (okr.clave === "efectividad") {
+    if (h.equipo.comprometidas === 0) return "no hay horas comprometidas al cierre del primer día";
+    return `${horas(h.equipo.hechas)} hechas de ${horas(h.equipo.comprometidas)} comprometidas`;
+  }
+  if (h.equipo.capacidad === 0) return "nadie tiene horas semanales pactadas";
+  return `${horas(h.equipo.demanda)} de demanda sobre ${horas(h.equipo.capacidad)} de capacidad`;
+}
+
+const valorDeOkr = (okr) =>
+  okr.valor === null ? "–" : okr.clave === "bugsRatio" ? String(okr.valor) : `${okr.valor}%`;
+
+function PanelOkrs({ equipo }) {
+  const { okrs, bugs, horas: horasDelEquipo, configuracion } = equipo;
+  return (
+    <section className="panel">
+      <h2>OKRs del equipo</h2>
+      <p className="subtitulo">
+        Los tres resultados clave del sprint contra la meta que acordó el equipo
+      </p>
+      <Leyenda />
+      <div className="grilla-kpis">
+        {okrs.map((okr) => (
+          <TarjetaKpi
+            key={okr.clave}
+            tipo="okr"
+            etiqueta={okr.nombre}
+            valor={valorDeOkr(okr)}
+            meta={okr.descripcionMeta}
+            cumple={okr.cumple}
+            critico={okr.cumple === false}
+            detalle={detalleDeOkr(okr, { bugs, horas: horasDelEquipo })}
+          />
+        ))}
+      </div>
+      {bugs.bugs === 0 && (
+        <p className="motivo">
+          El sprint no tiene ninguna story de tipo «bug» en Shortcut. El ratio empieza a decir
+          algo cuando los defectos se carguen con ese tipo, no como feature.
+        </p>
+      )}
+      <AvisoDeConfiguracion configuracion={configuracion} />
+    </section>
+  );
+}
+
+function PanelPorRol({ porRol }) {
+  const { grupos, compartidas, totalTareas } = porRol;
+  const datos = useMemo(
+    () => grupos.map((g) => ({ nombre: g.rol, Tareas: g.tareas, Puntos: g.puntos })),
+    [grupos]
+  );
+  return (
+    <section className="panel">
+      <h2>
+        Distribución por rol <Insignia tipo="kpi" />
+      </h2>
+      <p className="subtitulo">
+        Cuántas tareas y puntos del sprint tiene cada rol: UX, Dev, QA y PM
+      </p>
+      {totalTareas === 0 ? (
+        <p className="motivo">El sprint todavía no tiene tareas cargadas.</p>
+      ) : (
+        <>
+          <BarrasAgrupadas datos={datos} series={SERIES_POR_ROL} />
+          <ul className="lista-avance">
+            {grupos.map((g) => (
+              <li key={g.rol}>
+                <strong>{g.rol}</strong>
+                {g.rol !== SIN_ASIGNAR &&
+                  ` (${g.integrantes === 1 ? "1 integrante" : `${g.integrantes} integrantes`})`}
+                : {textoDeTareas(g.tareas)}
+                {g.pctTareas !== null && ` (${g.pctTareas}%)`}
+                {g.puntos > 0 && ` · ${g.puntos} puntos${g.pctPuntos !== null ? ` (${g.pctPuntos}%)` : ""}`}
+                {g.terminadas > 0 && ` · ${g.terminadas} terminadas`}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {compartidas > 0 && (
+        <p className="motivo">
+          {compartidas === 1
+            ? "1 tarea tiene responsables de más de un rol y cuenta para cada uno."
+            : `${compartidas} tareas tienen responsables de más de un rol y cuentan para cada uno.`}{" "}
+          Por eso los porcentajes pueden sumar más de 100.
+        </p>
+      )}
+    </section>
+  );
+}
+
+function PanelWip({ wip }) {
+  const { grupos, maximoPorPersona } = wip;
+  const sobrecargadas = grupos.flatMap((g) =>
+    g.personas.filter((p) => p.sobrecargada).map((p) => ({ ...p, rol: g.rol }))
+  );
+  return (
+    <section className="panel">
+      <h2>
+        Trabajo en curso por rol <Insignia tipo="kpi" />
+      </h2>
+      <p className="subtitulo">
+        Tareas en In Progress, In Review o Ready for deploy que tiene cada rol hoy (WIP). Un rol
+        se marca cuando alguien tiene más de {maximoPorPersona} a la vez.
+      </p>
+      {grupos.length === 0 ? (
+        <p className="motivo">No hay roles configurados ni tareas en curso.</p>
+      ) : (
+        <div className="grilla-kpis">
+          {grupos.map((g) => (
+            <TarjetaKpi
+              key={g.rol}
+              etiqueta={g.rol}
+              valor={g.enCurso}
+              critico={g.sobrecargado}
+              detalle={
+                g.enCurso === 0
+                  ? "nada en curso"
+                  : [
+                      g.personasActivas === 1 ? "1 persona" : `${g.personasActivas} personas`,
+                      `${g.porPersona} por persona`,
+                      ...g.porEstado.map((e) => `${e.estado} ${e.tareas}`),
+                    ].join(" · ")
+              }
+            />
+          ))}
+        </div>
+      )}
+      {sobrecargadas.length > 0 && (
+        <p className="motivo">
+          Sobrecarga:{" "}
+          {sobrecargadas
+            .map((p) => `${p.nombre} (${p.rol}) tiene ${textoDeTareas(p.enCurso)} en curso`)
+            .join("; ")}
+          . El máximo configurado es {maximoPorPersona} por persona.
+        </p>
+      )}
+    </section>
+  );
+}
+
+function PanelCargaPorIntegrante({ carga }) {
+  const { personas, sinAsignar } = carga;
+  const barras = useMemo(
+    () =>
+      personas.map((p) => ({
+        nombre: recortar(p.rol === SIN_ROL ? p.nombre : `${p.nombre} · ${p.rol}`, 30),
+        valor: p.puntos,
+      })),
+    [personas]
+  );
+  const sinEstimar = personas.reduce((total, p) => total + p.sinEstimar, 0);
+  return (
+    <section className="panel">
+      <h2>
+        Carga por integrante <Insignia tipo="kpi" />
+      </h2>
+      <p className="subtitulo">Los story points asignados a cada persona en el sprint</p>
+      {personas.length === 0 ? (
+        <p className="motivo">No hay integrantes configurados ni tareas asignadas.</p>
+      ) : (
+        <Plegable items={barras} visibles={INTEGRANTES_VISIBLES}>
+          {(porcion) => (
+            <BarrasHorizontales
+              datos={porcion}
+              color="var(--agua)"
+              etiquetaValor="Puntos"
+              anchoEtiquetas={240}
+            />
+          )}
+        </Plegable>
+      )}
+      {(sinAsignar.tareas > 0 || sinEstimar > 0) && (
+        <p className="motivo">
+          {sinAsignar.tareas > 0 &&
+            `${textoDeTareas(sinAsignar.tareas)} sin responsable (${sinAsignar.puntos} puntos) no se reparten. `}
+          {sinEstimar > 0 &&
+            `${textoDeTareas(sinEstimar)} asignadas no tienen estimación y suman 0 puntos.`}
+        </p>
+      )}
+    </section>
+  );
+}
+
+function PanelHoras({ horas: datosDeHoras, sprint }) {
+  const { configurado, personas, sinHoras, semanas, horasPorPunto, equipo } = datosDeHoras;
+  const conCapacidad = personas.filter((p) => p.capacidad !== null);
+  const datos = useMemo(
+    () =>
+      conCapacidad.map((p) => ({
+        nombre: recortar(p.nombre, 24),
+        [DENTRO_DE_LO_PACTADO]: p.dentroDeLoPactado,
+        [EXTRAS]: p.extras,
+      })),
+    [conCapacidad]
+  );
+  return (
+    <section className="panel">
+      <h2>
+        Horas pactadas vs. extras <Insignia tipo="kpi" />
+      </h2>
+      <p className="subtitulo">
+        Las horas que demanda lo asignado a cada persona contra sus horas semanales pactadas por
+        las {semanas ?? dias(sprint.diasTotales)} semanas del sprint
+        {horasPorPunto ? `, a ${horasPorPunto} h por punto` : ""}
+      </p>
+      {!configurado ? (
+        <p className="motivo">
+          Falta <code>horasPorPunto</code> en data/equipo.json: sin eso no hay forma de pasar los
+          puntos a horas.
+        </p>
+      ) : conCapacidad.length === 0 ? (
+        <p className="motivo">
+          Nadie tiene horas semanales pactadas en data/equipo.json: no hay capacidad contra qué
+          comparar.
+        </p>
+      ) : (
+        <>
+          <div className="grilla-kpis">
+            <TarjetaKpi
+              etiqueta="Capacidad del sprint"
+              valor={horas(equipo.capacidad)}
+              detalle={`${conCapacidad.length === 1 ? "1 persona" : `${conCapacidad.length} personas`} con horas pactadas`}
+            />
+            <TarjetaKpi
+              etiqueta="Demanda asignada"
+              valor={horas(equipo.demanda)}
+              detalle="puntos asignados pasados a horas"
+            />
+            <TarjetaKpi
+              etiqueta="Horas extras"
+              valor={horas(equipo.extras)}
+              critico={equipo.extras > 0}
+              detalle={
+                equipo.conSobrecarga === 0
+                  ? "nadie excede lo pactado"
+                  : equipo.conSobrecarga === 1
+                    ? "1 persona excede lo pactado"
+                    : `${equipo.conSobrecarga} personas exceden lo pactado`
+              }
+            />
+          </div>
+          <BarrasApiladas datos={datos} series={SERIES_HORAS} anchoEtiquetas={160} />
+        </>
+      )}
+      {configurado && sinHoras.length > 0 && (
+        <p className="motivo">Sin horas pactadas, fuera de la comparación: {listar(sinHoras)}.</p>
+      )}
+    </section>
+  );
+}
+
+function PanelEfectividad({ horas: datosDeHoras, metas }) {
+  const { configurado, personas } = datosDeHoras;
+  const fueraDeRango = (u) =>
+    u !== null &&
+    ((metas.utilizacionMin !== null && u < metas.utilizacionMin) ||
+      (metas.utilizacionMax !== null && u > metas.utilizacionMax));
+  const bajaEfectividad = (e) => e !== null && metas.efectividadMin !== null && e < metas.efectividadMin;
+  return (
+    <section className="panel">
+      <h2>
+        Utilización y efectividad por integrante <Insignia tipo="kpi" />
+      </h2>
+      <p className="subtitulo">
+        Utilización = demanda / capacidad. Efectividad de entrega = horas hechas / horas
+        comprometidas al cierre del primer día. Las mismas cuentas que los OKR, persona por
+        persona.
+      </p>
+      {!configurado ? (
+        <p className="motivo">Falta <code>horasPorPunto</code> en data/equipo.json.</p>
+      ) : personas.length === 0 ? (
+        <p className="motivo">No hay integrantes configurados ni tareas asignadas.</p>
+      ) : (
+        <div className="contrato">
+          <table className="tabla-equipo">
+            <thead>
+              <tr>
+                <th>Integrante</th>
+                <th>Rol</th>
+                <th className="numero">Capacidad</th>
+                <th className="numero">Demanda</th>
+                <th className="numero">Utilización</th>
+                <th className="numero">Hechas</th>
+                <th className="numero">Comprometidas</th>
+                <th className="numero">Efectividad</th>
+              </tr>
+            </thead>
+            <tbody>
+              {personas.map((p) => (
+                <tr key={p.nombre}>
+                  <td>{p.nombre}</td>
+                  <td>{p.rol}</td>
+                  <td className="numero">{horas(p.capacidad)}</td>
+                  <td className="numero">{horas(p.demanda)}</td>
+                  <td className={"numero" + (fueraDeRango(p.utilizacion) ? " critico" : "")}>
+                    {conPorcentaje(p.utilizacion)}
+                  </td>
+                  <td className="numero">{horas(p.hechas)}</td>
+                  <td className="numero">{horas(p.comprometidas)}</td>
+                  <td className={"numero" + (bajaEfectividad(p.efectividad) ? " critico" : "")}>
+                    {conPorcentaje(p.efectividad)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {configurado && personas.length > 0 && (
+        <p className="motivo">
+          Se marca en rojo la utilización fuera de
+          {metas.utilizacionMin !== null && metas.utilizacionMax !== null
+            ? ` ${metas.utilizacionMin}% a ${metas.utilizacionMax}%`
+            : " rango"}{" "}
+          y la efectividad por debajo de
+          {metas.efectividadMin !== null ? ` ${metas.efectividadMin}%` : " la meta"}. Quien no
+          tiene horas pactadas muestra demanda pero no utilización.
+        </p>
+      )}
+    </section>
   );
 }

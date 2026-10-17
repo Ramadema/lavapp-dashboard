@@ -532,11 +532,77 @@ curl -b /tmp/sesion.txt http://localhost:3000/api/performance/historial   # el h
   tablero, reconstruido de los cambios de `workflow_state_id` del historial,
   desde que se creó hasta que se terminó. Promedio, mediana y cuántas tareas
   pasaron por cada una. Las columnas de tipo done no se miden.
+- **Equipo: KPIs y OKRs** (campo `equipo` de la respuesta, seis paneles al
+  final de la pantalla). Cada tarjeta y cada título lleva la insignia **KPI**
+  (un número que se mira, sin meta) u **OKR** (un resultado clave con una meta
+  acordada), con un tooltip que explica la diferencia y, en los OKR, la meta y
+  si se cumple. Shortcut no sabe el rol ni las horas de nadie: salen de
+  [`data/equipo.json`](#configuración-del-equipo-dataequipojson). Las reglas
+  están firmadas con `@decision` en `lib/kpis/equipo.js`.
+  - *OKR · Bugs por historia terminada*: stories de tipo `bug` que entraron al
+    sprint entre su inicio y su fin, sobre las historias de usuario terminadas
+    (stories sin tarea madre que no son bugs). Sin historias terminadas es «–»,
+    no 0. Hoy el equipo carga todo como feature: el ratio empieza a decir algo
+    cuando los defectos se carguen con el tipo bug de Shortcut.
+  - *OKR · Efectividad de entrega*: horas hechas sobre horas comprometidas al
+    cierre del primer día (la misma regla que «Compromiso del sprint»).
+  - *OKR · Utilización del equipo*: horas de demanda sobre horas de capacidad,
+    contando solo a quienes tienen horas pactadas.
+  - *KPI · Distribución por rol*: tareas y puntos por rol (UX, Dev, QA, PM),
+    con el porcentaje sobre el sprint. Una tarea con responsables de dos roles
+    cuenta para cada uno y se informa cuántas están así; quien no está en la
+    configuración va a «Sin rol» y las tareas sin responsable a «Sin asignar».
+  - *KPI · Trabajo en curso por rol (WIP)*: tareas en columnas de tipo started
+    por rol, partidas por columna y por persona. Un rol se marca sobrecargado
+    cuando alguien tiene más de `wipMaxPorPersona` tareas en curso: se mira por
+    persona, no por promedio, porque el promedio esconde justamente a quien
+    está tapado.
+  - *KPI · Carga por integrante*: puntos asignados a cada persona, con su rol;
+    los integrantes configurados sin carga aparecen en 0.
+  - *KPI · Horas pactadas vs. extras*: por persona, capacidad = horas semanales
+    × semanas del sprint (días / 7); demanda = puntos asignados ×
+    `horasPorPunto`; extras = lo que la demanda excede a la capacidad.
+  - *KPI · Utilización y efectividad por integrante*: la tabla con las mismas
+    cuentas de los OKR, persona por persona, marcando en rojo lo que queda fuera
+    de las metas.
 
 Las reglas exactas están firmadas con `@decision` en `lib/kpis/performance.js`.
 Una limitación de la API: solo lista las tareas que hoy están en el sprint, así
 que una que se sacó a mitad de camino no aparece en el burndown.
 Los días se cortan en hora de Buenos Aires.
+
+### Configuración del equipo (`data/equipo.json`)
+
+Lo que Shortcut no sabe del equipo vive en este archivo, que se commitea y
+mantiene el equipo a mano (no lleva secretos):
+
+```json
+{
+  "horasPorPunto": 4,
+  "wipMaxPorPersona": 3,
+  "metas": { "bugsRatioMax": 0.25, "efectividadMin": 80, "utilizacionMin": 70, "utilizacionMax": 90 },
+  "integrantes": [
+    { "nombre": "Nombre tal como figura en Shortcut", "rol": "Dev", "horasSemanales": 20 }
+  ]
+}
+```
+
+- `nombre` es el de Shortcut (Perfil → Name), el mismo que se ve en «Carga por
+  responsable»: así se empareja a cada persona.
+- `rol` admite `UX`, `Dev`, `QA` y `PM`. Con `null` la persona cuenta como «Sin
+  rol». `horasSemanales` en `null` la deja fuera de capacidad, utilización y
+  horas extras (la demanda se calcula igual).
+- `horasPorPunto` convierte los story points en horas; sin él no se calculan
+  horas, utilización ni efectividad. `wipMaxPorPersona` es el umbral de
+  sobrecarga del WIP.
+- `metas` son las de los tres OKR; con `null` la tarjeta muestra el valor sin
+  decir si cumple.
+
+El archivo se lee en cada pedido (`lib/equipo.js`), así que un cambio se ve al
+recargar, sin reiniciar. Lo que no se entiende se rechaza con el valor por
+defecto y queda anotado en el panel «datos que no se pudieron traducir», con el
+campo que falló. Si falta o no es JSON válido, la pantalla sale igual con todos
+sin rol y las horas sin calcular, y los paneles dicen qué falta.
 
 ### Cómo se comporta el cache
 
@@ -766,6 +832,11 @@ En **Performance**, por sprint de Shortcut:
 - Flujo acumulado diario: tareas terminadas, en curso y pendientes
 - Avance por iniciativa (epic) y carga por responsable, partidos por etapa
 - Cycle time por tarea terminada, con promedio y mediana
+- Equipo, con `data/equipo.json`: OKRs de bugs por historia terminada,
+  efectividad de entrega y utilización, con su meta; KPIs de distribución de
+  tareas y puntos por rol, WIP por rol con alerta de sobrecarga, carga por
+  integrante, horas pactadas contra extras, y utilización y efectividad por
+  integrante. Cada uno con la insignia KPI u OKR y su tooltip.
 
 ## Nota metodológica
 

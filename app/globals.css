@@ -328,6 +328,101 @@ body {
   color: var(--alerta);
 }
 
+/* Insignia KPI / OKR al lado de la etiqueta, con el tooltip que explica que es
+   cada una. Sale al pasar el mouse y al enfocarla con el teclado. */
+.kpi .etiqueta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.insignia {
+  position: relative;
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  padding: 3px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--tinta-clara);
+  color: var(--tinta-tenue);
+  background: var(--blanco);
+  cursor: help;
+}
+
+.insignia.okr {
+  border-color: var(--agua);
+  color: var(--agua-oscura);
+}
+
+.insignia.okr.cumple {
+  border-color: var(--verde);
+  color: var(--verde);
+}
+
+.insignia.okr.no-cumple {
+  border-color: var(--alerta);
+  color: var(--alerta);
+}
+
+.insignia .ayuda {
+  display: none;
+  position: absolute;
+  left: 0;
+  top: calc(100% + 8px);
+  z-index: 3;
+  width: 280px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--borde);
+  background: var(--blanco);
+  box-shadow: 0 4px 14px rgba(16, 49, 75, 0.12);
+  color: var(--tinta);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.5;
+  text-transform: none;
+  white-space: normal;
+}
+
+.insignia .ayuda strong {
+  display: block;
+  margin-bottom: 2px;
+}
+
+.insignia:hover .ayuda,
+.insignia:focus .ayuda,
+.insignia:focus-within .ayuda {
+  display: block;
+}
+
+/* Leyenda de la seccion de equipo: que es un KPI y que es un OKR. */
+.leyenda-metricas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  font-size: 12px;
+  color: var(--gris);
+  margin: 0 0 16px;
+}
+
+.leyenda-metricas .insignia {
+  margin-right: 6px;
+}
+
+.tabla-equipo td.numero,
+.tabla-equipo th.numero {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.tabla-equipo td.critico {
+  color: var(--alerta);
+  font-weight: 600;
+}
+
 .kpi .detalle {
   font-size: 12px;
   color: var(--gris-suave);

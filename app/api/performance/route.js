@@ -1,4 +1,5 @@
 import { obtenerSprints, obtenerSprint, obtenerMovidas, vencerCache } from "@/lib/shortcut";
+import { cargarEquipo } from "@/lib/equipo";
 import { armarReporte, elegirSprintPorDefecto, sprintsPosteriores } from "@/lib/kpis/performance";
 import { ESTADO_SIN_FUENTE } from "@/lib/secciones";
 
@@ -54,6 +55,11 @@ async function responder(request, { fresco }) {
     { fresco }
   );
 
+  // Roles, horas pactadas y metas: data/equipo.json. Si falta o esta roto, el
+  // reporte sale igual, con todos sin rol y las horas sin calcular, y el motivo
+  // viaja en `problemas`.
+  const equipo = await cargarEquipo();
+
   if (fresco) vencerCache();
 
   return Response.json(
@@ -62,7 +68,8 @@ async function responder(request, { fresco }) {
       {
         ahora: new Date(),
         leidoEl: [sprints.leidoEl, sprint.leidoEl, movidas.leidoEl],
-        problemas: [...sprint.problemas, ...movidas.problemas],
+        problemas: [...sprint.problemas, ...movidas.problemas, ...equipo.problemas],
+        equipo: equipo.datos,
       }
     )
   );
