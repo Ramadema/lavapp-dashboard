@@ -39,6 +39,9 @@ const diaYHora = (instante) => DIA_Y_HORA.format(new Date(instante));
 const conPorcentaje = (pct) => (pct === null ? "–" : `${pct}%`);
 const dias = (n) => (n === 1 ? "1 día" : `${n} días`);
 const textoDeTareas = (n) => (n === 1 ? "1 tarea" : `${n} tareas`);
+// "1 de 1 tarea terminada", "3 de 5 tareas terminadas": concuerda con el total.
+const terminadasDe = (n, total) =>
+  `${n} de ${textoDeTareas(total)} ${total === 1 ? "terminada" : "terminadas"}`;
 const recortar = (texto, largo) =>
   texto.length > largo ? texto.slice(0, largo - 1).trimEnd() + "…" : texto;
 
@@ -347,6 +350,7 @@ function Reporte({ reporte, pedidoDeHistorial }) {
     tiempoEnSprint,
     tiempoPorColumna,
     equipo,
+    proyecto,
     terminadas,
     pendientes,
     lectura,
@@ -383,6 +387,8 @@ function Reporte({ reporte, pedidoDeHistorial }) {
           detalle={`${resumen.tareas.pendientes} sin empezar`}
         />
       </div>
+
+      <PanelProyecto proyecto={proyecto} />
 
       <ResumenVisual resumen={resumen} compromiso={compromiso} />
 
@@ -460,7 +466,9 @@ function Reporte({ reporte, pedidoDeHistorial }) {
         iniciativa es el epic al que pertenece y los puntos son la estimación de
         esfuerzo que carga el equipo. Lo comprometido es lo que ya estaba en el sprint
         al cierre de su primer día; una tarea que se movió a otro sprint sigue
-        contando como comprometida y no cumplida. El rol y las horas pactadas de cada
+        contando como comprometida y no cumplida. El progreso del proyecto suma las
+        estadísticas de todos los sprints, y los errores son las stories de tipo «bug»
+        de todo el proyecto. El rol y las horas pactadas de cada
         integrante, las horas por punto y las metas de los OKR salen de{" "}
         <code>data/equipo.json</code>, que mantiene el equipo. Los datos se releen solos cada
         pocos minutos y «Actualizar» los trae de Shortcut en el momento.
@@ -582,7 +590,7 @@ function Desglose({ grupos }) {
       <ul className="lista-avance">
         {grupos.map((g) => (
           <li key={g.nombre}>
-            <strong>{g.nombre}</strong>: {g.terminadas} de {textoDeTareas(g.total)} terminadas
+            <strong>{g.nombre}</strong>: {terminadasDe(g.terminadas, g.total)}
             {g.pct !== null && ` (${g.pct}%)`}
             {g.puntos > 0 && ` · ${g.puntosTerminados} de ${g.puntos} puntos`}
           </li>
@@ -1179,7 +1187,7 @@ function Problemas({ problemas }) {
           <tbody>
             {problemas.map((p, i) => (
               <tr key={i}>
-                <td>sc-{p.tarea}</td>
+                <td>{p.tarea === null ? "–" : `sc-${p.tarea}`}</td>
                 <td>
                   <code>{p.campo}</code>
                 </td>
@@ -1229,9 +1237,11 @@ function Leyenda() {
 function detalleDeOkr(okr, { bugs, horas: h }) {
   if (okr.clave === "bugsRatio") {
     if (bugs.historiasTerminadas === 0) return "todavía no hay historias terminadas para comparar";
-    return `${bugs.bugsAbiertosEnSprint} ${bugs.bugsAbiertosEnSprint === 1 ? "bug abierto" : "bugs abiertos"} en el sprint sobre ${
-      bugs.historiasTerminadas
-    } ${bugs.historiasTerminadas === 1 ? "historia terminada" : "historias terminadas"}`;
+    return `${bugs.bugsAbiertosEnSprint} ${
+      bugs.bugsAbiertosEnSprint === 1 ? "bug reportado" : "bugs reportados"
+    } durante el sprint sobre ${bugs.historiasTerminadas} ${
+      bugs.historiasTerminadas === 1 ? "historia terminada" : "historias terminadas"
+    }`;
   }
   if (!h.configurado) return "falta horasPorPunto en data/equipo.json";
   if (okr.clave === "efectividad") {
@@ -1552,6 +1562,109 @@ function PanelEfectividad({ horas: datosDeHoras, metas }) {
           y la efectividad por debajo de
           {metas.efectividadMin !== null ? ` ${metas.efectividadMin}%` : " la meta"}. Quien no
           tiene horas pactadas muestra demanda pero no utilización.
+        </p>
+      )}
+    </section>
+  );
+}
+
+// ---- Proyecto: progreso de todos los sprints y errores ------------------------
+
+const textoDeSprints = (n) => (n === 1 ? "1 sprint" : `${n} sprints`);
+const concordar = (n, singular, plural) => `${n} ${n === 1 ? singular : plural}`;
+
+function detalleDeErrores(errores) {
+  if (errores.abiertos === null) return "no se pudieron contar los bugs en Shortcut";
+  const partes = [
+    `${concordar(errores.resueltos, "resuelto", "resueltos")} de ${concordar(
+      errores.reportados,
+      "reportado",
+      "reportados"
+    )} en el proyecto`,
+  ];
+  if (errores.enElSprint.reportados > 0 || errores.enElSprint.sinResolver > 0) {
+    partes.push(`${errores.enElSprint.sinResolver} sin resolver en este sprint`);
+  }
+  return partes.join(" · ");
+}
+
+function PanelProyecto({ proyecto }) {
+  const { progreso, errores } = proyecto;
+  const { sprints, tareas, puntos, sinSprint } = progreso;
+  const datos = useMemo(
+    () =>
+      sprints.map((s) => ({
+        nombre: recortar(s.nombre, 24),
+        [ETAPAS.done]: s.tareas.terminadas,
+        [ETAPAS.started]: s.tareas.enCurso,
+        [ETAPAS.unstarted]: s.tareas.pendientes,
+      })),
+    [sprints]
+  );
+  return (
+    <section className="panel">
+      <h2>
+        Progreso del proyecto <Insignia tipo="kpi" />
+      </h2>
+      <p className="subtitulo">
+        Lo terminado sobre todo lo planificado en los sprints, del primero al último, más los
+        errores reportados en todo el proyecto
+      </p>
+      <div className="grilla-kpis">
+        <TarjetaKpi
+          etiqueta="Progreso en tareas"
+          valor={conPorcentaje(tareas.pct)}
+          detalle={
+            sprints.length === 0
+              ? "todavía no hay sprints en Shortcut"
+              : `${terminadasDe(tareas.terminadas, tareas.total)} en ${textoDeSprints(sprints.length)}`
+          }
+        />
+        <TarjetaKpi
+          etiqueta="Progreso en puntos"
+          valor={conPorcentaje(puntos.pct)}
+          detalle={detalleDePuntos(puntos)}
+        />
+        <TarjetaKpi
+          etiqueta="En curso hoy"
+          valor={tareas.enCurso}
+          detalle={`${tareas.pendientes} sin empezar en todo el proyecto`}
+        />
+        <TarjetaKpi
+          etiqueta="Errores abiertos"
+          valor={errores.abiertos === null ? "–" : errores.abiertos}
+          critico={errores.abiertos !== null && errores.abiertos > 0}
+          detalle={detalleDeErrores(errores)}
+        />
+      </div>
+      {sprints.length === 0 ? (
+        <p className="motivo">Todavía no hay sprints cargados en Shortcut.</p>
+      ) : (
+        <>
+          <BarrasApiladas datos={datos} series={SERIES_ETAPAS} anchoEtiquetas={160} />
+          <ul className="lista-avance">
+            {sprints.map((s) => (
+              <li key={s.id}>
+                <strong>{s.nombre}</strong> ({s.estado}, {fechaCorta(s.inicio)} – {fechaCorta(s.fin)}):{" "}
+                {terminadasDe(s.tareas.terminadas, s.tareas.total)}
+                {s.tareas.pct !== null && ` (${s.tareas.pct}%)`}
+                {s.puntos.total > 0 && ` · ${s.puntos.terminados} de ${s.puntos.total} puntos`}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {sinSprint !== null && sinSprint > 0 && (
+        <p className="motivo">
+          {sinSprint === 1
+            ? "1 tarea no está en ningún sprint y no cuenta en el progreso."
+            : `${sinSprint} tareas no están en ningún sprint y no cuentan en el progreso.`}
+        </p>
+      )}
+      {errores.reportados === 0 && (
+        <p className="motivo">
+          El proyecto no tiene ninguna story de tipo «bug» en Shortcut: los errores se cuentan
+          cuando los defectos se carguen con ese tipo, no como feature.
         </p>
       )}
     </section>

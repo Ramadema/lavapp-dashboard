@@ -56,6 +56,9 @@ const MIEMBROS = [
 ];
 const EPICS = [{ id: 16, name: "Epic - LavApp " }];
 
+// Las `stats` vienen siempre en /iterations; sin ellas el progreso del
+// proyecto reporta un problema (ver proyecto.test.mjs), asi que la iteracion
+// de prueba las trae en 0.
 const iteracion = (o = {}) => ({
   id: 29,
   name: "Sprint 1",
@@ -63,6 +66,11 @@ const iteracion = (o = {}) => ({
   start_date: "2026-09-23",
   end_date: "2026-10-07",
   app_url: "https://app.shortcut.com/lavapp/iteration/29",
+  stats: {
+    num_stories_done: 0, num_stories_started: 0, num_stories_unstarted: 0, num_stories_backlog: 0,
+    num_stories_unestimated: 0, num_points: 0, num_points_done: 0, num_points_started: 0,
+    num_points_unstarted: 0, num_points_backlog: 0, num_related_documents: 0,
+  },
   ...o,
 });
 
@@ -107,11 +115,35 @@ const terminada = (o = {}) =>
 // Miercoles 30/09 a las 12 de Buenos Aires.
 const AHORA = new Date("2026-09-30T15:00:00Z");
 
-const reporte = (stories, o = {}) =>
-  armarReporte(
+// Las stats del sprint que se mira se derivan de sus stories, como las calcula
+// Shortcut: si no coincidieran, armarReporte reportaria la diferencia y los
+// tests que fijan `problemas` fallarian por eso y no por lo que prueban.
+const conStats = (it, stories) => {
+  const vivas = stories.filter((s) => !s.archived);
+  const terminadas = vivas.filter((s) => s.completed);
+  return {
+    ...it,
+    stats: {
+      ...it.stats,
+      num_stories_done: terminadas.length,
+      num_stories_started: vivas.filter((s) => s.started && !s.completed).length,
+      num_stories_unstarted: vivas.filter((s) => !s.started && !s.completed).length,
+      num_stories_backlog: 0,
+      num_stories_unestimated: vivas.filter((s) => s.estimate === null).length,
+      num_points: vivas.reduce((t, s) => t + (s.estimate ?? 0), 0),
+      num_points_done: terminadas.reduce((t, s) => t + (s.estimate ?? 0), 0),
+    },
+  };
+};
+
+const reporte = (stories, o = {}) => {
+  const it = conStats(o.iteracion ?? iteracion(), stories);
+  return armarReporte(
     {
-      iteraciones: o.iteraciones ?? [iteracion()],
-      iteracion: o.iteracion ?? iteracion(),
+      // La fila del proyecto sale de la lista: la iteracion que se mira va con
+      // las mismas stats en los dos lados.
+      iteraciones: (o.iteraciones ?? [iteracion()]).map((i) => (i.id === it.id ? it : i)),
+      iteracion: it,
       stories,
       workflows: o.workflows ?? [WORKFLOW],
       miembros: o.miembros ?? MIEMBROS,
@@ -121,6 +153,7 @@ const reporte = (stories, o = {}) =>
     },
     { ahora: o.ahora ?? AHORA, leidoEl: o.leidoEl ?? [], problemas: o.problemas }
   );
+};
 
 // Entradas de /stories/{id}/history, con la forma real: `changes.iteration_id`
 // trae solo `new` cuando la story no tenia sprint.

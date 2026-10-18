@@ -532,6 +532,34 @@ curl -b /tmp/sesion.txt http://localhost:3000/api/performance/historial   # el h
   tablero, reconstruido de los cambios de `workflow_state_id` del historial,
   desde que se creó hasta que se terminó. Promedio, mediana y cuántas tareas
   pasaron por cada una. Las columnas de tipo done no se miden.
+- **Progreso del proyecto** (campo `proyecto.progreso`, panel debajo de las
+  tarjetas del sprint): lo terminado sobre el total de todos los sprints
+  juntos (terminados, en curso y por empezar), en tareas y en puntos, con el
+  desglose por sprint. Sale de las `stats` que Shortcut guarda por iteración,
+  que cuentan lo mismo que esta pantalla (stories no archivadas, subtareas
+  incluidas) sin leer las stories de cada sprint. El sprint que se está
+  mirando se cuenta desde sus stories, igual que las tarjetas de arriba: si
+  sus `stats` dijeran otra cosa (son dos lecturas con cache propio), la
+  pantalla nunca muestra dos números y la diferencia va al panel de problemas.
+  Una tarea movida de sprint está en uno solo, así que la suma no la cuenta
+  dos veces. Las stories que no están en ningún sprint no cuentan en el
+  porcentaje y se informan aparte (`sinSprint`): son las stories no
+  archivadas de todo el workspace (búsqueda `-is:archived`) menos lo que suman
+  los sprints; si la resta da negativo, se reporta y queda sin dato.
+- **Errores del proyecto** (campo `proyecto.errores`, tarjeta «Errores
+  abiertos» en el mismo panel): las stories de tipo `bug` de todo el workspace
+  (no solo del sprint), reportadas, resueltas (`is:done`) y abiertas
+  (`-is:done`), cada una con su propia búsqueda de Shortcut (`page_size=1`,
+  solo importa el `total`), así el número principal no sale de restar dos
+  lecturas. Si los tres no cierran (resueltos + abiertos ≠ reportados), son
+  lecturas de momentos distintos: se reporta y el porcentaje de resueltos
+  queda sin dato. Sin bugs reportados no hay nada resuelto ni abierto, aunque
+  esas búsquedas hayan fallado. Si no se pudo contar, el valor queda en «–» y
+  el motivo va al panel de problemas: no se muestra un 0 que parezca «sin
+  errores». El detalle agrega los bugs del sprint con el mismo vocabulario
+  que el OKR del equipo: reportados durante el sprint y sin resolver. Hoy el
+  equipo carga todo como feature: el indicador empieza a medir cuando los
+  defectos se carguen con el tipo bug.
 - **Equipo: KPIs y OKRs** (campo `equipo` de la respuesta, seis paneles al
   final de la pantalla). Cada tarjeta y cada título lleva la insignia **KPI**
   (un número que se mira, sin meta) u **OKR** (un resultado clave con una meta
@@ -539,8 +567,8 @@ curl -b /tmp/sesion.txt http://localhost:3000/api/performance/historial   # el h
   si se cumple. Shortcut no sabe el rol ni las horas de nadie: salen de
   [`data/equipo.json`](#configuración-del-equipo-dataequipojson). Las reglas
   están firmadas con `@decision` en `lib/kpis/equipo.js`.
-  - *OKR · Bugs por historia terminada*: stories de tipo `bug` que entraron al
-    sprint entre su inicio y su fin, sobre las historias de usuario terminadas
+  - *OKR · Bugs por historia terminada*: stories de tipo `bug` reportadas
+    durante el sprint (entraron entre su inicio y su fin), sobre las historias de usuario terminadas
     (stories sin tarea madre que no son bugs). Sin historias terminadas es «–»,
     no 0. Hoy el equipo carga todo como feature: el ratio empieza a decir algo
     cuando los defectos se carguen con el tipo bug de Shortcut.
@@ -609,8 +637,10 @@ sin rol y las horas sin calcular, y los paneles dicen qué falta.
 La API de Shortcut acepta 200 requests por minuto. Para no gastarlas en cada
 carga de página, `lib/shortcut.js` cachea con *stale-while-revalidate*: los
 sprints y sus stories se releen cada 5 minutos, y los workflows, las personas y
-los epics cada 15. Un reporte leído en frío cuesta 5 requests más uno por
-story para el historial (el Sprint 1, con 56 stories, son 61 requests y unos 4
+los epics cada 15, y las cuatro búsquedas del proyecto (stories y bugs
+reportados, resueltos y abiertos) cada 5. Un reporte leído en frío cuesta 9
+requests (5 del sprint y los catálogos más las 4 búsquedas) y uno por story
+para el historial (el Sprint 1, con 56 stories, son 65 requests y unos 4
 segundos). Los historiales se piden de a 5 y quedan guardados por versión: cada
 uno se cachea con el `updated_at` de su story, así que en las lecturas
 siguientes solo se vuelve a pedir el de las stories que cambiaron. Si Shortcut
@@ -832,6 +862,9 @@ En **Performance**, por sprint de Shortcut:
 - Flujo acumulado diario: tareas terminadas, en curso y pendientes
 - Avance por iniciativa (epic) y carga por responsable, partidos por etapa
 - Cycle time por tarea terminada, con promedio y mediana
+- Progreso del proyecto: tareas y puntos terminados sobre el total de todos
+  los sprints, con el desglose por sprint, y los errores (bugs) reportados,
+  resueltos y abiertos en todo el proyecto
 - Equipo, con `data/equipo.json`: OKRs de bugs por historia terminada,
   efectividad de entrega y utilización, con su meta; KPIs de distribución de
   tareas y puntos por rol, WIP por rol con alerta de sobrecarga, carga por

@@ -1,4 +1,4 @@
-import { obtenerSprints, obtenerSprint, obtenerMovidas, vencerCache } from "@/lib/shortcut";
+import { obtenerSprints, obtenerSprint, obtenerMovidas, obtenerConteos, vencerCache } from "@/lib/shortcut";
 import { cargarEquipo } from "@/lib/equipo";
 import { armarReporte, elegirSprintPorDefecto, sprintsPosteriores } from "@/lib/kpis/performance";
 import { ESTADO_SIN_FUENTE } from "@/lib/secciones";
@@ -45,7 +45,12 @@ async function responder(request, { fresco }) {
     return Response.json({ fuente: "shortcut", motivo }, { status: 404 });
   }
 
-  const sprint = await obtenerSprint(id, { fresco });
+  // Los conteos del proyecto entero (bugs, tareas sin sprint) no dependen del
+  // sprint y van en paralelo con su lectura.
+  const [sprint, conteos] = await Promise.all([
+    obtenerSprint(id, { fresco }),
+    obtenerConteos({ fresco }),
+  ]);
   if (!sprint.datos) return responderSinDatos(sprint);
 
   // Las tareas que se le sacaron a este sprint estan en los que empiezan despues.
@@ -64,11 +69,22 @@ async function responder(request, { fresco }) {
 
   return Response.json(
     armarReporte(
-      { iteraciones: sprints.datos, iteracion, ...sprint.datos, movidas: movidas.datos },
+      {
+        iteraciones: sprints.datos,
+        iteracion,
+        ...sprint.datos,
+        movidas: movidas.datos,
+        conteos: conteos.datos,
+      },
       {
         ahora: new Date(),
-        leidoEl: [sprints.leidoEl, sprint.leidoEl, movidas.leidoEl],
-        problemas: [...sprint.problemas, ...movidas.problemas, ...equipo.problemas],
+        leidoEl: [sprints.leidoEl, sprint.leidoEl, movidas.leidoEl, conteos.leidoEl],
+        problemas: [
+          ...sprint.problemas,
+          ...movidas.problemas,
+          ...conteos.problemas,
+          ...equipo.problemas,
+        ],
         equipo: equipo.datos,
       }
     )
