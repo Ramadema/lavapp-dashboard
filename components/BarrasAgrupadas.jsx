@@ -11,7 +11,10 @@ import {
   CartesianGrid,
 } from "recharts";
 
-export default function BarrasAgrupadas({ datos, series }) {
+// `intervalo` es el `interval` del eje X de Recharts: 0 muestra todas las
+// etiquetas (pocas categorias), "preserveStartEnd" deja que se salteen cuando
+// no entran (una barra por dia en medio panel).
+export default function BarrasAgrupadas({ datos, series, intervalo = 0 }) {
   return (
     <div style={{ width: "100%", height: 280 }}>
       <ResponsiveContainer>
@@ -22,7 +25,8 @@ export default function BarrasAgrupadas({ datos, series }) {
             tick={{ fontSize: 12, fill: "#5c6b76" }}
             axisLine={false}
             tickLine={false}
-            interval={0}
+            interval={intervalo}
+            minTickGap={12}
           />
           <YAxis
             allowDecimals={false}

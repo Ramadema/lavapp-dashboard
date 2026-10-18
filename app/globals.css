@@ -159,10 +159,12 @@ body {
   line-height: 1.6;
 }
 
+/* A todo el ancho: es un tablero, no un documento. Los paneles con graficos se
+   reparten de a dos por fila (.tablero) para que la pantalla ancha no quede
+   como una columna de graficos estirados. */
 .contenedor {
-  max-width: 1080px;
-  margin: 0 auto;
-  padding: 0 28px 64px;
+  margin: 0;
+  padding: 0 28px 48px;
 }
 
 /* ─── Señales de estado ─────────────────────────────────────────────────── */
@@ -732,6 +734,95 @@ body {
 
 .contrato td.sin-corte {
   white-space: nowrap;
+}
+
+/* Tablero: los paneles van de a dos por fila en pantallas anchas; abajo de
+   1340 px de ventana (1100 de contenido mas los 240 de la barra lateral)
+   vuelven a una columna. `minmax(0, 1fr)` para que un grafico o una tabla
+   ancha no estire su columna. */
+.tablero {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  margin-top: 20px;
+}
+
+.tablero > .panel {
+  margin-top: 0;
+  min-width: 0;
+}
+
+/* Los OKR son el primer panel de las dos vistas: llevan el borde de la marca. */
+.okrs-principales {
+  border-left: 4px solid var(--agua);
+}
+
+/* Avance total del proyecto: los dos anillos y, al lado, las tarjetas del
+   periodo en dos columnas. */
+.anillos {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr) minmax(300px, 2fr);
+  gap: 20px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.anillos .grilla-kpis {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 0;
+}
+
+/* En la vista de un sprint, el proyecto entero en una linea, con el boton
+   para ir a verlo. */
+.franja-proyecto {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 18px;
+  background: var(--blanco);
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+  padding: 12px 20px;
+  margin: 6px 0 20px;
+  font-size: 13px;
+  color: var(--gris);
+}
+
+.franja-proyecto strong {
+  color: var(--tinta);
+}
+
+.franja-proyecto .critico {
+  color: var(--alerta);
+  font-weight: 600;
+}
+
+.franja-proyecto .chip {
+  margin-left: auto;
+}
+
+@media (max-width: 1340px) {
+  .tablero {
+    grid-template-columns: 1fr;
+  }
+
+  .anillos {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .anillos .grilla-kpis {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 700px) {
+  .anillos {
+    grid-template-columns: 1fr;
+  }
+
+  .franja-proyecto .chip {
+    margin-left: 0;
+  }
 }
 
 /* ─── Estados de carga y error ──────────────────────────────────────────── */

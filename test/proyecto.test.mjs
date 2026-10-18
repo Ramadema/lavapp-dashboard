@@ -1,7 +1,9 @@
-// Tests del progreso del proyecto y de los errores (lib/kpis/performance.js).
+// Tests del progreso del proyecto y de los errores (lib/kpis/performance.js) y
+// del proyecto entero (lib/kpis/proyecto.js).
 // Sin framework: node los corre directo con `npm test`.
 
 import { armarReporte, erroresDelProyecto, progresoDelProyecto } from "../lib/kpis/performance.js";
+import { armarProyecto, describirPeriodo } from "../lib/kpis/proyecto.js";
 
 let ok = 0, fail = 0;
 const check = (nombre, real, esperado) => {
@@ -81,7 +83,7 @@ console.log("El sprint que se mira se cuenta desde sus stories");
     puntos: { total: 110, terminados: 5, pct: 4.5, tareasSinEstimar: 9 },
   };
   const problemas = [];
-  const r = progresoDelProyecto([SPRINT_1, SPRINT_2], { stories: 132, sprintDesdeStories: { id: 70, resumen } }, problemas);
+  const r = progresoDelProyecto([SPRINT_1, SPRINT_2], { stories: 132, desdeStories: [{ id: 70, resumen }] }, problemas);
   check("la fila del sprint toma los números de las stories", [r.sprints[1].tareas, r.sprints[1].puntos], [resumen.tareas, resumen.puntos]);
   check("los totales del proyecto se recalculan con esa fila", [r.tareas, r.puntos.terminados, r.sinSprint], [
     { total: 128, terminadas: 86, enCurso: 16, pendientes: 26, pct: 67.2 }, 240, 4,
@@ -93,11 +95,11 @@ console.log("El sprint que se mira se cuenta desde sus stories");
     tareas: { total: 44, terminadas: 1, enCurso: 17, pendientes: 26, pct: 2.3 },
     puntos: { total: 110, terminados: 0, pct: 0, tareasSinEstimar: 9 },
   };
-  progresoDelProyecto([SPRINT_1, SPRINT_2], { stories: 132, sprintDesdeStories: { id: 70, resumen: resumenIgual } }, iguales);
+  progresoDelProyecto([SPRINT_1, SPRINT_2], { stories: 132, desdeStories: [{ id: 70, resumen: resumenIgual }] }, iguales);
   check("si coinciden, nada que reportar", iguales, []);
 
   const otro = [];
-  const r4 = progresoDelProyecto([SPRINT_1], { stories: 84, sprintDesdeStories: { id: 999, resumen } }, otro);
+  const r4 = progresoDelProyecto([SPRINT_1], { stories: 84, desdeStories: [{ id: 999, resumen }] }, otro);
   check("un sprint que no está en la lista no cambia nada", [r4.tareas.total, otro], [84, []]);
 }
 
@@ -157,6 +159,177 @@ console.log("armarReporte publica `proyecto`");
   });
   const sinConteos = armarReporte(base, { ahora: new Date("2026-10-17T15:00:00Z") });
   check("sin conteos el progreso sale igual y los errores quedan en null", [sinConteos.proyecto.progreso.tareas.pct, sinConteos.proyecto.progreso.sinSprint, sinConteos.proyecto.errores.abiertos], [97.7, null, null]);
+}
+
+// ---- lib/kpis/proyecto.js: el proyecto entero -----------------------------
+
+const TO_DO = 7, IN_PROGRESS = 8, DONE = 10;
+const WORKFLOW = { id: 5, name: "Standard", states: [
+  { id: TO_DO, name: "To Do", type: "unstarted", position: 1 },
+  { id: IN_PROGRESS, name: "In Progress", type: "started", position: 2 },
+  { id: DONE, name: "Done", type: "done", position: 4 },
+] };
+const MIEMBROS = [
+  { id: "u-ana", profile: { name: "Ana", mention_name: "ana" } },
+  { id: "u-beto", profile: { name: "Beto", mention_name: "beto" } },
+];
+const EQUIPO = {
+  horasPorPunto: 4, wipMaxPorPersona: 3,
+  metas: { bugsRatioMax: 0.25, efectividadMin: 80, utilizacionMin: 70, utilizacionMax: 90 },
+  integrantes: [{ nombre: "Ana", rol: "Dev", horasSemanales: 20 }, { nombre: "Beto", rol: "QA", horasSemanales: 10 }],
+};
+const story = (o) => ({
+  id: 1, name: "Tarea", app_url: "", archived: false, workflow_id: 5, workflow_state_id: TO_DO,
+  started: false, completed: false, estimate: null, epic_id: null, owner_ids: [], parent_story_id: null,
+  iteration_id: 70, created_at: "2026-10-01T12:00:00Z", updated_at: "2026-10-01T12:00:00Z",
+  started_at: null, started_at_override: null, completed_at: null, completed_at_override: null, story_type: "feature", ...o,
+});
+const terminada = (o) => story({ workflow_state_id: DONE, started: true, completed: true, started_at: "2026-09-24T12:00:00Z", completed_at: "2026-09-30T12:00:00Z", ...o });
+const enCurso = (o) => story({ workflow_state_id: IN_PROGRESS, started: true, started_at: "2026-10-09T12:00:00Z", ...o });
+// Historial con la creacion directa en el sprint: dice cuando entro.
+const creada = (id, changed_at, iteration_id) => [{ changed_at, actions: [{ id, entity_type: "story", action: "create", name: "Tarea", iteration_id }] }];
+
+// Sprint 1 terminado con dos tareas hechas (una sin estimar); Sprint 2 en curso
+// con una comprometida en curso, una agregada sin asignar y un bug agregado y
+// resuelto. Las stats de cada iteracion coinciden con sus stories.
+const S1 = { ...SPRINT_1, stats: stats({ num_stories_done: 2, num_points: 3, num_points_done: 3, num_stories_unestimated: 1 }) };
+const S2 = { ...SPRINT_2, stats: stats({ num_stories_done: 1, num_stories_started: 1, num_stories_unstarted: 1, num_points: 8, num_points_done: 1 }) };
+const a = terminada({ id: 1, iteration_id: 29, estimate: 3, owner_ids: ["u-ana"], created_at: "2026-09-20T12:00:00Z" });
+const b = terminada({ id: 2, iteration_id: 29, estimate: null, owner_ids: ["u-beto"], created_at: "2026-09-20T12:00:00Z" });
+const c = enCurso({ id: 3, iteration_id: 70, estimate: 5, owner_ids: ["u-ana"], created_at: "2026-10-01T12:00:00Z" });
+const d = story({ id: 4, iteration_id: 70, estimate: 2, created_at: "2026-10-10T12:00:00Z" });
+const e = terminada({ id: 5, iteration_id: 70, estimate: 1, owner_ids: ["u-ana"], story_type: "bug", created_at: "2026-10-12T12:00:00Z", started_at: "2026-10-12T12:00:00Z", completed_at: "2026-10-13T12:00:00Z" });
+const HISTORIALES = {
+  1: creada(1, "2026-09-20T12:00:00Z", 29), 2: creada(2, "2026-09-20T12:00:00Z", 29),
+  3: creada(3, "2026-10-01T12:00:00Z", 70), 4: creada(4, "2026-10-10T12:00:00Z", 70), 5: creada(5, "2026-10-12T12:00:00Z", 70),
+};
+// Domingo 18/10 a las 12 de Buenos Aires: el Sprint 2 va por su dia 12.
+const AHORA = new Date("2026-10-18T15:00:00Z");
+const CATALOGOS = { workflows: [WORKFLOW], miembros: MIEMBROS, epics: [] };
+const LECTURAS = [
+  { iteracion: S1, stories: [a, b], historiales: HISTORIALES },
+  { iteracion: S2, stories: [c, d, e], historiales: HISTORIALES },
+];
+
+console.log("Periodo del proyecto");
+{
+  const p = describirPeriodo([S2, S1], AHORA);
+  check("del inicio del primero al fin del último; los días de capacidad suman los sprints", [p.inicio, p.fin, p.diasCalendario, p.diasTotales, p.semanas], ["2026-09-23", "2026-10-21", 29, 30, 4.3]);
+  check("restantes contando hoy, transcurridos el resto", [p.diasTranscurridos, p.diasRestantes], [25, 4]);
+  check("cuántos sprints hay de cada estado y cuál está en curso", [p.sprints, p.enCurso], [{ total: 2, terminados: 1, enCurso: 1, proximos: 0 }, { id: 70, nombre: "Sprint 2" }]);
+  const conProximo = describirPeriodo([S1, S2, SPRINT_3], AHORA);
+  check("un sprint por empezar extiende el periodo y suma su capacidad", [conProximo.fin, conProximo.diasTotales, conProximo.sprints.proximos, conProximo.diasRestantes], ["2026-11-04", 45, 1, 18]);
+  const terminado = describirPeriodo([S1], AHORA);
+  check("proyecto terminado: sin días restantes ni sprint en curso", [terminado.diasRestantes, terminado.diasTranscurridos, terminado.enCurso], [0, 15, null]);
+  check("sin sprints: todo en cero y sin fechas", describirPeriodo([], AHORA), {
+    inicio: null, fin: null, diasTotales: 0, diasCalendario: 0, diasTranscurridos: 0, diasRestantes: 0, semanas: 0,
+    sprints: { total: 0, terminados: 0, enCurso: 0, proximos: 0 }, enCurso: null, solapados: [],
+  });
+}
+
+console.log("armarProyecto: el proyecto entero desde las stories de todos los sprints");
+{
+  const r = armarProyecto(
+    { iteraciones: [S2, S1], sprints: LECTURAS, ...CATALOGOS, conteos: { stories: 5, bugs: 1, bugsResueltos: 1, bugsAbiertos: 0 } },
+    { ahora: AHORA, equipo: EQUIPO }
+  );
+  check("ámbito y sprints para el selector, del más nuevo al más viejo", [r.ambito, r.sprints.map((s) => s.id)], ["proyecto", [70, 29]]);
+  check("progreso: 3 de 5 tareas y 4 de 11 puntos, contados desde las stories", [r.progreso.tareas, r.progreso.puntos], [
+    { total: 5, terminadas: 3, enCurso: 1, pendientes: 1, pct: 60 },
+    { total: 11, terminados: 4, pct: 36.4, tareasSinEstimar: 1 },
+  ]);
+  check("una fila por sprint, del primero al último", r.progreso.sprints.map((s) => [s.nombre, s.tareas.terminadas, s.tareas.total, s.puntos.terminados, s.puntos.total]), [["Sprint 1", 2, 2, 3, 3], ["Sprint 2", 1, 3, 1, 8]]);
+  check("nada fuera de los sprints: la búsqueda cuenta lo mismo que las stories", r.progreso.sinSprint, 0);
+  check("periodo adjunto", [r.periodo.inicio, r.periodo.fin, r.periodo.sprints.total], ["2026-09-23", "2026-10-21", 2]);
+  check("sprint por sprint con la cuenta del historial: comprometido, cumplido y agregado",
+    r.porSprint.map((s) => [s.nombre, s.comprometidas, s.cumplidas, s.pctCumplimiento, s.agregadas, s.agregadasTerminadas, s.movidas, s.terminadas, s.total, s.puntosTerminados, s.puntosTotales]),
+    [["Sprint 1", 2, 2, 100, 0, 0, 0, 2, 2, 3, 3], ["Sprint 2", 1, 0, 0, 2, 1, 0, 1, 3, 1, 8]]);
+  check("bugs del proyecto: 1 bug sobre 2 historias terminadas", r.equipo.bugs, { bugs: 1, bugsAbiertosEnSprint: 1, bugsTerminados: 1, historiasTerminadas: 2, historias: 4, ratio: 0.5 });
+  check("OKRs sobre todo el proyecto: ratio 0.5 no cumple; efectividad 50% y utilización 27.9% tampoco", r.equipo.okrs.map((o) => [o.clave, o.valor, o.cumple]), [["bugsRatio", 0.5, false], ["efectividad", 50, false], ["utilizacion", 27.9, false]]);
+  check("horas sobre las 4.3 semanas que suman los sprints", [r.equipo.horas.semanas, r.equipo.horas.equipo], [4.3, { capacidad: 129, demanda: 36, extras: 0, hechas: 16, comprometidas: 32, utilizacion: 27.9, efectividad: 50, conSobrecarga: 0 }]);
+  check("Ana: 86 h de capacidad, 36 h de demanda (3 + 5 + 1 puntos), 16 h hechas sobre 32 h comprometidas", r.equipo.horas.personas.find((p) => p.nombre === "Ana"), {
+    nombre: "Ana", rol: "Dev", horasSemanales: 20, capacidad: 86, demanda: 36, dentroDeLoPactado: 36, extras: 0, hechas: 16, comprometidas: 32, utilizacion: 41.9, efectividad: 50,
+  });
+  check("errores del workspace, con los bugs de los sprints en el vocabulario del OKR", r.errores, { reportados: 1, resueltos: 1, abiertos: 0, pctResueltos: 100, enElSprint: { reportados: 1, sinResolver: 0 } });
+  check("iniciativas y responsables sobre todas las tareas", [
+    r.porIniciativa.grupos.map((g) => [g.nombre, g.total, g.terminadas, g.pct]),
+    r.porResponsable.grupos.map((g) => [g.nombre, g.total, g.terminadas]),
+    r.porResponsable.compartidas,
+  ], [[["Sin iniciativa", 5, 3, 60]], [["Ana", 3, 2], ["Beto", 1, 1], ["Sin asignar", 1, 0]], 0]);
+  check("distribución por rol sobre el proyecto", r.equipo.porRol.grupos.map((g) => [g.rol, g.tareas, g.puntos]), [["Dev", 3, 9], ["QA", 1, 0], ["Sin asignar", 1, 2]]);
+  check("sin archivadas, sin problemas y con la lectura descripta", [r.archivadas, r.problemas, r.lectura], [0, [], { leidoEl: null, desactualizado: false }]);
+}
+
+console.log("armarProyecto: lo que no cierra se reporta");
+{
+  // Las stats del Sprint 2 dicen 2 terminadas; sus stories, 1: ganan las stories y se anota.
+  const distinto = armarProyecto(
+    { iteraciones: [S1, { ...S2, stats: stats({ num_stories_done: 2, num_stories_started: 1, num_points: 8, num_points_done: 1 }) }], sprints: LECTURAS, ...CATALOGOS },
+    { ahora: AHORA, equipo: EQUIPO }
+  );
+  check("stats distintas de las stories: se cuentan las stories y queda reportado", [distinto.progreso.tareas.terminadas, distinto.problemas.map((p) => [p.campo, p.valor])], [3, [["stats", 70]]]);
+
+  // No vinieron las stories del Sprint 2: se cuenta con sus stats, sin fila
+  // propia ni tareas en los KPIs del equipo, y se anota.
+  const sinSprint2 = armarProyecto(
+    { iteraciones: [S1, S2], sprints: [LECTURAS[0]], ...CATALOGOS },
+    { ahora: AHORA, equipo: EQUIPO }
+  );
+  check("sprint sin stories: progreso desde las stats, fuera del equipo y del detalle, reportado", [
+    sinSprint2.progreso.tareas, sinSprint2.porSprint.map((s) => s.nombre), sinSprint2.equipo.carga.personas.map((p) => [p.nombre, p.tareas]),
+    sinSprint2.problemas.map((p) => [p.campo, p.valor]),
+  ], [
+    { total: 5, terminadas: 3, enCurso: 1, pendientes: 1, pct: 60 }, ["Sprint 1"], [["Ana", 1], ["Beto", 1]], [["stories", 70]],
+  ]);
+  check("sin conteos: ni tareas fuera de sprint ni errores, sin inventar ceros", [sinSprint2.progreso.sinSprint, sinSprint2.errores.reportados], [null, null]);
+
+  const vacio = armarProyecto({ iteraciones: [], sprints: [], ...CATALOGOS }, { ahora: AHORA });
+  check("sin sprints: sin porcentajes, sin filas, OKRs sin valor", [vacio.progreso.tareas.pct, vacio.porSprint, vacio.equipo.okrs.map((o) => o.valor), vacio.periodo.sprints.total, vacio.problemas], [null, [], [null, null, null], 0, []]);
+}
+
+console.log("armarProyecto: sprints sin empezar y tareas movidas");
+{
+  // Sprint 3 sin empezar, con una tarea planificada (5 pts de Ana) y una que
+  // vino del Sprint 2 (estaba comprometida ahi y se movio el 16/10).
+  const f = story({ id: 6, iteration_id: 90, estimate: 5, owner_ids: ["u-ana"], created_at: "2026-10-15T12:00:00Z" });
+  const g = story({ id: 7, iteration_id: 90, estimate: 2, created_at: "2026-10-02T12:00:00Z", previous_iteration_ids: [70] });
+  const S3 = { ...SPRINT_3, stats: stats({ num_stories_unstarted: 2, num_points: 7 }) };
+  const movida = (id, changed_at, old, nuevo) => ({ changed_at, actions: [{ id, entity_type: "story", action: "update", changes: { iteration_id: { old, new: nuevo } } }] });
+  const historiales = {
+    ...HISTORIALES,
+    6: creada(6, "2026-10-15T12:00:00Z", 90),
+    7: [...creada(7, "2026-10-02T12:00:00Z", 70), movida(7, "2026-10-16T12:00:00Z", 70, 90)],
+  };
+  const lecturas = [...LECTURAS, { iteracion: S3, stories: [f, g], historiales }];
+  const r = armarProyecto({ iteraciones: [S1, S2, S3], sprints: lecturas, ...CATALOGOS }, { ahora: AHORA, equipo: EQUIPO });
+  check("el sprint por empezar suma alcance y capacidad, no compromiso: siguen 32 h comprometidas y 50% de efectividad", [r.progreso.tareas.total, r.equipo.horas.equipo.capacidad, r.equipo.horas.equipo.comprometidas, r.equipo.okrs[1].valor], [7, 192, 32, 50]);
+  check("la movida cuenta una sola vez en el proyecto, y en el Sprint 2 como comprometida y movida", [r.progreso.sprints.map((s) => s.tareas.total), r.porSprint.map((s) => [s.nombre, s.comprometidas, s.cumplidas, s.movidas])], [[2, 3, 2], [["Sprint 1", 2, 2, 0], ["Sprint 2", 2, 0, 1]]]);
+  check("el sprint que no empezó no tiene fila propia y nada que reportar", [r.porSprint.length, r.periodo.sprints.proximos, r.problemas], [2, 1, []]);
+
+  // La misma guarda en la vista de un sprint: un sprint sin empezar no tiene
+  // horas comprometidas, asi que la efectividad queda sin dato, no en 0 %.
+  const sprint3 = armarReporte({ iteraciones: [S1, S2, S3], iteracion: S3, stories: [f, g], ...CATALOGOS, historiales, movidas: null }, { ahora: AHORA, equipo: EQUIPO });
+  check("armarReporte de un sprint sin empezar: comprometidas 0 h y efectividad sin dato", [sprint3.equipo.horas.equipo.comprometidas, sprint3.equipo.okrs[1].valor], [0, null]);
+
+  // Una movida cuyo historial no dice cuando entro al sprint de origen: lo que
+  // armarHistorial reporta sobre ella llega a `problemas`, una sola vez.
+  // Con 2 puntos las stats del Sprint 3 (7 puntos) siguen cerrando con f + h.
+  const h = story({ id: 8, iteration_id: 90, estimate: 2, created_at: "2026-10-03T12:00:00Z", previous_iteration_ids: [70] });
+  const sinOrigen = armarProyecto(
+    { iteraciones: [S1, S2, S3], sprints: [...LECTURAS, { iteracion: S3, stories: [f, h], historiales: { ...historiales, 8: creada(8, "2026-10-03T12:00:00Z", 90) } }], ...CATALOGOS },
+    { ahora: AHORA, equipo: EQUIPO }
+  );
+  check("la movida sin fecha de ingreso al origen se reporta (y no se duplica)", sinOrigen.problemas.map((p) => [p.tarea, p.campo, p.valor]), [[8, "iteration_id", 70]]);
+}
+
+console.log("Sprints que se solapan");
+{
+  const pisado = { ...S2, start_date: "2026-10-01" };
+  const p = describirPeriodo([S1, pisado], AHORA);
+  check("el solapamiento de más de un día queda descripto", p.solapados, [{ ids: [29, 70], nombres: ["Sprint 1", "Sprint 2"], dias: 7 }]);
+  check("sprints seguidos que comparten el día del cambio no se solapan", describirPeriodo([S1, S2], AHORA).solapados, []);
+  const r = armarProyecto({ iteraciones: [S1, pisado], sprints: [LECTURAS[0], { ...LECTURAS[1], iteracion: pisado }], ...CATALOGOS }, { ahora: AHORA, equipo: EQUIPO });
+  check("y el proyecto lo reporta en vez de sumar la capacidad en silencio", r.problemas.map((p) => [p.campo, p.valor, p.motivo.includes("7 días")]), [["sprints", "29, 70", true]]);
 }
 
 console.log(`\n${ok} OK, ${fail} fallas`);

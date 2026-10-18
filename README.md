@@ -16,7 +16,7 @@ se mantiene: cada pantalla consume los endpoints por `fetch`, no accede al dato
 directo.
 
 - **`/app`** — el menú inicial (`page.jsx`), las secciones bajo `/app/dashboards/<slug>/` y los Route Handlers bajo `/app/api`, que exponen la API REST.
-- **`/lib`** — lógica del lado del servidor: `encuestas.js` resuelve la fuente de datos, `csv.js` parsea el CSV, `normalizar.js` valida y traduce los valores, `kpis/encuesta.js` calcula los indicadores, `secciones.js` declara qué secciones existen y qué contrato tiene cada endpoint. Para Performance, `shortcut.js` lee la API de Shortcut y `kpis/performance.js` arma el reporte del sprint. Para Gestión, `gestion.js` lee la API de backoffice de la app de gestión y `kpis/{operacion,lavaderos,clientes,facturacion}.js` arman cada tablero; `kpis/tiempo.js` es el tiempo y la estadística que comparten.
+- **`/lib`** — lógica del lado del servidor: `encuestas.js` resuelve la fuente de datos, `csv.js` parsea el CSV, `normalizar.js` valida y traduce los valores, `kpis/encuesta.js` calcula los indicadores, `secciones.js` declara qué secciones existen y qué contrato tiene cada endpoint. Para Performance, `shortcut.js` lee la API de Shortcut, `kpis/performance.js` arma el reporte de un sprint, `kpis/proyecto.js` el del proyecto entero (todos los sprints sumados), `kpis/equipo.js` los KPIs y OKRs del equipo, y `equipo.js` lee `data/equipo.json` (roles, horas pactadas, metas). Para Gestión, `gestion.js` lee la API de backoffice de la app de gestión y `kpis/{operacion,lavaderos,clientes,facturacion}.js` arman cada tablero; `kpis/tiempo.js` es el tiempo y la estadística que comparten.
 - **`proxy.js` y `/lib/auth`** — el acceso: dos usuarios fijos (`admin` y `visitors`), la sesión en una cookie firmada y qué sección ve cada rol. Ver [Acceso](#acceso-usuarios-y-roles).
 - **`/components`** — navegación, encabezado de sección, la sección remota (carga, «Actualizar» y errores de una fuente), bloque de sesión, tarjetas de KPI y gráficos (Recharts).
 - **`/data`** — `encuestas.json`, las 40 respuestas originales, que además funcionan como respaldo.
@@ -112,16 +112,20 @@ después dibuja las 8 tarjetas de KPI y los 4 gráficos. Para comprobar que el
 filtrado funciona, hacer clic en el chip **Papel/pizarra**: el KPI "Respuestas en
 el segmento" pasa de 40 a 14 y "Gestión manual o nula" sube a 100 %.
 
-**Performance** muestra el sprint en curso de Shortcut: avance en tareas y en
-puntos, días restantes, tres donas de un vistazo (avance, compromiso cumplido y
-de dónde salió el trabajo), el compromiso del sprint (qué se planificó y cuánto
-se cumplió), el burndown, el ritmo de entradas y salidas por día, el historial
-sprint a sprint, el flujo acumulado, tareas por estado, el avance por
-iniciativa, la carga por responsable, el tiempo en el sprint y por columna, el
-cycle time y las listas de terminadas y pendientes. Arriba hay un
-selector para ver otros sprints y el botón
-**Actualizar**, que trae los datos de Shortcut en el momento. Sin
-`SHORTCUT_API_TOKEN` la sección muestra que falta conectarla.
+**Performance** abre en **Todo el proyecto**: los OKRs principales, el avance
+total con dos anillos (tareas y puntos), las tarjetas del período, el detalle
+sprint por sprint, el avance por iniciativa, la carga por responsable y los KPIs
+del equipo sobre todos los sprints. El selector **Ver** del encabezado lleva a
+cada sprint (y lo deja en la URL como `?sprint=`): ahí están los OKRs del
+sprint, avance en tareas y en puntos, días restantes, una línea con el proyecto
+entero, tres donas de un vistazo (avance, compromiso cumplido y de dónde salió
+el trabajo), el compromiso del sprint (qué se planificó y cuánto se cumplió), el
+burndown, el flujo acumulado, el ritmo de entradas y salidas por día, el avance
+por iniciativa, la carga por responsable, el equipo, tareas por estado, el
+historial sprint a sprint, el tiempo en el sprint y por columna, el cycle time
+y las listas de terminadas y pendientes. El botón **Actualizar** trae los
+datos de Shortcut en el momento. Sin `SHORTCUT_API_TOKEN` la sección muestra que
+falta conectarla.
 
 **Estado del sistema** es `/api/salud` con interfaz: dice si los datos salieron
 de la planilla o del respaldo, y qué filas se rechazaron.
@@ -154,6 +158,9 @@ curl -b /tmp/sesion.txt http://localhost:3000/api/facturacion
 # {"conectada":true,"totales":{"cuentasConPlan":2,"mrrPorPlanes":[{"moneda":"ARS","valor":190000}],...
 
 # Performance (necesita SHORTCUT_API_TOKEN):
+curl -b /tmp/sesion.txt http://localhost:3000/api/performance/proyecto
+# {"ambito":"proyecto","sprints":[...],"periodo":{"inicio":"2026-09-23","fin":"2026-10-21",...
+#  "progreso":{"sprints":[...],"tareas":{"total":128,"terminadas":85,...
 curl -b /tmp/sesion.txt http://localhost:3000/api/performance
 # {"sprint":{"id":29,"nombre":"Sprint 1 - Backlog","estado":"En curso",...
 #  "resumen":{"tareas":{"total":56,"terminadas":4,...
@@ -249,6 +256,7 @@ Route (app)
 ├ ƒ /api/operacion
 ├ ƒ /api/performance
 ├ ƒ /api/performance/historial
+├ ƒ /api/performance/proyecto
 ├ ƒ /api/respuestas
 ├ ƒ /api/salud
 ├ ƒ /dashboards/clientes
@@ -421,10 +429,27 @@ pasa desapercibido.
 
 ## Performance: avance del sprint desde Shortcut
 
-La sección **Performance** (`/dashboards/performance`) muestra el avance de los
-sprints de Shortcut para la gente de negocio, que en el plan Free de Shortcut no
-puede tener usuarios de solo lectura. Todo lo que se ve sale de la API REST v3 de
-Shortcut, leída desde el servidor.
+La sección **Performance** (`/dashboards/performance`) muestra el avance del
+proyecto y de cada sprint de Shortcut para la gente de negocio, que en el plan
+Free de Shortcut no puede tener usuarios de solo lectura. Todo lo que se ve sale
+de la API REST v3 de Shortcut, leída desde el servidor.
+
+Tiene dos vistas, que se eligen con el selector del encabezado (y quedan en la
+URL como `?sprint=<id>`, para compartir un enlace con el sprint puesto):
+
+- **Todo el proyecto** (la que se abre por defecto, `/api/performance/proyecto`):
+  todos los sprints sumados. Arriba de todo los **OKRs principales**, después el
+  **avance total** con dos anillos (tareas y puntos), las tarjetas del período y
+  el desglose por sprint, la comparación **sprint por sprint** (comprometido,
+  cumplido, agregado, movido), y el avance por iniciativa, la carga por
+  responsable y los KPIs del equipo sobre todas las tareas.
+- **Un sprint** (`/api/performance?sprint=<id>`): los OKRs principales del
+  sprint, las cuatro tarjetas, una línea con el proyecto entero (y el botón para
+  ir a verlo) y el detalle del sprint: compromiso, burndown, flujo, ritmo,
+  iniciativas, responsables, equipo, historial, tiempos y las listas de tareas.
+
+La pantalla ocupa todo el ancho y los paneles con gráficos van de a dos por
+fila en pantallas anchas.
 
 ### 1. Crear el token
 
@@ -455,6 +480,7 @@ dice `shortcutConfigurado: true/false`.
 Con la cookie de sesión de [Acceso](#acceso-usuarios-y-roles):
 
 ```bash
+curl -b /tmp/sesion.txt http://localhost:3000/api/performance/proyecto    # el proyecto entero (la vista por defecto)
 curl -b /tmp/sesion.txt http://localhost:3000/api/performance            # el sprint en curso
 curl -b /tmp/sesion.txt "http://localhost:3000/api/performance?sprint=29" # un sprint puntual
 curl -b /tmp/sesion.txt -X POST http://localhost:3000/api/performance     # lo que hace "Actualizar"
@@ -463,10 +489,10 @@ curl -b /tmp/sesion.txt http://localhost:3000/api/performance/historial   # el h
 
 | Respuesta | Qué quiere decir |
 |-----------|------------------|
-| `200` | Reporte del sprint. `problemas` tiene que ser `[]`. |
+| `200` | Reporte del proyecto o del sprint. `problemas` tiene que ser `[]`. |
 | `501` | Falta `SHORTCUT_API_TOKEN`. |
 | `502` | Shortcut falló o rechazó el token; `motivo` dice qué contestó. |
-| `404` | No existe ese sprint, o el workspace todavía no tiene sprints. |
+| `404` | No existe ese sprint, o el workspace todavía no tiene sprints (`/api/performance`). `/api/performance/proyecto` no da 404: sin sprints responde `200` con todo vacío y la pantalla dice que todavía no hay sprints. |
 | `400` | `?sprint=` no es un número. |
 
 ### Qué se calcula
@@ -532,37 +558,53 @@ curl -b /tmp/sesion.txt http://localhost:3000/api/performance/historial   # el h
   tablero, reconstruido de los cambios de `workflow_state_id` del historial,
   desde que se creó hasta que se terminó. Promedio, mediana y cuántas tareas
   pasaron por cada una. Las columnas de tipo done no se miden.
-- **Progreso del proyecto** (campo `proyecto.progreso`, panel debajo de las
-  tarjetas del sprint): lo terminado sobre el total de todos los sprints
-  juntos (terminados, en curso y por empezar), en tareas y en puntos, con el
-  desglose por sprint. Sale de las `stats` que Shortcut guarda por iteración,
-  que cuentan lo mismo que esta pantalla (stories no archivadas, subtareas
-  incluidas) sin leer las stories de cada sprint. El sprint que se está
-  mirando se cuenta desde sus stories, igual que las tarjetas de arriba: si
-  sus `stats` dijeran otra cosa (son dos lecturas con cache propio), la
-  pantalla nunca muestra dos números y la diferencia va al panel de problemas.
-  Una tarea movida de sprint está en uno solo, así que la suma no la cuenta
-  dos veces. Las stories que no están en ningún sprint no cuentan en el
-  porcentaje y se informan aparte (`sinSprint`): son las stories no
-  archivadas de todo el workspace (búsqueda `-is:archived`) menos lo que suman
-  los sprints; si la resta da negativo, se reporta y queda sin dato.
-- **Errores del proyecto** (campo `proyecto.errores`, tarjeta «Errores
-  abiertos» en el mismo panel): las stories de tipo `bug` de todo el workspace
-  (no solo del sprint), reportadas, resueltas (`is:done`) y abiertas
-  (`-is:done`), cada una con su propia búsqueda de Shortcut (`page_size=1`,
-  solo importa el `total`), así el número principal no sale de restar dos
-  lecturas. Si los tres no cierran (resueltos + abiertos ≠ reportados), son
-  lecturas de momentos distintos: se reporta y el porcentaje de resueltos
-  queda sin dato. Sin bugs reportados no hay nada resuelto ni abierto, aunque
-  esas búsquedas hayan fallado. Si no se pudo contar, el valor queda en «–» y
-  el motivo va al panel de problemas: no se muestra un 0 que parezca «sin
-  errores». El detalle agrega los bugs del sprint con el mismo vocabulario
-  que el OKR del equipo: reportados durante el sprint y sin resolver. Hoy el
-  equipo carga todo como feature: el indicador empieza a medir cuando los
-  defectos se carguen con el tipo bug.
-- **Equipo: KPIs y OKRs** (campo `equipo` de la respuesta, seis paneles al
-  final de la pantalla). Cada tarjeta y cada título lleva la insignia **KPI**
-  (un número que se mira, sin meta) u **OKR** (un resultado clave con una meta
+- **Avance total del proyecto** (vista «Todo el proyecto», campo `progreso` de
+  `/api/performance/proyecto`; en la vista de un sprint, la línea «Todo el
+  proyecto» con el campo `proyecto.progreso`): lo terminado sobre el total de
+  todos los sprints juntos (terminados, en curso y por empezar), en tareas y en
+  puntos, con dos anillos, las tarjetas del período (sprints, días restantes,
+  en curso hoy, errores abiertos) y el desglose por sprint. En la vista del
+  proyecto cada sprint se cuenta desde sus stories, con la misma traducción
+  que la vista de un sprint; las `stats` que Shortcut guarda por iteración
+  quedan de contraste y, si difieren (son dos lecturas con cache propio), la
+  diferencia va al panel de problemas. En la vista de un sprint, los otros
+  sprints salen de sus `stats` (cuentan lo mismo: stories no archivadas,
+  subtareas incluidas) y el sprint que se mira, de sus stories. Una tarea
+  movida de sprint está en uno solo, así que la suma no la cuenta dos veces.
+  Las stories que no están en ningún sprint no cuentan en el porcentaje y se
+  informan aparte (`sinSprint`): son las stories no archivadas de todo el
+  workspace (búsqueda `-is:archived`) menos lo que suman los sprints; si la
+  resta da negativo, se reporta y queda sin dato. El **período** del proyecto
+  (`periodo`) va del inicio del primer sprint al fin del último; los días
+  restantes cuentan hoy, como en un sprint. Las reglas están firmadas con
+  `@decision` en `lib/kpis/proyecto.js`.
+- **Sprint por sprint** (campo `porSprint` del proyecto): la misma fila que el
+  historial de sprints (comprometidas, cumplidas, agregadas, movidas,
+  terminadas y puntos), para todos los sprints empezados, sin pedir nada
+  aparte: la vista del proyecto ya leyó las tareas de cada uno.
+- **Errores del proyecto** (campo `errores` del proyecto y `proyecto.errores`
+  del sprint; tarjeta «Errores abiertos» en el avance total y en la línea del
+  proyecto): las stories de tipo `bug` de todo el workspace (no solo del
+  sprint), reportadas, resueltas (`is:done`) y abiertas (`-is:done`), cada una
+  con su propia búsqueda de Shortcut (`page_size=1`, solo importa el `total`),
+  así el número principal no sale de restar dos lecturas. Si los tres no
+  cierran (resueltos + abiertos ≠ reportados), son lecturas de momentos
+  distintos: se reporta y el porcentaje de resueltos queda sin dato. Sin bugs
+  reportados no hay nada resuelto ni abierto, aunque esas búsquedas hayan
+  fallado. Si no se pudo contar, el valor queda en «–» y el motivo va al panel
+  de problemas: no se muestra un 0 que parezca «sin errores». El detalle agrega
+  los bugs de los sprints con el mismo vocabulario que el OKR del equipo:
+  reportados en el período y sin resolver. Hoy el equipo carga todo como
+  feature: el indicador empieza a medir cuando los defectos se carguen con el
+  tipo bug.
+- **Equipo: KPIs y OKRs** (campo `equipo` de las dos respuestas). Los **OKRs
+  principales** son el primer panel de las dos vistas; los KPIs del equipo van
+  más abajo, de a dos por fila. En la vista del proyecto se calculan sobre
+  todas las tareas de todos los sprints, con la capacidad sumando las semanas
+  de cada sprint (dos sprints de 15 días son 4,3 semanas) y lo comprometido de
+  cada tarea según el primer día de su propio sprint; en la vista de un sprint,
+  sobre ese sprint. Cada tarjeta y cada título lleva la insignia **KPI** (un
+  número que se mira, sin meta) u **OKR** (un resultado clave con una meta
   acordada), con un tooltip que explica la diferencia y, en los OKR, la meta y
   si se cumple. Shortcut no sabe el rol ni las horas de nadie: salen de
   [`data/equipo.json`](#configuración-del-equipo-dataequipojson). Las reglas
@@ -638,14 +680,23 @@ La API de Shortcut acepta 200 requests por minuto. Para no gastarlas en cada
 carga de página, `lib/shortcut.js` cachea con *stale-while-revalidate*: los
 sprints y sus stories se releen cada 5 minutos, y los workflows, las personas y
 los epics cada 15, y las cuatro búsquedas del proyecto (stories y bugs
-reportados, resueltos y abiertos) cada 5. Un reporte leído en frío cuesta 9
-requests (5 del sprint y los catálogos más las 4 búsquedas) y uno por story
-para el historial (el Sprint 1, con 56 stories, son 65 requests y unos 4
-segundos). Los historiales se piden de a 5 y quedan guardados por versión: cada
-uno se cachea con el `updated_at` de su story, así que en las lecturas
-siguientes solo se vuelve a pedir el de las stories que cambiaron. Si Shortcut
-corta con un 429 a mitad de camino, las stories que quedaron sin historial se
-informan y usan su fecha de creación.
+reportados, resueltos y abiertos) cada 5. El reporte de un sprint leído en frío
+cuesta 9 requests (5 del sprint y los catálogos más las 4 búsquedas) y uno por
+story para el historial (el Sprint 1, con 56 stories, son 65 requests y unos 4
+segundos). La vista del proyecto lee las stories de **todos** los sprints y el
+historial de cada una (las mismas lecturas que el historial de sprints, así que
+las dos vistas comparten el cache): en frío son los sprints más los catálogos,
+las 4 búsquedas y una request por story de todo el proyecto (con 128 stories,
+unos 140 requests); después, solo las stories que cambiaron. Los historiales se
+piden de a 5 y quedan guardados por versión, sin vencimiento: cada uno se
+cachea con el `updated_at` de su story, así que en las lecturas siguientes solo
+se vuelve a pedir el de las stories que cambiaron. Para no pasar el límite de
+Shortcut, cada lectura pide como mucho 150 historiales nuevos (los que vienen
+del cache no cuentan): si el proyecto tiene más stories sin historial que eso,
+las que quedan afuera usan su fecha de creación, se informan en el panel de
+problemas y se completan en la lectura siguiente. Si Shortcut corta con un 429
+a mitad de camino, las stories que quedaron sin historial se informan y usan su
+fecha de creación.
 
 **Actualizar** lee de Shortcut sin pasar por el cache y después lo vence, así
 que la próxima carga de cualquiera también trae el dato nuevo. La pantalla
@@ -823,9 +874,11 @@ Production y Preview: sin ellas, un preview muestra el login pero no deja entrar
 | GET | `/api/kpis` | KPIs agregados calculados en el servidor |
 | GET | `/api/kpis?registro=Papel/pizarra` | KPIs del segmento filtrado por método de registro |
 | GET | `/api/salud` | Health check y estado de la fuente de datos (ver [Datos en vivo](#datos-en-vivo-desde-google-sheets)) |
-| GET | `/api/performance` | Reporte del sprint en curso de Shortcut (ver [Performance](#performance-avance-del-sprint-desde-shortcut)) |
+| GET | `/api/performance/proyecto` | El proyecto entero de Shortcut, todos los sprints sumados: la vista por defecto de Performance (ver [Performance](#performance-avance-del-sprint-desde-shortcut)) |
+| GET | `/api/performance` | Reporte del sprint en curso de Shortcut |
 | GET | `/api/performance?sprint=29` | Reporte de un sprint puntual |
-| POST | `/api/performance?sprint=29` | Lo mismo leyendo de Shortcut sin cache: es el botón "Actualizar" |
+| GET | `/api/performance/historial` | Una fila por sprint empezado (los últimos 8): comprometido, cumplido, agregado y movido |
+| POST | `/api/performance/proyecto`, `/api/performance?sprint=29`, `/api/performance/historial` | Lo mismo leyendo de Shortcut sin cache: es el botón "Actualizar" |
 | GET | `/api/operacion?dias=30` | Operación leída de la app de gestión: cola de ahora, órdenes del período (7, 30 o 90 días) y tiempos (ver [Gestión](#gestión-las-secciones-que-leen-la-app-de-gestión)) |
 | GET | `/api/lavaderos` | El padrón de cuentas: plan, sucursales, actividad y altas |
 | GET | `/api/clientes` | Los clientes finales: vehículos, lavados y recurrencia |
@@ -852,8 +905,23 @@ externo.
 - Promedios Likert (1–5) de dificultad para mantener el orden y estimar tiempos
 - Distribuciones: método de registro, principal dificultad declarada, criterio de orden
 
+En **Performance**, para todo el proyecto (la vista por defecto, todos los
+sprints de Shortcut sumados):
+
+- OKRs principales: bugs por historia terminada, efectividad de entrega y
+  utilización del equipo sobre todas las tareas, cada uno contra su meta
+- Avance total en tareas y en puntos (dos anillos), sprints, días restantes
+  del proyecto, tareas en curso y errores (bugs) reportados, resueltos y
+  abiertos en todo el workspace
+- Sprint por sprint: comprometidas, cumplidas, agregadas, movidas, terminadas
+  y puntos de cada sprint empezado
+- Avance por iniciativa, carga por responsable y los KPIs del equipo (por rol,
+  WIP, carga por integrante, horas pactadas contra extras, utilización y
+  efectividad por integrante) sobre todo el proyecto
+
 En **Performance**, por sprint de Shortcut:
 
+- OKRs principales del sprint, con su meta
 - % de avance en tareas y en puntos, con las tareas sin estimar informadas aparte
 - Días restantes (o días para empezar, si es un sprint próximo)
 - Tareas y puntos por columna del tablero
@@ -862,9 +930,8 @@ En **Performance**, por sprint de Shortcut:
 - Flujo acumulado diario: tareas terminadas, en curso y pendientes
 - Avance por iniciativa (epic) y carga por responsable, partidos por etapa
 - Cycle time por tarea terminada, con promedio y mediana
-- Progreso del proyecto: tareas y puntos terminados sobre el total de todos
-  los sprints, con el desglose por sprint, y los errores (bugs) reportados,
-  resueltos y abiertos en todo el proyecto
+- Una línea con el proyecto entero (tareas y puntos terminados sobre el total
+  de todos los sprints y los errores abiertos) y el botón para ir a verlo
 - Equipo, con `data/equipo.json`: OKRs de bugs por historia terminada,
   efectividad de entrega y utilización, con su meta; KPIs de distribución de
   tareas y puntos por rol, WIP por rol con alerta de sobrecarga, carga por

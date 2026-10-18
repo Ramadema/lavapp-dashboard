@@ -38,6 +38,7 @@ importar de las de abajo, nunca de las de arriba ni de sus hermanas.
 ├─────────────────────────────────────────────────────────────┤
 │ 2. DOMINIO        lib/kpis/encuesta.js                      │
 │                   lib/kpis/performance.js                   │
+│                   lib/kpis/proyecto.js · lib/kpis/equipo.js │
 │                   lib/kpis/{operacion,lavaderos,clientes,   │
 │                     facturacion}.js · lib/kpis/tiempo.js    │
 │                   cálculo de indicadores. Funciones puras.  │
@@ -46,6 +47,7 @@ importar de las de abajo, nunca de las de arriba ni de sus hermanas.
 │                   lib/encuestas.js  ← la encuesta           │
 │                   lib/shortcut.js   ← Shortcut              │
 │                   lib/gestion.js    ← la app de gestión     │
+│                   lib/equipo.js     ← data/equipo.json      │
 │                   lib/normalizar.js · lib/csv.js            │
 │                   data/encuestas.json (respaldo)            │
 └─────────────────────────────────────────────────────────────┘
@@ -129,19 +131,24 @@ La sección Performance tiene su propia fuente, con el mismo esquema:
 
 ```
 Navegador
-   │  fetch /api/performance[?sprint=]      (POST = botón "Actualizar")
+   │  fetch /api/performance/proyecto       (la vista por defecto: todo el proyecto)
+   │  fetch /api/performance[?sprint=]      (un sprint; POST = botón "Actualizar")
    ▼
-app/api/performance/route.js
-   │  obtenerSprints() · elegirSprintPorDefecto() · obtenerSprint(id)
-   │  obtenerMovidas(id, posteriores)   ← las tareas que se le sacaron al sprint
+app/api/performance/proyecto/route.js · app/api/performance/route.js
+   │  /proyecto: obtenerSprints() · obtenerHistorialDeSprints(todos) · obtenerConteos()
+   │  sprint:    obtenerSprints() · elegirSprintPorDefecto() · obtenerSprint(id) · obtenerConteos()
+   │             obtenerMovidas(id, posteriores)   ← las tareas que se le sacaron al sprint
    │  (/historial: sprintsParaHistorial() · obtenerHistorialDeSprints(ids))
+   │  + cargarEquipo()  ← data/equipo.json (roles, horas, metas), lib/equipo.js
    ▼
 lib/shortcut.js ──▶ API REST v3 de Shortcut (token en SHORTCUT_API_TOKEN)
    │                 cache de Next: 5 min sprints y stories, 15 min catálogos,
    │                 historial de cada story guardado por versión
    ▼
-respuestas crudas ──▶ lib/kpis/performance.js ──▶ armarReporte() · armarHistorial()
-                         resumen · compromiso · burndown · ritmo · cycle time
+respuestas crudas ──▶ lib/kpis/proyecto.js ──▶ armarProyecto()   (todos los sprints sumados)
+                      lib/kpis/performance.js ──▶ armarReporte() · armarHistorial()
+                      lib/kpis/equipo.js ──▶ armarEquipo()      (roles, carga, horas, OKRs)
+                         resumen · compromiso · burndown · ritmo · cycle time · equipo
 ```
 
 Shortcut no tiene respaldo en disco: el respaldo es el propio cache, que solo
@@ -186,6 +193,7 @@ la app de gestión falla, `502` con el motivo. El detalle está en el
 | `lib/shortcut.js` | Único archivo que habla con la API de Shortcut. Lee `SHORTCUT_API_TOKEN`, cachea con tag `shortcut`, traduce los errores HTTP a un `motivo` legible y devuelve las respuestas crudas. Pide el historial de cada story (para saber cuándo entró al sprint) de a 5 y cacheado por versión: con el `updated_at` de la story en un header, solo se vuelve a pedir el de las que cambiaron. El token no sale nunca de acá. | Al pedir un dato nuevo a Shortcut o cambiar los tiempos de cache. |
 | `lib/gestion.js` | Único archivo que habla con la API de backoffice de la app de gestión. Lee `GESTION_API_URL` y `GESTION_API_KEY`, manda la clave en `X-Backoffice-Key`, cachea 60 s con tag `gestion`, traduce los errores HTTP (y el `detail` del `problem+json` del backend) a un `motivo` legible y devuelve las filas crudas. `obtenerOrdenes`, `obtenerLavaderos`, `obtenerClientes`, `obtenerPlanes`, `obtenerSuscripciones`, `vencerCache`, `gestionConfigurada`. La clave no sale nunca de acá. | Al pedir un dato nuevo al backend o cambiar el cache. |
 | `lib/gestion/respuestas.js` | `sinDatos(slug, resultado)`: la respuesta común de los cuatro `route.js` de Gestión cuando el loader no pudo leer (`501` sin variables, `502` si la app de gestión falló). | Al cambiar cómo se informa un fallo de la app de gestión. |
+| `lib/equipo.js` · `data/equipo.json` | Lo que Shortcut no sabe del equipo: rol y horas semanales de cada integrante, horas por punto y metas de los OKR. `cargarEquipo()` lee el JSON en cada pedido y `normalizarEquipo()` valida; lo que no se entiende se rechaza con el valor por defecto y va a `problemas`. Sin archivo o roto, la pantalla sale igual con todos sin rol. | Cuando cambia qué se configura del equipo. El contenido lo mantiene el equipo a mano. |
 
 > **Cuidado con `data/encuestas.json`:** se importa directo en
 > `lib/encuestas.js` y **no pasa por la normalización**. Si agregás un campo a
@@ -199,6 +207,8 @@ la app de gestión falla, `502` con el motivo. El detalle está en el
 |---------|-----------|
 | `test/normalizar.test.mjs` | `lib/csv.js` y `lib/normalizar.js`. Sin framework, se corre con `npm test`. Incluye regresiones de los cuatro bugs de la revisión del 2026-08-27. |
 | `test/performance.test.mjs` | `lib/kpis/performance.js`, con payloads que tienen la forma exacta de la API de Shortcut y un "ahora" fijo. También corre con `npm test`. |
+| `test/equipo.test.mjs` | `lib/kpis/equipo.js` (roles, WIP, carga, horas, bugs ratio, OKRs) y `normalizarEquipo` de `lib/equipo.js`, más el enganche en `armarReporte`. |
+| `test/proyecto.test.mjs` | `progresoDelProyecto` y `erroresDelProyecto` de `performance.js`, y `lib/kpis/proyecto.js` (`describirPeriodo`, `armarProyecto`): el proyecto entero desde las stories de todos los sprints, con las `stats` de contraste y lo que se reporta cuando no cierra. |
 | `test/auth.test.mjs` | `lib/auth/permisos.js` (qué ve y qué abre cada rol) y `lib/auth/sesion.js` (firma, token manipulado, vencido, otro secreto). Secreto y hora fijos. `lib/auth.js` no: es la unión con `process.env` y se verifica con `curl`. |
 | `test/gestion.test.mjs` | `lib/kpis/tiempo.js` y los cuatro módulos de Gestión (`operacion`, `lavaderos`, `clientes`, `facturacion`), con filas que tienen la forma exacta de `GET /backoffice/*` y un "ahora" fijo: períodos, totales, minutos por orden, recurrencia, MRR, impagos y las filas rechazadas. También corre con `npm test`. |
 
@@ -211,7 +221,9 @@ fallan lo hacen en silencio.
 | Archivo | Responsabilidad |
 |---------|-----------------|
 | `lib/kpis/encuesta.js` | `calcularKpis(datos)` → objeto de indicadores. Funciones puras, sin efectos. |
-| `lib/kpis/performance.js` | `armarReporte(respuestasDeShortcut, { ahora })` → el reporte del sprint: resumen, tareas por estado, listas, burndown (`calcularBurndown`, con la fecha de ingreso de cada tarea sacada de su historial por `fechaDeIngreso`), compromiso (`calcularCompromiso`: comprometidas, agregadas, movidas, proyección), ritmo diario (`calcularRitmo`), cycle time (`calcularCycleTime`), tiempo en el sprint (`calcularTiempoEnSprint`) y por columna (`calcularTiempoPorColumna`, del historial). `armarHistorial` arma la fila de cada sprint para `/historial`. También `elegirSprintPorDefecto`, `sprintsPosteriores`, `sprintsParaHistorial`, `ETAPAS` y `diaLocal`, que usa la pantalla. Recibe la hora por parámetro para que los tests la fijen. |
+| `lib/kpis/performance.js` | `armarReporte(respuestasDeShortcut, { ahora })` → el reporte del sprint: resumen, tareas por estado, listas, burndown (`calcularBurndown`, con la fecha de ingreso de cada tarea sacada de su historial por `fechaDeIngreso`), compromiso (`calcularCompromiso`: comprometidas, agregadas, movidas, proyección), ritmo diario (`calcularRitmo`), cycle time (`calcularCycleTime`), tiempo en el sprint (`calcularTiempoEnSprint`) y por columna (`calcularTiempoPorColumna`, del historial). `armarHistorial` arma la fila de cada sprint para `/historial`; `progresoDelProyecto` y `erroresDelProyecto` son el bloque `proyecto` del reporte de un sprint. Exporta `normalizarTareas`, `resumir` y `estabaAlCierreDelPrimerDia` para que `proyecto.js` cuente igual. También `elegirSprintPorDefecto`, `sprintsPosteriores`, `sprintsParaHistorial`, `ETAPAS` y `diaLocal`, que usa la pantalla. Recibe la hora por parámetro para que los tests la fijen. |
+| `lib/kpis/proyecto.js` | `armarProyecto(lecturasDeTodosLosSprints, { ahora, equipo })` → el proyecto entero, lo que `/api/performance/proyecto` publica y la pantalla abre por defecto: `periodo` (`describirPeriodo`: del inicio del primer sprint al fin del último; los días de capacidad suman los sprints, con `@decision`), `progreso` (cada sprint desde sus stories, las `stats` de contraste), `errores`, `porSprint` (las filas de `armarHistorial`), `porIniciativa`, `porResponsable` y `equipo` (`armarEquipo` sobre todas las tareas, con `comprometida` según el primer día de cada sprint). Reusa `performance.js` y `equipo.js` para que un número del proyecto se cuente igual que el de un sprint. |
+| `lib/kpis/equipo.js` | `armarEquipo(tareas, periodo, equipo)` → `porRol`, `wip`, `carga`, `horas`, `bugs`, `okrs` y `configuracion`: los KPIs y OKRs del equipo sobre un sprint o sobre el proyecto, con `data/equipo.json`. `TIPOS_DE_METRICA` (qué es un KPI y qué un OKR, para las insignias), `ROLES`, `SIN_ROL`, `SIN_ASIGNAR`, `EQUIPO_VACIO`. Reglas con `@decision`. |
 | `lib/kpis/tiempo.js` | Lo que comparten los módulos de KPIs: `ZONA_HORARIA`, `diaLocal`, `mesLocal`, `instante` (una fecha que no se entiende es `null`), `promedio`, `mediana`, `contar`, `describirLectura` y `MINUTOS_PARA_DESACTUALIZADO`. `performance.js` los reexporta. |
 | `lib/kpis/operacion.js` | `armarOperacion(ordenes, { ahora, dias, leidoEl })` → el tablero de Operación: `periodo` (`periodo(dias, ahora)`, redondeado al minuto para que el cache sirva), `totales` (del período y de ahora), demora/espera/lavado promedio, `porDia`, `porLavadero`, `porServicio`, `porEstado`, `ordenes` con sus minutos y `problemas`. `ESTADOS`, `ESTADOS_ABIERTOS` y `PERIODOS` son el contrato con el backend y la pantalla. |
 | `lib/kpis/lavaderos.js` | `armarLavaderos(lavaderos, { ahora, leidoEl })` → cuentas activas (`DIAS_ACTIVA`, con `@decision`), inactivas y suspendidas, altas del mes y por mes (`ultimosMeses`), por plan y por ciudad, el padrón ordenado por actividad. |
@@ -236,6 +248,7 @@ fallan lo hacen en silencio.
 | `GET /api/performance[?sprint=]` | `app/api/performance/route.js` | Reporte de un sprint de Shortcut (sin `?sprint=`, el que está en curso). `501` sin token, `502` si Shortcut falló, `404` si el sprint no existe. |
 | `POST /api/performance[?sprint=]` | `app/api/performance/route.js` | Lo mismo leyendo de Shortcut sin cache, y vence el cache para las cargas siguientes. Es el botón "Actualizar". |
 | `GET|POST /api/performance/historial` | `app/api/performance/historial/route.js` | Una fila por sprint (en curso o terminado, los últimos 8) con lo comprometido, lo cumplido, lo agregado y lo movido a otro sprint. Aparte porque lee las tareas y el historial de cada sprint. `POST` = sin cache. |
+| `GET|POST /api/performance/proyecto` | `app/api/performance/proyecto/route.js` | El proyecto entero (la vista por defecto): todos los sprints sumados desde sus stories, con los OKR y los KPIs del equipo sobre todas las tareas, el detalle sprint por sprint y los bugs del workspace. Lee lo mismo que `/historial` para todos los sprints, más los conteos y `data/equipo.json`. `501` sin token, `502` si Shortcut falló; sin sprints no da `404` sino `200` con todo vacío. `POST` = sin cache. |
 | `GET\|POST /api/operacion[?dias=7\|30\|90]` | `app/api/operacion/route.js` | Operación leída de la app de gestión (30 días sin `?dias=`). `400` con otro valor de `dias`, `501` sin `GESTION_*`, `502` si la app de gestión falló. `POST` = sin cache. |
 | `GET\|POST /api/lavaderos` | `app/api/lavaderos/route.js` | El padrón de cuentas. Mismos códigos. |
 | `GET\|POST /api/clientes` | `app/api/clientes/route.js` | Los clientes finales, con los lavados de los últimos 90 días. Mismos códigos. |
@@ -263,7 +276,7 @@ del servicio de atrás, no de este.
 | `app/login/page.jsx` | El formulario de acceso. `"use client"`. Pide a `/api/auth/login` y recarga la página entera para que el layout arme la barra; respeta `?volver=` solo si es una ruta propia que el rol puede ver. |
 | `app/dashboards/encuesta-lavaderos/page.jsx` | El dashboard de la encuesta. `"use client"`. |
 | `app/dashboards/estado/page.jsx` | `/api/salud` con interfaz: fuente en uso, filas rechazadas, columnas ignoradas. `"use client"`. |
-| `app/dashboards/performance/page.jsx` | El avance del sprint para negocio: selector de sprint, "Actualizar", resumen, burndown en tareas o puntos, flujo acumulado, tareas por estado, avance por iniciativa, carga por responsable, cycle time y listas. Si Shortcut falla, muestra el motivo y no números. `"use client"`. |
+| `app/dashboards/performance/page.jsx` | El avance del proyecto y de cada sprint para negocio. Un selector elige qué se mira (queda en la URL como `?sprint=`): **Todo el proyecto**, por defecto, con los OKRs principales, el avance total en dos anillos, sprint por sprint, iniciativas, responsables y equipo; o **un sprint**, con los OKRs, las tarjetas, una línea del proyecto, compromiso, burndown, flujo, ritmo, iniciativas, responsables, equipo, historial, tiempos y listas. Los paneles con gráficos van de a dos por fila (`.tablero`). Si Shortcut falla, muestra el motivo y no números. `"use client"`. |
 | `app/dashboards/{operacion,lavaderos,clientes,facturacion}/page.jsx` | Las secciones de Gestión. Cada una envuelve su tablero en `SeccionRemota` y dibuja tarjetas, gráficos y tablas con lo que devuelve su endpoint; Operación suma los chips de período (7, 30, 90 días). `"use client"`. |
 | `app/globals.css` | Tokens de color (`--tinta`, `--agua`, …) y todas las clases. Sin CSS-in-JS. |
 | `components/Navegacion.jsx` | Barra lateral. Recibe el rol y dibuja solo lo que puede abrir (sin "Inicio" para quien ve una sola sección). `"use client"` porque marca el enlace activo con `usePathname`. |
@@ -297,14 +310,17 @@ app/
     <nueva-seccion>/page.jsx
   api/
     performance/route.js
+    performance/{historial,proyecto}/route.js
     <nuevo-dominio>/route.js
 lib/
   secciones.js                  → declarar la seccion acá primero
   encuestas.js, shortcut.js,
-  gestion.js                    → un loader por fuente de datos
+  gestion.js, equipo.js         → un loader por fuente de datos
   kpis/
     encuesta.js                 → los KPIs de la encuesta
-    performance.js              → el avance del sprint de Shortcut
+    performance.js              → el avance de un sprint de Shortcut
+    proyecto.js                 → el proyecto entero: todos los sprints sumados
+    equipo.js                   → los KPIs y OKRs del equipo (sprint o proyecto)
     operacion.js, lavaderos.js,
     clientes.js, facturacion.js → las secciones de Gestión
     tiempo.js                   → zona horaria, días, promedios: compartido
@@ -328,7 +344,8 @@ Reglas para el dashboard nuevo:
    que no existe, creá el componente genérico en `components/` — no un componente
    específico de ese dashboard.
 5. **No dupliques `globals.css`.** Las clases `.panel`, `.grilla-kpis`,
-   `.dos-columnas`, `.contenedor` y `.chip` son compartidas.
+   `.dos-columnas`, `.tablero` (paneles de a dos por fila), `.contenedor` (a
+   todo el ancho) y `.chip` son compartidas.
 
 ## Deuda conocida
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import EncabezadoSeccion from "@/components/EncabezadoSeccion";
 import TarjetaKpi from "@/components/TarjetaKpi";
 import Lineas from "@/components/Lineas";
@@ -15,8 +15,44 @@ import Insignia from "@/components/Insignia";
 import { buscarSeccion, ESTADO_SIN_FUENTE } from "@/lib/secciones";
 import { diaLocal, ESTADOS_SPRINT, ETAPAS, ZONA_HORARIA } from "@/lib/kpis/performance";
 import { SIN_ASIGNAR, SIN_ROL, TIPOS_DE_METRICA } from "@/lib/kpis/equipo";
+import { AMBITO_PROYECTO } from "@/lib/kpis/proyecto";
 
 const seccion = buscarSeccion("performance");
+
+// Que se esta mirando: el proyecto entero (lo que se abre por defecto) o un
+// sprint. Los paneles que se comparten entre las dos vistas cambian sus textos
+// con esto, asi "del sprint" no aparece en el proyecto.
+const ALCANCES = {
+  [AMBITO_PROYECTO]: {
+    del: "del proyecto",
+    en: "en el proyecto",
+    durante: "en los sprints del proyecto",
+    semanas: "que suman todos los sprints",
+    okrs: "Los tres resultados clave de todo el proyecto, con todos los sprints sumados, contra la meta que acordó el equipo",
+    sinTareas: "El proyecto todavía no tiene tareas cargadas en ningún sprint.",
+    sinBugs:
+      "El proyecto no tiene ninguna story de tipo «bug» en Shortcut. El ratio empieza a decir algo cuando los defectos se carguen con ese tipo, no como feature.",
+  },
+  sprint: {
+    del: "del sprint",
+    en: "en el sprint",
+    durante: "durante el sprint",
+    semanas: "del sprint",
+    okrs: "Los tres resultados clave del sprint contra la meta que acordó el equipo",
+    sinTareas: "El sprint todavía no tiene tareas cargadas.",
+    sinBugs:
+      "El sprint no tiene ninguna story de tipo «bug» en Shortcut. El ratio empieza a decir algo cuando los defectos se carguen con ese tipo, no como feature.",
+  },
+};
+
+// El anillo de puntos del proyecto solo reparte terminados y pendientes: los
+// puntos "en curso" no son un dato de Shortcut.
+const PUNTOS_TERMINADOS = "Terminados";
+const PUNTOS_PENDIENTES = "Pendientes";
+const COLORES_PUNTOS = {
+  [PUNTOS_TERMINADOS]: "var(--verde)",
+  [PUNTOS_PENDIENTES]: "var(--tinta-clara)",
+};
 
 const FECHA_CORTA = new Intl.DateTimeFormat("es-AR", {
   day: "numeric",
@@ -33,8 +69,9 @@ const DIA_Y_HORA = new Intl.DateTimeFormat("es-AR", {
 });
 
 // Las fechas del sprint son dias de calendario ("2026-09-23"), no instantes: se
-// formatean en UTC para que la zona del navegador no las corra un dia.
-const fechaCorta = (dia) => FECHA_CORTA.format(new Date(`${dia}T00:00:00Z`));
+// formatean en UTC para que la zona del navegador no las corra un dia. Sin
+// fecha (un proyecto sin sprints) se muestra "–", no se tira la pantalla.
+const fechaCorta = (dia) => (dia ? FECHA_CORTA.format(new Date(`${dia}T00:00:00Z`)) : "–");
 const diaYHora = (instante) => DIA_Y_HORA.format(new Date(instante));
 const conPorcentaje = (pct) => (pct === null ? "–" : `${pct}%`);
 const dias = (n) => (n === 1 ? "1 día" : `${n} días`);
@@ -146,8 +183,13 @@ function diasDeCalendario(n) {
   return dias(n);
 }
 
-async function pedirReporte(sprint, metodo) {
-  const url = seccion.endpoint + (sprint ? `?sprint=${sprint}` : "");
+// El proyecto entero y cada sprint tienen su endpoint: el del proyecto lee las
+// tareas de todos los sprints.
+async function pedirReporte(ambito, metodo) {
+  const url =
+    ambito === AMBITO_PROYECTO
+      ? `${seccion.endpoint}/proyecto`
+      : `${seccion.endpoint}?sprint=${ambito}`;
   let res;
   try {
     res = await fetch(url, { method: metodo });
@@ -176,10 +218,38 @@ function senalDe(reporte, error) {
   if (error) return { tono: "alerta", texto: "Sin datos de Shortcut" };
   if (!reporte) return null;
   if (reporte.lectura.desactualizado) return { tono: "alerta", texto: "Datos desactualizados" };
+  if (reporte.ambito === AMBITO_PROYECTO) return { tono: "ok", texto: "Todo el proyecto" };
   return {
     tono: reporte.sprint.estado === ESTADOS_SPRINT.unstarted ? "pendiente" : "ok",
     texto: `Sprint ${reporte.sprint.estado.toLowerCase()}`,
   };
+}
+
+// El ambito viene de la URL (?sprint=<id>) para que un enlace se comparta con
+// el sprint puesto; sin parametro se abre el proyecto entero. Se lee en el
+// navegador, despues del primer render, para no desacordar con el servidor. Un
+// valor que no es un numero no se traga en silencio: `invalido` lo devuelve
+// para avisarlo y limpiar la URL.
+function ambitoDeLaUrl() {
+  const sprint = new URLSearchParams(window.location.search).get("sprint");
+  if (sprint === null) return { ambito: AMBITO_PROYECTO, invalido: null };
+  if (/^\d+$/.test(sprint)) return { ambito: Number(sprint), invalido: null };
+  return { ambito: AMBITO_PROYECTO, invalido: sprint };
+}
+
+function escribirAmbitoEnLaUrl(ambito) {
+  const url = new URL(window.location.href);
+  if (ambito === AMBITO_PROYECTO) url.searchParams.delete("sprint");
+  else url.searchParams.set("sprint", String(ambito));
+  window.history.replaceState(null, "", url);
+}
+
+// "2 sprints · 23 sept al 21 oct": la opcion del proyecto en el selector.
+function textoDelProyecto(sprints) {
+  if (sprints.length === 0) return "sin sprints todavía";
+  const inicio = sprints.map((s) => s.inicio).sort()[0];
+  const fin = sprints.map((s) => s.fin).sort().at(-1);
+  return `${textoDeSprints(sprints.length)} · ${fechaCorta(inicio)} al ${fechaCorta(fin)}`;
 }
 
 function tarjetaDeDias(sprint) {
@@ -208,19 +278,35 @@ function detalleDePuntos({ total, terminados, tareasSinEstimar }) {
 }
 
 export default function PaginaPerformance() {
-  const [sprintPedido, setSprintPedido] = useState(null);
+  // null hasta leer la URL en el navegador; despues, el proyecto o un sprint.
+  const [ambito, setAmbito] = useState(null);
   const [reporte, setReporte] = useState(null);
   const [error, setError] = useState(null);
   const [aviso, setAviso] = useState(null);
+  const [avisoDeUrl, setAvisoDeUrl] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [actualizando, setActualizando] = useState(false);
-  // El historial de sprints se pide aparte (es mas caro); "Actualizar" lo
-  // vuelve a pedir sin cache, igual que al reporte.
+  // El historial de sprints de la vista de un sprint se pide aparte (es mas
+  // caro); "Actualizar" lo vuelve a pedir sin cache, igual que al reporte.
   const [pedidoDeHistorial, setPedidoDeHistorial] = useState({ n: 0, metodo: "GET" });
+  // Lo ultimo que se eligio: una respuesta de "Actualizar" que llega despues de
+  // cambiar de vista se descarta en vez de pisar lo nuevo.
+  const ambitoVigente = useRef(null);
 
   useEffect(() => {
+    const { ambito: pedido, invalido } = ambitoDeLaUrl();
+    if (invalido !== null) {
+      escribirAmbitoEnLaUrl(AMBITO_PROYECTO);
+      setAvisoDeUrl(`«${invalido}» no es el número de un sprint: se muestra el proyecto entero.`);
+    }
+    ambitoVigente.current = pedido;
+    setAmbito(pedido);
+  }, []);
+
+  useEffect(() => {
+    if (ambito === null) return;
     let vigente = true;
-    pedirReporte(sprintPedido, "GET").then((r) => {
+    pedirReporte(ambito, "GET").then((r) => {
       if (!vigente) return;
       setCargando(false);
       setAviso(null);
@@ -234,17 +320,25 @@ export default function PaginaPerformance() {
     return () => {
       vigente = false;
     };
-  }, [sprintPedido]);
+  }, [ambito]);
 
-  function elegirSprint(id) {
+  function elegirAmbito(valor) {
+    ambitoVigente.current = valor;
+    setActualizando(false);
+    setAvisoDeUrl(null);
     setCargando(true);
-    setSprintPedido(id);
+    setAmbito(valor);
+    escribirAmbitoEnLaUrl(valor);
   }
 
   async function actualizar() {
+    const pedido = ambito;
     setActualizando(true);
-    setPedidoDeHistorial((p) => ({ n: p.n + 1, metodo: "POST" }));
-    const r = await pedirReporte(sprintPedido ?? reporte?.sprint.id, "POST");
+    // El historial solo existe en la vista de un sprint; en el proyecto no hay
+    // nada que volver a pedir.
+    if (pedido !== AMBITO_PROYECTO) setPedidoDeHistorial((p) => ({ n: p.n + 1, metodo: "POST" }));
+    const r = await pedirReporte(pedido, "POST");
+    if (ambitoVigente.current !== pedido) return;
     setActualizando(false);
     if (r.reporte) {
       setReporte(r.reporte);
@@ -266,16 +360,32 @@ export default function PaginaPerformance() {
         subtitulo={seccion.subtitulo}
         senal={senalDe(reporte, error)}
       >
-        {reporte && (
+        {/* Con un error y nada cargado (un ?sprint= que no existe) el selector
+            igual se muestra, con el proyecto solo, para poder volver. */}
+        {ambito !== null && (reporte || error) && (
           <div className="controles">
             <label className="selector">
-              Sprint
+              Ver
               <select
-                value={sprintPedido ?? reporte.sprint.id}
-                onChange={(e) => elegirSprint(Number(e.target.value))}
+                value={String(ambito)}
+                onChange={(e) =>
+                  elegirAmbito(
+                    e.target.value === AMBITO_PROYECTO ? AMBITO_PROYECTO : Number(e.target.value)
+                  )
+                }
                 disabled={cargando || actualizando}
               >
-                {reporte.sprints.map((s) => (
+                <option value={AMBITO_PROYECTO}>
+                  Todo el proyecto{reporte ? ` · ${textoDelProyecto(reporte.sprints)}` : ""}
+                </option>
+                {/* Sin reporte, el sprint pedido tiene que figurar como opcion
+                    (deshabilitada) para que elegir el proyecto sea un cambio. */}
+                {!reporte && ambito !== AMBITO_PROYECTO && (
+                  <option value={String(ambito)} disabled>
+                    Sprint {ambito} (no existe)
+                  </option>
+                )}
+                {(reporte?.sprints ?? []).map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.nombre} · {s.estado.toLowerCase()} · {fechaCorta(s.inicio)} al{" "}
                     {fechaCorta(s.fin)}
@@ -286,7 +396,7 @@ export default function PaginaPerformance() {
             <button className="chip" onClick={actualizar} disabled={cargando || actualizando}>
               {actualizando ? "Actualizando…" : "Actualizar"}
             </button>
-            {reporte.lectura.leidoEl && (
+            {reporte?.lectura.leidoEl && (
               <span className="lectura">
                 Datos de Shortcut del {diaYHora(reporte.lectura.leidoEl)}
               </span>
@@ -296,6 +406,11 @@ export default function PaginaPerformance() {
       </EncabezadoSeccion>
 
       <main className="contenedor">
+        {avisoDeUrl && (
+          <div className="aviso" role="status">
+            {avisoDeUrl}
+          </div>
+        )}
         {aviso && (
           <div className="aviso" role="status">
             No se pudo actualizar: {aviso} Se siguen mostrando los datos anteriores.
@@ -303,24 +418,50 @@ export default function PaginaPerformance() {
         )}
 
         {cargando ? (
-          <div className="panel cargando">Consultando Shortcut…</div>
+          <div className="panel cargando">
+            {ambito === AMBITO_PROYECTO
+              ? "Consultando todos los sprints en Shortcut…"
+              : "Consultando Shortcut…"}
+          </div>
         ) : error ? (
-          <PanelDeError error={error} />
+          <PanelDeError
+            error={error}
+            volver={ambito !== AMBITO_PROYECTO ? () => elegirAmbito(AMBITO_PROYECTO) : null}
+          />
+        ) : reporte?.ambito === AMBITO_PROYECTO ? (
+          <Proyecto reporte={reporte} />
         ) : (
-          reporte && <Reporte reporte={reporte} pedidoDeHistorial={pedidoDeHistorial} />
+          reporte && (
+            <Reporte
+              reporte={reporte}
+              pedidoDeHistorial={pedidoDeHistorial}
+              verProyecto={() => elegirAmbito(AMBITO_PROYECTO)}
+              ocupado={actualizando}
+            />
+          )
         )}
       </main>
     </>
   );
 }
 
-function PanelDeError({ error }) {
+// `volver` es el camino de vuelta al proyecto cuando el error es de un sprint
+// pedido en la URL (por ejemplo uno que no existe).
+function PanelDeError({ error, volver }) {
+  const volverAlProyecto = volver && (
+    <p>
+      <button type="button" className="chip" onClick={volver}>
+        Volver al proyecto
+      </button>
+    </p>
+  );
   if (error.estado === ESTADO_SIN_FUENTE) {
     return (
       <div className="panel error">
         <strong>Performance todavía no está conectada a Shortcut.</strong>
         <br />
         {error.motivo}
+        {volverAlProyecto}
       </div>
     );
   }
@@ -331,11 +472,76 @@ function PanelDeError({ error }) {
       {error.motivo}
       <br />
       Si vuelve a pasar en unos minutos, avisale al equipo técnico.
+      {volverAlProyecto}
     </div>
   );
 }
 
-function Reporte({ reporte, pedidoDeHistorial }) {
+// La vista por defecto: el proyecto entero. Primero los OKR, despues el avance
+// total con los anillos, el detalle sprint por sprint y los KPIs del equipo
+// sobre todas las tareas, de a dos paneles por fila.
+function Proyecto({ reporte }) {
+  const {
+    periodo,
+    progreso,
+    errores,
+    porSprint,
+    porIniciativa,
+    porResponsable,
+    equipo,
+    archivadas,
+    lectura,
+    problemas,
+  } = reporte;
+  const alcance = ALCANCES[AMBITO_PROYECTO];
+
+  return (
+    <>
+      {lectura.desactualizado && (
+        <div className="aviso" role="status">
+          Estos datos son del {diaYHora(lectura.leidoEl)}. Ya se le pidió una lectura
+          nueva a Shortcut: tocá «Actualizar» para verla.
+        </div>
+      )}
+
+      <PanelOkrs equipo={equipo} alcance={alcance} />
+
+      <PanelAvanceTotal progreso={progreso} errores={errores} periodo={periodo} />
+
+      <PanelPorSprint porSprint={porSprint} enCurso={periodo.enCurso} />
+
+      <div className="tablero">
+        <PanelPorIniciativa porIniciativa={porIniciativa} alcance={alcance} />
+        <PanelPorResponsable porResponsable={porResponsable} alcance={alcance} />
+        <PanelPorRol porRol={equipo.porRol} alcance={alcance} />
+        <PanelWip wip={equipo.wip} />
+        <PanelCargaPorIntegrante carga={equipo.carga} alcance={alcance} />
+        <PanelHoras horas={equipo.horas} alcance={alcance} />
+      </div>
+
+      <PanelEfectividad horas={equipo.horas} metas={equipo.configuracion.metas} />
+
+      {problemas.length > 0 && <Problemas problemas={problemas} />}
+
+      <p className="nota">
+        Fuente: Shortcut. El proyecto es la suma de todos sus sprints, los terminados, el que
+        está en curso y los que todavía no empezaron; lo que no está en ningún sprint no cuenta.
+        Cada tarea es una story de Shortcut, subtareas incluidas, contada desde las stories de
+        su sprint; lo comprometido es lo que ya estaba en cada sprint al cierre de su primer
+        día. Los errores son las stories de tipo «bug» de todo el proyecto. El rol y las horas
+        pactadas de cada integrante, las horas por punto y las metas de los OKR salen de{" "}
+        <code>data/equipo.json</code>; la capacidad suma las semanas de todos los sprints. Los
+        datos se releen solos cada pocos minutos y «Actualizar» los trae de Shortcut en el
+        momento.
+        {archivadas > 0 && ` No se cuentan ${archivadas} tareas archivadas.`}
+      </p>
+    </>
+  );
+}
+
+// La vista de un sprint: los OKR primero, las cuatro tarjetas, el proyecto en
+// una linea y el detalle del sprint, con los graficos de a dos por fila.
+function Reporte({ reporte, pedidoDeHistorial, verProyecto, ocupado }) {
   const {
     sprint,
     resumen,
@@ -357,6 +563,7 @@ function Reporte({ reporte, pedidoDeHistorial }) {
     problemas,
   } = reporte;
   const tarjeta = tarjetaDeDias(sprint);
+  const alcance = ALCANCES.sprint;
 
   return (
     <>
@@ -366,6 +573,8 @@ function Reporte({ reporte, pedidoDeHistorial }) {
           nueva a Shortcut: tocá «Actualizar» para verla.
         </div>
       )}
+
+      <PanelOkrs equipo={equipo} alcance={alcance} />
 
       <div className="grilla-kpis">
         <TarjetaKpi
@@ -388,54 +597,45 @@ function Reporte({ reporte, pedidoDeHistorial }) {
         />
       </div>
 
-      <PanelProyecto proyecto={proyecto} />
+      <FranjaProyecto proyecto={proyecto} verProyecto={verProyecto} ocupado={ocupado} />
 
       <ResumenVisual resumen={resumen} compromiso={compromiso} />
 
       <PanelCompromiso compromiso={compromiso} sprint={sprint} />
 
-      <PanelBurndown burndown={burndown} sprint={sprint} hayPuntos={resumen.puntos.total > 0} />
-
-      <PanelRitmo ritmo={ritmo} sprint={sprint} />
+      <div className="tablero">
+        <PanelBurndown burndown={burndown} sprint={sprint} hayPuntos={resumen.puntos.total > 0} />
+        <PanelFlujo flujo={flujo} sprint={sprint} />
+        <PanelRitmo ritmo={ritmo} sprint={sprint} />
+        <PanelPorIniciativa porIniciativa={porIniciativa} alcance={alcance} />
+        <PanelPorResponsable porResponsable={porResponsable} alcance={alcance} />
+        <PanelPorRol porRol={equipo.porRol} alcance={alcance} />
+        <PanelWip wip={equipo.wip} />
+        <PanelCargaPorIntegrante carga={equipo.carga} alcance={alcance} />
+        <PanelHoras horas={equipo.horas} alcance={alcance} />
+        <section className="panel">
+          <h2>Tareas por estado</h2>
+          <p className="subtitulo">En qué columna del tablero está hoy cada tarea del sprint</p>
+          {porEstado.length === 0 ? (
+            <p className="motivo">{alcance.sinTareas}</p>
+          ) : (
+            <div className="grilla-kpis">
+              {porEstado.map((e) => (
+                <TarjetaKpi
+                  key={e.id}
+                  etiqueta={e.nombre}
+                  valor={e.tareas}
+                  detalle={e.puntos > 0 ? `${e.etapa} · ${e.puntos} puntos` : e.etapa}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
 
       <PanelHistorial pedido={pedidoDeHistorial} sprintActual={sprint.id} />
 
-      <PanelFlujo flujo={flujo} sprint={sprint} />
-
-      <PanelPorIniciativa porIniciativa={porIniciativa} />
-
-      <PanelPorResponsable porResponsable={porResponsable} />
-
-      <PanelOkrs equipo={equipo} />
-
-      <PanelPorRol porRol={equipo.porRol} />
-
-      <PanelWip wip={equipo.wip} />
-
-      <PanelCargaPorIntegrante carga={equipo.carga} />
-
-      <PanelHoras horas={equipo.horas} sprint={sprint} />
-
       <PanelEfectividad horas={equipo.horas} metas={equipo.configuracion.metas} />
-
-      <section className="panel">
-        <h2>Tareas por estado</h2>
-        <p className="subtitulo">En qué columna del tablero está hoy cada tarea del sprint</p>
-        {porEstado.length === 0 ? (
-          <p className="motivo">El sprint todavía no tiene tareas cargadas.</p>
-        ) : (
-          <div className="grilla-kpis">
-            {porEstado.map((e) => (
-              <TarjetaKpi
-                key={e.id}
-                etiqueta={e.nombre}
-                valor={e.tareas}
-                detalle={e.puntos > 0 ? `${e.etapa} · ${e.puntos} puntos` : e.etapa}
-              />
-            ))}
-          </div>
-        )}
-      </section>
 
       <PanelTiempoEnSprint tiempoEnSprint={tiempoEnSprint} tiempoPorColumna={tiempoPorColumna} />
 
@@ -600,15 +800,15 @@ function Desglose({ grupos }) {
   );
 }
 
-function PanelPorIniciativa({ porIniciativa }) {
+function PanelPorIniciativa({ porIniciativa, alcance }) {
   return (
     <section className="panel">
       <h2>Avance por iniciativa</h2>
       <p className="subtitulo">
-        Cómo viene cada epic del sprint: cuánto se terminó, qué está en curso y qué falta
+        Cómo viene cada epic {alcance.del}: cuánto se terminó, qué está en curso y qué falta
       </p>
       {porIniciativa.grupos.length === 0 ? (
-        <p className="motivo">El sprint todavía no tiene tareas cargadas.</p>
+        <p className="motivo">{alcance.sinTareas}</p>
       ) : (
         <Plegable items={porIniciativa.grupos} visibles={GRUPOS_VISIBLES}>
           {(porcion) => <Desglose grupos={porcion} />}
@@ -618,16 +818,16 @@ function PanelPorIniciativa({ porIniciativa }) {
   );
 }
 
-function PanelPorResponsable({ porResponsable }) {
+function PanelPorResponsable({ porResponsable, alcance }) {
   const { grupos, compartidas } = porResponsable;
   return (
     <section className="panel">
       <h2>Carga por responsable</h2>
       <p className="subtitulo">
-        Cuántas tareas tiene cada persona y en qué etapa están
+        Cuántas tareas tiene cada persona {alcance.en} y en qué etapa están
       </p>
       {grupos.length === 0 ? (
-        <p className="motivo">El sprint todavía no tiene tareas cargadas.</p>
+        <p className="motivo">{alcance.sinTareas}</p>
       ) : (
         <Plegable items={grupos} visibles={GRUPOS_VISIBLES}>
           {(porcion) => <Desglose grupos={porcion} />}
@@ -638,7 +838,7 @@ function PanelPorResponsable({ porResponsable }) {
           {compartidas === 1
             ? "1 tarea tiene más de un responsable y cuenta para cada uno."
             : `${compartidas} tareas tienen más de un responsable y cuentan para cada uno.`}{" "}
-          Por eso las barras pueden sumar más que el total del sprint.
+          Por eso las barras pueden sumar más que el total {alcance.del}.
         </p>
       )}
     </section>
@@ -862,7 +1062,7 @@ function PanelRitmo({ ritmo, sprint }) {
           El sprint todavía no empezó: las barras aparecen desde el {fechaCorta(sprint.inicio)}.
         </p>
       ) : (
-        <BarrasAgrupadas datos={datos} series={SERIES_RITMO} />
+        <BarrasAgrupadas datos={datos} series={SERIES_RITMO} intervalo="preserveStartEnd" />
       )}
     </section>
   );
@@ -886,11 +1086,17 @@ function PanelHistorial({ pedido, sprintActual }) {
   const [historial, setHistorial] = useState(null);
   const [error, setError] = useState(null);
   const [cargando, setCargando] = useState(true);
+  // El POST de "Actualizar" se usa una sola vez: el panel se monta de nuevo con
+  // cada sprint que se elige, y ahi lee con GET aunque el ultimo pedido haya
+  // sido un POST.
+  const atendido = useRef(pedido.n);
 
   useEffect(() => {
     let vigente = true;
     setCargando(true);
-    pedirHistorial(pedido.metodo).then((r) => {
+    const metodo = atendido.current === pedido.n ? "GET" : pedido.metodo;
+    atendido.current = pedido.n;
+    pedirHistorial(metodo).then((r) => {
       if (!vigente) return;
       setCargando(false);
       if (r.historial) {
@@ -905,17 +1111,6 @@ function PanelHistorial({ pedido, sprintActual }) {
     };
   }, [pedido]);
 
-  const datos = useMemo(
-    () =>
-      (historial?.sprints ?? []).map((s) => ({
-        nombre: recortar(s.nombre, 18),
-        Comprometidas: s.comprometidas,
-        Cumplidas: s.cumplidas,
-        Agregadas: s.agregadas,
-      })),
-    [historial]
-  );
-
   return (
     <section className="panel">
       <h2>Historial de sprints</h2>
@@ -927,65 +1122,9 @@ function PanelHistorial({ pedido, sprintActual }) {
         <p className="motivo">Consultando los sprints en Shortcut…</p>
       ) : error ? (
         <p className="motivo">No se pudo armar el historial: {error}</p>
-      ) : historial.sprints.length === 0 ? (
-        <p className="motivo">Todavía no hay sprints empezados para comparar.</p>
       ) : (
         <>
-          <BarrasAgrupadas datos={datos} series={SERIES_HISTORIAL} />
-          <div className="contrato">
-            <table>
-              <thead>
-                <tr>
-                  <th>Sprint</th>
-                  <th>Comprometidas</th>
-                  <th>Cumplimiento</th>
-                  <th>Agregadas</th>
-                  <th>Movidas</th>
-                  <th>Terminadas</th>
-                  <th>Puntos</th>
-                </tr>
-              </thead>
-              <tbody>
-                {historial.sprints.map((s) => (
-                  <tr key={s.id}>
-                    <td>
-                      {s.id === sprintActual ? <strong>{s.nombre}</strong> : s.nombre}
-                      <span className="subtexto">
-                        {s.estado.toLowerCase()} · {fechaCorta(s.inicio)} al {fechaCorta(s.fin)}
-                      </span>
-                    </td>
-                    <td className="sin-corte">{s.comprometidas}</td>
-                    <td>
-                      <BarraDeProgreso
-                        pct={s.pctCumplimiento}
-                        color={
-                          s.estado === ESTADOS_SPRINT.done && s.pctCumplimiento !== null && s.pctCumplimiento < 100
-                            ? "var(--alerta)"
-                            : "var(--verde)"
-                        }
-                        texto={`${s.cumplidas} de ${s.comprometidas}${
-                          s.pctCumplimiento !== null ? ` · ${s.pctCumplimiento}%` : ""
-                        }`}
-                      />
-                    </td>
-                    <td className="sin-corte">
-                      {s.agregadas}
-                      {s.agregadas > 0 && (
-                        <span className="subtexto">{s.agregadasTerminadas} terminadas</span>
-                      )}
-                    </td>
-                    <td className="sin-corte">{s.movidas}</td>
-                    <td className="sin-corte">
-                      {s.terminadas} de {s.total} {s.pctTerminado !== null && `(${s.pctTerminado}%)`}
-                    </td>
-                    <td className="sin-corte">
-                      {s.puntosTotales > 0 ? `${s.puntosTerminados} de ${s.puntosTotales}` : "–"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ComparacionDeSprints sprints={historial.sprints} sprintActual={sprintActual} />
           {historial.problemas.length > 0 && (
             <p className="motivo">
               {historial.problemas.length === 1
@@ -993,13 +1132,108 @@ function PanelHistorial({ pedido, sprintActual }) {
                 : `${historial.problemas.length} datos de Shortcut no se pudieron leer o traducir al armar el historial.`}
             </p>
           )}
-          <p className="motivo">
-            Una tarea que se movió de un sprint a otro cuenta en el de origen como no cumplida.
-            Las que se sacaron al backlog no se ven: Shortcut no las lista en ningún sprint.
-          </p>
         </>
       )}
     </section>
+  );
+}
+
+// En la vista del proyecto las filas por sprint ya vienen en la respuesta: no
+// hay nada que pedir aparte.
+function PanelPorSprint({ porSprint, enCurso }) {
+  return (
+    <section className="panel">
+      <h2>
+        Sprint por sprint <Insignia tipo="kpi" />
+      </h2>
+      <p className="subtitulo">
+        Cuánto se comprometió cada sprint, cuánto de eso se cumplió y cuánto se sumó en el
+        camino. Para ver si lo planificado se termina en el período previsto.
+      </p>
+      <ComparacionDeSprints sprints={porSprint} sprintActual={enCurso?.id ?? null} />
+    </section>
+  );
+}
+
+// Las barras y la tabla de comprometido, cumplido, agregado y movido por
+// sprint, que comparten el historial de la vista de un sprint y la vista del
+// proyecto. El sprint actual va en negrita.
+function ComparacionDeSprints({ sprints, sprintActual }) {
+  const datos = useMemo(
+    () =>
+      sprints.map((s) => ({
+        nombre: recortar(s.nombre, 18),
+        Comprometidas: s.comprometidas,
+        Cumplidas: s.cumplidas,
+        Agregadas: s.agregadas,
+      })),
+    [sprints]
+  );
+  if (sprints.length === 0) {
+    return <p className="motivo">Todavía no hay sprints empezados para comparar.</p>;
+  }
+  return (
+    <>
+      <BarrasAgrupadas datos={datos} series={SERIES_HISTORIAL} />
+      <div className="contrato">
+        <table>
+          <thead>
+            <tr>
+              <th>Sprint</th>
+              <th>Comprometidas</th>
+              <th>Cumplimiento</th>
+              <th>Agregadas</th>
+              <th>Movidas</th>
+              <th>Terminadas</th>
+              <th>Puntos</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sprints.map((s) => (
+              <tr key={s.id}>
+                <td>
+                  {s.id === sprintActual ? <strong>{s.nombre}</strong> : s.nombre}
+                  <span className="subtexto">
+                    {s.estado.toLowerCase()} · {fechaCorta(s.inicio)} al {fechaCorta(s.fin)}
+                  </span>
+                </td>
+                <td className="sin-corte">{s.comprometidas}</td>
+                <td>
+                  <BarraDeProgreso
+                    pct={s.pctCumplimiento}
+                    color={
+                      s.estado === ESTADOS_SPRINT.done && s.pctCumplimiento !== null && s.pctCumplimiento < 100
+                        ? "var(--alerta)"
+                        : "var(--verde)"
+                    }
+                    texto={`${s.cumplidas} de ${s.comprometidas}${
+                      s.pctCumplimiento !== null ? ` · ${s.pctCumplimiento}%` : ""
+                    }`}
+                  />
+                </td>
+                <td className="sin-corte">
+                  {s.agregadas}
+                  {s.agregadas > 0 && (
+                    <span className="subtexto">{s.agregadasTerminadas} terminadas</span>
+                  )}
+                </td>
+                <td className="sin-corte">{s.movidas}</td>
+                <td className="sin-corte">
+                  {s.terminadas} de {s.total} {s.pctTerminado !== null && `(${s.pctTerminado}%)`}
+                </td>
+                <td className="sin-corte">
+                  {s.puntosTotales > 0 ? `${s.puntosTerminados} de ${s.puntosTotales}` : "–"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="motivo">
+        Una tarea que se movió de un sprint a otro cuenta en el de origen como no cumplida.
+        Las que se sacaron al backlog no se ven: Shortcut no las lista en ningún sprint.
+      </p>
+    </>
   );
 }
 
@@ -1234,12 +1468,12 @@ function Leyenda() {
   );
 }
 
-function detalleDeOkr(okr, { bugs, horas: h }) {
+function detalleDeOkr(okr, { bugs, horas: h }, alcance) {
   if (okr.clave === "bugsRatio") {
     if (bugs.historiasTerminadas === 0) return "todavía no hay historias terminadas para comparar";
     return `${bugs.bugsAbiertosEnSprint} ${
       bugs.bugsAbiertosEnSprint === 1 ? "bug reportado" : "bugs reportados"
-    } durante el sprint sobre ${bugs.historiasTerminadas} ${
+    } ${alcance.durante} sobre ${bugs.historiasTerminadas} ${
       bugs.historiasTerminadas === 1 ? "historia terminada" : "historias terminadas"
     }`;
   }
@@ -1255,14 +1489,13 @@ function detalleDeOkr(okr, { bugs, horas: h }) {
 const valorDeOkr = (okr) =>
   okr.valor === null ? "–" : okr.clave === "bugsRatio" ? String(okr.valor) : `${okr.valor}%`;
 
-function PanelOkrs({ equipo }) {
+// Los OKR van primero en las dos vistas: son lo que el equipo acordó medir.
+function PanelOkrs({ equipo, alcance }) {
   const { okrs, bugs, horas: horasDelEquipo, configuracion } = equipo;
   return (
-    <section className="panel">
-      <h2>OKRs del equipo</h2>
-      <p className="subtitulo">
-        Los tres resultados clave del sprint contra la meta que acordó el equipo
-      </p>
+    <section className="panel okrs-principales">
+      <h2>OKRs principales</h2>
+      <p className="subtitulo">{alcance.okrs}</p>
       <Leyenda />
       <div className="grilla-kpis">
         {okrs.map((okr) => (
@@ -1274,22 +1507,17 @@ function PanelOkrs({ equipo }) {
             meta={okr.descripcionMeta}
             cumple={okr.cumple}
             critico={okr.cumple === false}
-            detalle={detalleDeOkr(okr, { bugs, horas: horasDelEquipo })}
+            detalle={detalleDeOkr(okr, { bugs, horas: horasDelEquipo }, alcance)}
           />
         ))}
       </div>
-      {bugs.bugs === 0 && (
-        <p className="motivo">
-          El sprint no tiene ninguna story de tipo «bug» en Shortcut. El ratio empieza a decir
-          algo cuando los defectos se carguen con ese tipo, no como feature.
-        </p>
-      )}
+      {bugs.bugs === 0 && <p className="motivo">{alcance.sinBugs}</p>}
       <AvisoDeConfiguracion configuracion={configuracion} />
     </section>
   );
 }
 
-function PanelPorRol({ porRol }) {
+function PanelPorRol({ porRol, alcance }) {
   const { grupos, compartidas, totalTareas } = porRol;
   const datos = useMemo(
     () => grupos.map((g) => ({ nombre: g.rol, Tareas: g.tareas, Puntos: g.puntos })),
@@ -1301,10 +1529,10 @@ function PanelPorRol({ porRol }) {
         Distribución por rol <Insignia tipo="kpi" />
       </h2>
       <p className="subtitulo">
-        Cuántas tareas y puntos del sprint tiene cada rol: UX, Dev, QA y PM
+        Cuántas tareas y puntos {alcance.del} tiene cada rol: UX, Dev, QA y PM
       </p>
       {totalTareas === 0 ? (
-        <p className="motivo">El sprint todavía no tiene tareas cargadas.</p>
+        <p className="motivo">{alcance.sinTareas}</p>
       ) : (
         <>
           <BarrasAgrupadas datos={datos} series={SERIES_POR_ROL} />
@@ -1385,12 +1613,13 @@ function PanelWip({ wip }) {
   );
 }
 
-function PanelCargaPorIntegrante({ carga }) {
+function PanelCargaPorIntegrante({ carga, alcance }) {
   const { personas, sinAsignar } = carga;
   const barras = useMemo(
     () =>
       personas.map((p) => ({
-        nombre: recortar(p.rol === SIN_ROL ? p.nombre : `${p.nombre} · ${p.rol}`, 30),
+        // Con el eje de 200 px (va en medio panel) entran unos 26 caracteres.
+        nombre: recortar(p.rol === SIN_ROL ? p.nombre : `${p.nombre} · ${p.rol}`, 26),
         valor: p.puntos,
       })),
     [personas]
@@ -1401,7 +1630,7 @@ function PanelCargaPorIntegrante({ carga }) {
       <h2>
         Carga por integrante <Insignia tipo="kpi" />
       </h2>
-      <p className="subtitulo">Los story points asignados a cada persona en el sprint</p>
+      <p className="subtitulo">Los story points asignados a cada persona {alcance.en}</p>
       {personas.length === 0 ? (
         <p className="motivo">No hay integrantes configurados ni tareas asignadas.</p>
       ) : (
@@ -1411,7 +1640,7 @@ function PanelCargaPorIntegrante({ carga }) {
               datos={porcion}
               color="var(--agua)"
               etiquetaValor="Puntos"
-              anchoEtiquetas={240}
+              anchoEtiquetas={200}
             />
           )}
         </Plegable>
@@ -1428,7 +1657,7 @@ function PanelCargaPorIntegrante({ carga }) {
   );
 }
 
-function PanelHoras({ horas: datosDeHoras, sprint }) {
+function PanelHoras({ horas: datosDeHoras, alcance }) {
   const { configurado, personas, sinHoras, semanas, horasPorPunto, equipo } = datosDeHoras;
   const conCapacidad = personas.filter((p) => p.capacidad !== null);
   const datos = useMemo(
@@ -1446,8 +1675,10 @@ function PanelHoras({ horas: datosDeHoras, sprint }) {
         Horas pactadas vs. extras <Insignia tipo="kpi" />
       </h2>
       <p className="subtitulo">
-        Las horas que demanda lo asignado a cada persona contra sus horas semanales pactadas por
-        las {semanas ?? dias(sprint.diasTotales)} semanas del sprint
+        Las horas que demanda lo asignado a cada persona contra sus horas semanales pactadas
+        {semanas === null
+          ? ` ${alcance.en}`
+          : ` por las ${semanas} semanas ${alcance.semanas}`}
         {horasPorPunto ? `, a ${horasPorPunto} h por punto` : ""}
       </p>
       {!configurado ? (
@@ -1464,7 +1695,7 @@ function PanelHoras({ horas: datosDeHoras, sprint }) {
         <>
           <div className="grilla-kpis">
             <TarjetaKpi
-              etiqueta="Capacidad del sprint"
+              etiqueta={`Capacidad ${alcance.del}`}
               valor={horas(equipo.capacidad)}
               detalle={`${conCapacidad.length === 1 ? "1 persona" : `${conCapacidad.length} personas`} con horas pactadas`}
             />
@@ -1583,65 +1814,150 @@ function detalleDeErrores(errores) {
     )} en el proyecto`,
   ];
   if (errores.enElSprint.reportados > 0 || errores.enElSprint.sinResolver > 0) {
-    partes.push(`${errores.enElSprint.sinResolver} sin resolver en este sprint`);
+    partes.push(`${errores.enElSprint.sinResolver} sin resolver en los sprints`);
   }
   return partes.join(" · ");
 }
 
-function PanelProyecto({ proyecto }) {
+// En la vista de un sprint, el proyecto entero en una linea: como va el total
+// del que este sprint es una parte. El detalle esta en la vista del proyecto.
+function FranjaProyecto({ proyecto, verProyecto, ocupado }) {
   const { progreso, errores } = proyecto;
+  const { tareas, puntos, sprints } = progreso;
+  return (
+    <div className="franja-proyecto">
+      <strong>Todo el proyecto</strong>
+      <span>
+        {sprints.length === 0
+          ? "todavía no hay sprints en Shortcut"
+          : `${conPorcentaje(tareas.pct)} de las tareas · ${terminadasDe(
+              tareas.terminadas,
+              tareas.total
+            )} en ${textoDeSprints(sprints.length)}`}
+      </span>
+      {puntos.total > 0 && (
+        <span>
+          {conPorcentaje(puntos.pct)} de los puntos · {puntos.terminados} de {puntos.total}
+        </span>
+      )}
+      <span className={errores.abiertos !== null && errores.abiertos > 0 ? "critico" : ""}>
+        {errores.abiertos === null
+          ? "errores sin contar"
+          : concordar(errores.abiertos, "error abierto", "errores abiertos")}
+      </span>
+      <button type="button" className="chip" onClick={verProyecto} disabled={ocupado}>
+        Ver el proyecto completo
+      </button>
+    </div>
+  );
+}
+
+// "1 terminado · 1 en curso · 0 por empezar"
+function detalleDeSprints({ terminados, enCurso, proximos }) {
+  return [
+    concordar(terminados, "terminado", "terminados"),
+    `${enCurso} en curso`,
+    `${proximos} por empezar`,
+  ].join(" · ");
+}
+
+function tarjetaDeDiasDelProyecto(periodo) {
+  if (periodo.fin === null) return { valor: "–", detalle: "sin sprints" };
+  if (periodo.diasRestantes === 0) {
+    return { valor: 0, detalle: `terminó el ${fechaCorta(periodo.fin)}` };
+  }
+  return {
+    valor: periodo.diasRestantes,
+    detalle: `de ${periodo.diasCalendario} · termina el ${fechaCorta(periodo.fin)}`,
+  };
+}
+
+// El panel principal de la vista del proyecto: dos anillos con el avance total
+// (en tareas y en puntos), las tarjetas del periodo y el desglose por sprint.
+function PanelAvanceTotal({ progreso, errores, periodo }) {
   const { sprints, tareas, puntos, sinSprint } = progreso;
-  const datos = useMemo(
-    () =>
-      sprints.map((s) => ({
-        nombre: recortar(s.nombre, 24),
-        [ETAPAS.done]: s.tareas.terminadas,
-        [ETAPAS.started]: s.tareas.enCurso,
-        [ETAPAS.unstarted]: s.tareas.pendientes,
-      })),
+  const porSprint = useMemo(
+    () => sprints.map((s) => ({ nombre: recortar(s.nombre, 24), ...porEtapa(s.tareas) })),
     [sprints]
   );
+  const anilloDeTareas = [
+    { nombre: ETAPAS.done, valor: tareas.terminadas },
+    { nombre: ETAPAS.started, valor: tareas.enCurso },
+    { nombre: ETAPAS.unstarted, valor: tareas.pendientes },
+  ];
+  const anilloDePuntos = [
+    { nombre: PUNTOS_TERMINADOS, valor: puntos.terminados },
+    { nombre: PUNTOS_PENDIENTES, valor: puntos.total - puntos.terminados },
+  ];
+  const diasDelProyecto = tarjetaDeDiasDelProyecto(periodo);
+
   return (
     <section className="panel">
       <h2>
-        Progreso del proyecto <Insignia tipo="kpi" />
+        Avance total del proyecto <Insignia tipo="kpi" />
       </h2>
       <p className="subtitulo">
-        Lo terminado sobre todo lo planificado en los sprints, del primero al último, más los
-        errores reportados en todo el proyecto
+        Lo terminado sobre todo lo planificado en los sprints, del primero al último
+        {periodo.inicio &&
+          `: ${textoDeSprints(periodo.sprints.total)}, del ${fechaCorta(periodo.inicio)} al ${fechaCorta(periodo.fin)}`}
       </p>
-      <div className="grilla-kpis">
-        <TarjetaKpi
-          etiqueta="Progreso en tareas"
-          valor={conPorcentaje(tareas.pct)}
-          detalle={
-            sprints.length === 0
-              ? "todavía no hay sprints en Shortcut"
-              : `${terminadasDe(tareas.terminadas, tareas.total)} en ${textoDeSprints(sprints.length)}`
-          }
-        />
-        <TarjetaKpi
-          etiqueta="Progreso en puntos"
-          valor={conPorcentaje(puntos.pct)}
-          detalle={detalleDePuntos(puntos)}
-        />
-        <TarjetaKpi
-          etiqueta="En curso hoy"
-          valor={tareas.enCurso}
-          detalle={`${tareas.pendientes} sin empezar en todo el proyecto`}
-        />
-        <TarjetaKpi
-          etiqueta="Errores abiertos"
-          valor={errores.abiertos === null ? "–" : errores.abiertos}
-          critico={errores.abiertos !== null && errores.abiertos > 0}
-          detalle={detalleDeErrores(errores)}
-        />
-      </div>
       {sprints.length === 0 ? (
         <p className="motivo">Todavía no hay sprints cargados en Shortcut.</p>
       ) : (
         <>
-          <BarrasApiladas datos={datos} series={SERIES_ETAPAS} anchoEtiquetas={160} />
+          <div className="anillos">
+            <div>
+              <p className="titulo-grafico">Avance en tareas</p>
+              <Torta
+                datos={anilloDeTareas}
+                colores={COLORES_ETAPAS}
+                centro={conPorcentaje(tareas.pct)}
+                detalle={`${tareas.terminadas} de ${textoDeTareas(tareas.total)}`}
+                alto={260}
+              />
+            </div>
+            <div>
+              <p className="titulo-grafico">Avance en puntos</p>
+              <Torta
+                datos={anilloDePuntos}
+                colores={COLORES_PUNTOS}
+                centro={conPorcentaje(puntos.pct)}
+                detalle={
+                  puntos.total === 0 ? "ninguna tarea tiene puntos" : `${puntos.terminados} de ${puntos.total} puntos`
+                }
+                alto={260}
+              />
+            </div>
+            <div className="grilla-kpis">
+              <TarjetaKpi
+                etiqueta="Sprints"
+                valor={periodo.sprints.total}
+                detalle={detalleDeSprints(periodo.sprints)}
+              />
+              <TarjetaKpi
+                etiqueta="Días restantes"
+                valor={diasDelProyecto.valor}
+                detalle={diasDelProyecto.detalle}
+              />
+              <TarjetaKpi
+                etiqueta="En curso hoy"
+                valor={tareas.enCurso}
+                detalle={`${tareas.pendientes} sin empezar${
+                  puntos.tareasSinEstimar > 0
+                    ? ` · ${textoDeTareas(puntos.tareasSinEstimar)} sin estimar`
+                    : ""
+                }`}
+              />
+              <TarjetaKpi
+                etiqueta="Errores abiertos"
+                valor={errores.abiertos === null ? "–" : errores.abiertos}
+                critico={errores.abiertos !== null && errores.abiertos > 0}
+                detalle={detalleDeErrores(errores)}
+              />
+            </div>
+          </div>
+          <h3 className="subtitulo">Por sprint</h3>
+          <BarrasApiladas datos={porSprint} series={SERIES_ETAPAS} anchoEtiquetas={160} />
           <ul className="lista-avance">
             {sprints.map((s) => (
               <li key={s.id}>
@@ -1657,8 +1973,8 @@ function PanelProyecto({ proyecto }) {
       {sinSprint !== null && sinSprint > 0 && (
         <p className="motivo">
           {sinSprint === 1
-            ? "1 tarea no está en ningún sprint y no cuenta en el progreso."
-            : `${sinSprint} tareas no están en ningún sprint y no cuentan en el progreso.`}
+            ? "1 tarea no está en ningún sprint y no cuenta en el avance."
+            : `${sinSprint} tareas no están en ningún sprint y no cuentan en el avance.`}
         </p>
       )}
       {errores.reportados === 0 && (
