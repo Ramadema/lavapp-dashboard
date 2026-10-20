@@ -161,7 +161,7 @@ hay nada. Los `nombre` largos se recortan antes de pasarlos, como en
 
 Una dona para repartir un total entre **pocas categorías (2 a 4)**; con más,
 las barras horizontales se leen mejor. En el centro va el número que importa.
-Son las tres donas de "El sprint de un vistazo" en Performance.
+Son las donas de "El sprint de un vistazo" y del avance total del proyecto en Performance.
 
 ```jsx
 <Torta

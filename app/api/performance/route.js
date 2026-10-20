@@ -1,6 +1,6 @@
 import { obtenerSprints, obtenerSprint, obtenerMovidas, obtenerConteos, vencerCache } from "@/lib/shortcut";
 import { cargarEquipo } from "@/lib/equipo";
-import { armarReporte, elegirSprintPorDefecto, sprintsPosteriores } from "@/lib/kpis/performance";
+import { armarReporte, elegirSprintPorDefecto, otrosSprints } from "@/lib/kpis/performance";
 import { ESTADO_SIN_FUENTE } from "@/lib/secciones";
 
 // GET /api/performance[?sprint=<id>] — avance de un sprint, leido de Shortcut.
@@ -53,10 +53,11 @@ async function responder(request, { fresco }) {
   ]);
   if (!sprint.datos) return responderSinDatos(sprint);
 
-  // Las tareas que se le sacaron a este sprint estan en los que empiezan despues.
+  // Las tareas que se le sacaron a este sprint estan en alguno de los demas
+  // (tambien en uno anterior), como las busca el historial.
   const movidas = await obtenerMovidas(
     id,
-    sprintsPosteriores(sprints.datos, iteracion).map((i) => i.id),
+    otrosSprints(sprints.datos, iteracion).map((i) => i.id),
     { fresco }
   );
 

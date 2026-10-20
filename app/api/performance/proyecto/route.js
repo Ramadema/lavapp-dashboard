@@ -53,6 +53,7 @@ async function responder({ fresco }) {
         workflows: historial.datos.workflows,
         miembros: historial.datos.miembros,
         epics: historial.datos.epics,
+        camposCustom: historial.datos.camposCustom,
         conteos: conteos.datos,
       },
       {

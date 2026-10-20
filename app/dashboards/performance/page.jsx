@@ -24,20 +24,22 @@ const seccion = buscarSeccion("performance");
 // con esto, asi "del sprint" no aparece en el proyecto.
 const ALCANCES = {
   [AMBITO_PROYECTO]: {
+    esProyecto: true,
     del: "del proyecto",
     en: "en el proyecto",
+    al: "al proyecto",
     durante: "en los sprints del proyecto",
-    semanas: "que suman todos los sprints",
     okrs: "Los tres resultados clave de todo el proyecto, con todos los sprints sumados, contra la meta que acordó el equipo",
     sinTareas: "El proyecto todavía no tiene tareas cargadas en ningún sprint.",
     sinBugs:
       "El proyecto no tiene ninguna story de tipo «bug» en Shortcut. El ratio empieza a decir algo cuando los defectos se carguen con ese tipo, no como feature.",
   },
   sprint: {
+    esProyecto: false,
     del: "del sprint",
     en: "en el sprint",
+    al: "al sprint",
     durante: "durante el sprint",
-    semanas: "del sprint",
     okrs: "Los tres resultados clave del sprint contra la meta que acordó el equipo",
     sinTareas: "El sprint todavía no tiene tareas cargadas.",
     sinBugs:
@@ -121,17 +123,13 @@ const UNIDADES = [
   { valor: "puntos", texto: "Puntos" },
 ];
 
-// Las etapas mas lo que se fue a otro sprint, que para el compromiso es un
-// cuarto destino: ni terminado ni pendiente, se saco del alcance.
+// Las etapas mas lo que se fue a otro sprint, que para el cumplimiento es un
+// cuarto destino: ni terminado ni pendiente, se saco del sprint.
 const MOVIDA = "Movida a otro sprint";
-const SERIES_COMPROMISO = [...SERIES_ETAPAS, { clave: MOVIDA, color: "var(--naranja)" }];
+const SERIES_CUMPLIMIENTO = [...SERIES_ETAPAS, { clave: MOVIDA, color: "var(--naranja)" }];
 
 // Los mismos colores de las series, indexados por nombre, para las donas.
-const COLORES_ETAPAS = Object.fromEntries(SERIES_COMPROMISO.map((s) => [s.clave, s.color]));
-
-const COMPROMETIDO = "Comprometido";
-const AGREGADO = "Agregado";
-const COLORES_ORIGEN = { [COMPROMETIDO]: "var(--tinta-clara)", [AGREGADO]: "var(--naranja)" };
+const COLORES_ETAPAS = Object.fromEntries(SERIES_CUMPLIMIENTO.map((s) => [s.clave, s.color]));
 
 // Para la dona de columnas del tablero, en el orden del tablero: de lo que
 // espera (claros) a lo que esta en curso (agua) y lo que ya casi sale (naranja).
@@ -154,9 +152,8 @@ const SERIES_RITMO = [
 ];
 
 const SERIES_HISTORIAL = [
-  { clave: "Comprometidas", color: "var(--tinta-clara)" },
+  { clave: "Planificadas", color: "var(--tinta-clara)" },
   { clave: "Cumplidas", color: "var(--verde)" },
-  { clave: "Agregadas", color: "var(--naranja)" },
 ];
 
 // Paneles de equipo: tareas y puntos por rol, y horas dentro de lo pactado
@@ -487,6 +484,7 @@ function Proyecto({ reporte }) {
     errores,
     porSprint,
     porIniciativa,
+    porEspecialidad,
     porResponsable,
     equipo,
     archivadas,
@@ -514,9 +512,10 @@ function Proyecto({ reporte }) {
         <PanelPorIniciativa porIniciativa={porIniciativa} alcance={alcance} />
         <PanelPorResponsable porResponsable={porResponsable} alcance={alcance} />
         <PanelPorRol porRol={equipo.porRol} alcance={alcance} />
+        <PanelPorEspecialidad porEspecialidad={porEspecialidad} alcance={alcance} />
         <PanelWip wip={equipo.wip} />
         <PanelCargaPorIntegrante carga={equipo.carga} alcance={alcance} />
-        <PanelHoras horas={equipo.horas} alcance={alcance} />
+        <PanelHoras horas={equipo.horas} alcance={alcance} finConfigurado={equipo.configuracion.finDelProyecto} />
       </div>
 
       <PanelEfectividad horas={equipo.horas} metas={equipo.configuracion.metas} />
@@ -527,12 +526,13 @@ function Proyecto({ reporte }) {
         Fuente: Shortcut. El proyecto es la suma de todos sus sprints, los terminados, el que
         está en curso y los que todavía no empezaron; lo que no está en ningún sprint no cuenta.
         Cada tarea es una story de Shortcut, subtareas incluidas, contada desde las stories de
-        su sprint; lo comprometido es lo que ya estaba en cada sprint al cierre de su primer
-        día. Los errores son las stories de tipo «bug» de todo el proyecto. El rol y las horas
-        pactadas de cada integrante, las horas por punto y las metas de los OKR salen de{" "}
-        <code>data/equipo.json</code>; la capacidad suma las semanas de todos los sprints. Los
-        datos se releen solos cada pocos minutos y «Actualizar» los trae de Shortcut en el
-        momento.
+        su sprint; lo planificado de un sprint es todo lo que entró a él, y una tarea movida a
+        otro sprint cuenta como planificada y no cumplida. Los errores son las stories de tipo
+        «bug» de todo el proyecto. El rol y las horas pactadas de cada integrante, las horas por
+        punto y las metas de los OKR salen de <code>data/equipo.json</code>; las horas pactadas
+        son por persona para todo el proyecto y cada período recibe la parte que le toca por sus
+        días, y los puntos de una tarea compartida se reparten entre sus responsables. Los datos
+        se releen solos cada pocos minutos y «Actualizar» los trae de Shortcut en el momento.
         {archivadas > 0 && ` No se cuentan ${archivadas} tareas archivadas.`}
       </p>
     </>
@@ -549,8 +549,9 @@ function Reporte({ reporte, pedidoDeHistorial, verProyecto, ocupado }) {
     burndown,
     flujo,
     porIniciativa,
+    porEspecialidad,
     porResponsable,
-    compromiso,
+    cumplimiento,
     ritmo,
     cycleTime,
     tiempoEnSprint,
@@ -599,9 +600,9 @@ function Reporte({ reporte, pedidoDeHistorial, verProyecto, ocupado }) {
 
       <FranjaProyecto proyecto={proyecto} verProyecto={verProyecto} ocupado={ocupado} />
 
-      <ResumenVisual resumen={resumen} compromiso={compromiso} />
+      <ResumenVisual resumen={resumen} cumplimiento={cumplimiento} />
 
-      <PanelCompromiso compromiso={compromiso} sprint={sprint} />
+      <PanelCumplimiento cumplimiento={cumplimiento} sprint={sprint} />
 
       <div className="tablero">
         <PanelBurndown burndown={burndown} sprint={sprint} hayPuntos={resumen.puntos.total > 0} />
@@ -610,9 +611,10 @@ function Reporte({ reporte, pedidoDeHistorial, verProyecto, ocupado }) {
         <PanelPorIniciativa porIniciativa={porIniciativa} alcance={alcance} />
         <PanelPorResponsable porResponsable={porResponsable} alcance={alcance} />
         <PanelPorRol porRol={equipo.porRol} alcance={alcance} />
+        <PanelPorEspecialidad porEspecialidad={porEspecialidad} alcance={alcance} />
         <PanelWip wip={equipo.wip} />
         <PanelCargaPorIntegrante carga={equipo.carga} alcance={alcance} />
-        <PanelHoras horas={equipo.horas} alcance={alcance} />
+        <PanelHoras horas={equipo.horas} alcance={alcance} finConfigurado={equipo.configuracion.finDelProyecto} />
         <section className="panel">
           <h2>Tareas por estado</h2>
           <p className="subtitulo">En qué columna del tablero está hoy cada tarea del sprint</p>
@@ -664,9 +666,11 @@ function Reporte({ reporte, pedidoDeHistorial, verProyecto, ocupado }) {
       <p className="nota">
         Fuente: Shortcut. Cada tarea es una story de Shortcut, subtareas incluidas; la
         iniciativa es el epic al que pertenece y los puntos son la estimación de
-        esfuerzo que carga el equipo. Lo comprometido es lo que ya estaba en el sprint
-        al cierre de su primer día; una tarea que se movió a otro sprint sigue
-        contando como comprometida y no cumplida. El progreso del proyecto suma las
+        esfuerzo que carga el equipo. Lo planificado es todo lo que entró al sprint; una
+        tarea que se movió a otro sprint sigue contando como planificada y no cumplida. Los
+        puntos de una tarea compartida se reparten entre sus responsables al pasarlos a
+        horas, y las horas pactadas son por persona para todo el proyecto, prorrateadas a
+        los días del sprint. El progreso del proyecto suma las
         estadísticas de todos los sprints, y los errores son las stories de tipo «bug»
         de todo el proyecto. El rol y las horas pactadas de cada
         integrante, las horas por punto y las metas de los OKR salen de{" "}
@@ -818,6 +822,39 @@ function PanelPorIniciativa({ porIniciativa, alcance }) {
   );
 }
 
+// El Skill Set de cada tarea en Shortcut: que tipo de trabajo es. Es el dato de
+// la tarea; el rol (panel de al lado) es de la persona.
+function PanelPorEspecialidad({ porEspecialidad, alcance }) {
+  return (
+    <section className="panel">
+      <h2>
+        Avance por tipo de trabajo <Insignia tipo="kpi" />
+      </h2>
+      <p className="subtitulo">
+        Las tareas {alcance.del} según el Skill Set que tienen cargado en Shortcut (Frontend,
+        Backend, Product, Design, Analytics), partidas por etapa
+      </p>
+      {porEspecialidad.motivo === "sin-catalogo" ? (
+        <p className="motivo">
+          No se pudo leer el catálogo de campos de Shortcut: el tipo de trabajo no está disponible.
+          El motivo está en el panel de datos que no se pudieron traducir.
+        </p>
+      ) : porEspecialidad.motivo === "sin-campo" ? (
+        <p className="motivo">
+          El workspace de Shortcut no tiene un campo «Skill Set»: si lo renombraron, hay que
+          cambiar <code>CAMPO_TIPO_DE_TRABAJO</code> en lib/kpis/performance.js.
+        </p>
+      ) : porEspecialidad.grupos.length === 0 ? (
+        <p className="motivo">{alcance.sinTareas}</p>
+      ) : (
+        <Plegable items={porEspecialidad.grupos} visibles={GRUPOS_VISIBLES}>
+          {(porcion) => <Desglose grupos={porcion} />}
+        </Plegable>
+      )}
+    </section>
+  );
+}
+
 function PanelPorResponsable({ porResponsable, alcance }) {
   const { grupos, compartidas } = porResponsable;
   return (
@@ -902,34 +939,39 @@ function PanelCycleTime({ cycleTime }) {
   );
 }
 
-// Las tres donas de arriba: lo que se lee en diez segundos.
-function ResumenVisual({ resumen, compromiso }) {
-  const { comprometidas, agregadas, alcance } = compromiso;
+// Las donas de arriba: el avance en tareas y en puntos de lo que hay hoy en el
+// sprint y, si algo se movio a otro sprint, el cumplimiento de todo lo
+// planificado (sin movidas daria lo mismo que la primera).
+function ResumenVisual({ resumen, cumplimiento }) {
+  const { planificadas } = cumplimiento;
   const avance = [
     { nombre: ETAPAS.done, valor: resumen.tareas.terminadas },
     { nombre: ETAPAS.started, valor: resumen.tareas.enCurso },
     { nombre: ETAPAS.unstarted, valor: resumen.tareas.pendientes },
   ];
-  const cumplimiento = [
-    { nombre: ETAPAS.done, valor: comprometidas.terminadas },
-    { nombre: ETAPAS.started, valor: comprometidas.enCurso },
-    { nombre: ETAPAS.unstarted, valor: comprometidas.pendientes },
-    { nombre: MOVIDA, valor: comprometidas.movidas },
+  const puntos = [
+    { nombre: PUNTOS_TERMINADOS, valor: resumen.puntos.terminados },
+    { nombre: PUNTOS_PENDIENTES, valor: resumen.puntos.total - resumen.puntos.terminados },
   ];
-  const origen = [
-    { nombre: COMPROMETIDO, valor: comprometidas.total },
-    { nombre: AGREGADO, valor: agregadas.total },
+  const planificado = [
+    { nombre: ETAPAS.done, valor: planificadas.terminadas },
+    { nombre: ETAPAS.started, valor: planificadas.enCurso },
+    { nombre: ETAPAS.unstarted, valor: planificadas.pendientes },
+    { nombre: MOVIDA, valor: planificadas.movidas },
   ];
+  const hayMovidas = planificadas.movidas > 0;
   return (
     <section className="panel">
       <h2>El sprint de un vistazo</h2>
       <p className="subtitulo">
-        Cuánto está terminado, cuánto de lo prometido se cumplió y cuánto del trabajo se sumó
-        con el sprint ya empezado
+        Cuánto está terminado de lo que hay hoy en el sprint, en tareas y en puntos
+        {hayMovidas
+          ? ", y cuánto se cumplió de todo lo planificado, contando lo que se movió a otro sprint"
+          : ""}
       </p>
       <div className="tres-columnas">
         <div>
-          <p className="titulo-grafico">Avance del sprint</p>
+          <p className="titulo-grafico">Avance en tareas</p>
           <Torta
             datos={avance}
             colores={COLORES_ETAPAS}
@@ -938,75 +980,70 @@ function ResumenVisual({ resumen, compromiso }) {
           />
         </div>
         <div>
-          <p className="titulo-grafico">Compromiso cumplido</p>
+          <p className="titulo-grafico">Avance en puntos</p>
           <Torta
-            datos={cumplimiento}
-            colores={COLORES_ETAPAS}
-            centro={conPorcentaje(comprometidas.pct)}
-            detalle={`${comprometidas.terminadas} de ${textoDeTareas(comprometidas.total)}`}
+            datos={puntos}
+            colores={COLORES_PUNTOS}
+            centro={conPorcentaje(resumen.puntos.pct)}
+            detalle={
+              resumen.puntos.total === 0
+                ? "ninguna tarea tiene puntos"
+                : `${resumen.puntos.terminados} de ${resumen.puntos.total} puntos`
+            }
           />
         </div>
-        <div>
-          <p className="titulo-grafico">De dónde salió el trabajo</p>
-          <Torta
-            datos={origen}
-            colores={COLORES_ORIGEN}
-            centro={conPorcentaje(alcance.pctAgregado)}
-            detalle="se sumó después"
-          />
-        </div>
+        {hayMovidas && (
+          <div>
+            <p className="titulo-grafico">Cumplimiento de lo planificado</p>
+            <Torta
+              datos={planificado}
+              colores={COLORES_ETAPAS}
+              centro={conPorcentaje(planificadas.pct)}
+              detalle={`${planificadas.terminadas} de ${textoDeTareas(planificadas.total)}`}
+            />
+          </div>
+        )}
       </div>
     </section>
   );
 }
 
-function PanelCompromiso({ compromiso, sprint }) {
-  const { comprometidas, agregadas, sinTerminar, proyeccion } = compromiso;
+function PanelCumplimiento({ cumplimiento, sprint }) {
+  const { planificadas, sinTerminar, proyeccion } = cumplimiento;
   const datos = useMemo(
-    () => [
-      { nombre: "Comprometido", ...porEtapa(comprometidas), [MOVIDA]: comprometidas.movidas },
-      { nombre: "Agregado", ...porEtapa(agregadas), [MOVIDA]: agregadas.movidas },
-    ],
-    [comprometidas, agregadas]
+    () => [{ nombre: "Planificado", ...porEtapa(planificadas), [MOVIDA]: planificadas.movidas }],
+    [planificadas]
   );
-  const movidas = comprometidas.movidas + agregadas.movidas;
 
   return (
     <section className="panel">
-      <h2>Compromiso del sprint</h2>
+      <h2>Cumplimiento del sprint</h2>
       <p className="subtitulo">
-        Qué se planificó al cierre del primer día ({fechaCorta(sprint.inicio)}), cuánto de
-        eso se cumplió, y qué se sumó o se sacó con el sprint empezado
+        Todo lo que entró al sprint es lo planificado: cuánto se terminó, qué sigue en curso o
+        sin empezar, y qué se movió a otro sprint
       </p>
       <div className="grilla-kpis">
         <TarjetaKpi
-          etiqueta="Comprometidas"
-          valor={comprometidas.total}
-          detalle={`tareas al cierre del ${fechaCorta(sprint.inicio)}`}
+          etiqueta="Planificadas"
+          valor={planificadas.total}
+          detalle={
+            planificadas.movidas === 0
+              ? "tareas que entraron al sprint"
+              : `${planificadas.total - planificadas.movidas} en el sprint hoy y ${textoDeTareas(
+                  planificadas.movidas
+                )} que se movieron`
+          }
         />
         <TarjetaKpi
           etiqueta="Cumplidas"
-          valor={conPorcentaje(comprometidas.pct)}
-          detalle={`${comprometidas.terminadas} de ${textoDeTareas(comprometidas.total)} comprometidas`}
-          critico={comprometidas.pct !== null && sprint.diasRestantes === 0 && comprometidas.pct < 100}
-        />
-        <TarjetaKpi
-          etiqueta="Agregadas en el sprint"
-          valor={agregadas.total}
-          detalle={
-            agregadas.total === 0
-              ? "no se sumó nada con el sprint empezado"
-              : `${agregadas.terminadas} terminadas · ${conPorcentaje(agregadas.pct)}`
-          }
+          valor={conPorcentaje(planificadas.pct)}
+          detalle={`${planificadas.terminadas} de ${textoDeTareas(planificadas.total)} planificadas`}
+          critico={planificadas.pct !== null && sprint.diasRestantes === 0 && planificadas.pct < 100}
         />
         <TarjetaKpi
           etiqueta="Movidas a otro sprint"
-          valor={movidas}
-          detalle={
-            movidas === 0
-              ? "nada se sacó del sprint"
-              : `${comprometidas.movidas} eran comprometidas`
-          }
+          valor={planificadas.movidas}
+          detalle={planificadas.movidas === 0 ? "nada se sacó del sprint" : "cuentan como no cumplidas"}
         />
         {proyeccion && (
           <TarjetaKpi
@@ -1019,19 +1056,19 @@ function PanelCompromiso({ compromiso, sprint }) {
           />
         )}
       </div>
-      <BarrasApiladas datos={datos} series={SERIES_COMPROMISO} anchoEtiquetas={120} />
+      <BarrasApiladas datos={datos} series={SERIES_CUMPLIMIENTO} anchoEtiquetas={120} />
       {proyeccion && (
         <p className="motivo">
           La proyección es una regla de tres con el ritmo de los días que ya pasaron, no un
           dato de Shortcut: sirve para ver si el sprint llega, no para prometerlo.
         </p>
       )}
-      <h3 className="subtitulo">Comprometidas sin terminar ({sinTerminar.length})</h3>
+      <h3 className="subtitulo">Planificadas sin terminar ({sinTerminar.length})</h3>
       <Plegable items={sinTerminar} visibles={FILAS_VISIBLES}>
         {(porcion) => (
           <TablaDeTareas
             tareas={porcion}
-            vacia="Todo lo comprometido está terminado."
+            vacia="Todo lo planificado está terminado."
             mostrarDestino
           />
         )}
@@ -1115,8 +1152,8 @@ function PanelHistorial({ pedido, sprintActual }) {
     <section className="panel">
       <h2>Historial de sprints</h2>
       <p className="subtitulo">
-        Sprint por sprint: cuánto se comprometió, cuánto de eso se cumplió y cuánto se sumó
-        en el camino. Para ver si lo planificado se termina en el período previsto.
+        Sprint por sprint: cuánto se planificó, cuánto de eso se cumplió y cuánto se movió a
+        otro sprint. Para ver si lo planificado se termina en el período previsto.
       </p>
       {cargando ? (
         <p className="motivo">Consultando los sprints en Shortcut…</p>
@@ -1147,25 +1184,24 @@ function PanelPorSprint({ porSprint, enCurso }) {
         Sprint por sprint <Insignia tipo="kpi" />
       </h2>
       <p className="subtitulo">
-        Cuánto se comprometió cada sprint, cuánto de eso se cumplió y cuánto se sumó en el
-        camino. Para ver si lo planificado se termina en el período previsto.
+        Cuánto planificó cada sprint, cuánto de eso cumplió y cuánto movió a otro sprint. Para
+        ver si lo planificado se termina en el período previsto.
       </p>
       <ComparacionDeSprints sprints={porSprint} sprintActual={enCurso?.id ?? null} />
     </section>
   );
 }
 
-// Las barras y la tabla de comprometido, cumplido, agregado y movido por
-// sprint, que comparten el historial de la vista de un sprint y la vista del
-// proyecto. El sprint actual va en negrita.
+// Las barras y la tabla de planificado, cumplido y movido por sprint, que
+// comparten el historial de la vista de un sprint y la vista del proyecto. El
+// sprint actual va en negrita.
 function ComparacionDeSprints({ sprints, sprintActual }) {
   const datos = useMemo(
     () =>
       sprints.map((s) => ({
         nombre: recortar(s.nombre, 18),
-        Comprometidas: s.comprometidas,
+        Planificadas: s.planificadas,
         Cumplidas: s.cumplidas,
-        Agregadas: s.agregadas,
       })),
     [sprints]
   );
@@ -1180,9 +1216,8 @@ function ComparacionDeSprints({ sprints, sprintActual }) {
           <thead>
             <tr>
               <th>Sprint</th>
-              <th>Comprometidas</th>
+              <th>Planificadas</th>
               <th>Cumplimiento</th>
-              <th>Agregadas</th>
               <th>Movidas</th>
               <th>Terminadas</th>
               <th>Puntos</th>
@@ -1197,7 +1232,7 @@ function ComparacionDeSprints({ sprints, sprintActual }) {
                     {s.estado.toLowerCase()} · {fechaCorta(s.inicio)} al {fechaCorta(s.fin)}
                   </span>
                 </td>
-                <td className="sin-corte">{s.comprometidas}</td>
+                <td className="sin-corte">{s.planificadas}</td>
                 <td>
                   <BarraDeProgreso
                     pct={s.pctCumplimiento}
@@ -1206,16 +1241,10 @@ function ComparacionDeSprints({ sprints, sprintActual }) {
                         ? "var(--alerta)"
                         : "var(--verde)"
                     }
-                    texto={`${s.cumplidas} de ${s.comprometidas}${
+                    texto={`${s.cumplidas} de ${s.planificadas}${
                       s.pctCumplimiento !== null ? ` · ${s.pctCumplimiento}%` : ""
                     }`}
                   />
-                </td>
-                <td className="sin-corte">
-                  {s.agregadas}
-                  {s.agregadas > 0 && (
-                    <span className="subtexto">{s.agregadasTerminadas} terminadas</span>
-                  )}
                 </td>
                 <td className="sin-corte">{s.movidas}</td>
                 <td className="sin-corte">
@@ -1445,7 +1474,9 @@ function AvisoDeConfiguracion({ configuracion }) {
     avisos.push("No hay integrantes cargados en data/equipo.json: todos salen como sin rol.");
   } else {
     if (sinRol.length > 0) avisos.push(`Sin rol en data/equipo.json: ${listar(sinRol)}.`);
-    if (sinHoras.length > 0) avisos.push(`Sin horas semanales pactadas: ${listar(sinHoras)}.`);
+    if (sinHoras.length > 0) {
+      avisos.push(`Sin horas pactadas para el proyecto (ni por defecto ni propias): ${listar(sinHoras)}.`);
+    }
   }
   if (fueraDeLaConfiguracion.length > 0) {
     avisos.push(`Con tareas en Shortcut pero fuera de data/equipo.json: ${listar(fueraDeLaConfiguracion)}.`);
@@ -1470,6 +1501,7 @@ function Leyenda() {
 
 function detalleDeOkr(okr, { bugs, horas: h }, alcance) {
   if (okr.clave === "bugsRatio") {
+    if (bugs.sinRegistro) return "ningún defecto registrado en Shortcut: no hay con qué medirlo";
     if (bugs.historiasTerminadas === 0) return "todavía no hay historias terminadas para comparar";
     return `${bugs.bugsAbiertosEnSprint} ${
       bugs.bugsAbiertosEnSprint === 1 ? "bug reportado" : "bugs reportados"
@@ -1479,11 +1511,14 @@ function detalleDeOkr(okr, { bugs, horas: h }, alcance) {
   }
   if (!h.configurado) return "falta horasPorPunto en data/equipo.json";
   if (okr.clave === "efectividad") {
-    if (h.equipo.comprometidas === 0) return "no hay horas comprometidas al cierre del primer día";
-    return `${horas(h.equipo.hechas)} hechas de ${horas(h.equipo.comprometidas)} comprometidas`;
+    if (h.equipo.asignadas === 0) return "no hay horas asignadas";
+    if (h.equipo.efectividad === null) return "todavía no empezó: nada hecho que medir";
+    return `${horas(h.equipo.hechas)} hechas de ${horas(h.equipo.asignadas)} asignadas`;
   }
-  if (h.equipo.capacidad === 0) return "nadie tiene horas semanales pactadas";
-  return `${horas(h.equipo.demanda)} de demanda sobre ${horas(h.equipo.capacidad)} de capacidad`;
+  if (h.equipo.capacidad === 0) return "nadie tiene horas pactadas para el proyecto";
+  return `${horas(h.equipo.demanda)} de demanda sobre ${horas(h.equipo.capacidad)} de capacidad${
+    esParcial(alcance, h) ? " de los sprints cargados" : ""
+  }`;
 }
 
 const valorDeOkr = (okr) =>
@@ -1529,7 +1564,10 @@ function PanelPorRol({ porRol, alcance }) {
         Distribución por rol <Insignia tipo="kpi" />
       </h2>
       <p className="subtitulo">
-        Cuántas tareas y puntos {alcance.del} tiene cada rol: UX, Dev, QA y PM
+        Cuántas tareas y puntos {alcance.del} tiene cada rol
+        {grupos.some((g) => g.rol !== SIN_ROL && g.rol !== SIN_ASIGNAR)
+          ? `: ${listar(grupos.map((g) => g.rol).filter((r) => r !== SIN_ROL && r !== SIN_ASIGNAR))}`
+          : ""}
       </p>
       {totalTareas === 0 ? (
         <p className="motivo">{alcance.sinTareas}</p>
@@ -1645,21 +1683,49 @@ function PanelCargaPorIntegrante({ carga, alcance }) {
           )}
         </Plegable>
       )}
-      {(sinAsignar.tareas > 0 || sinEstimar > 0) && (
-        <p className="motivo">
-          {sinAsignar.tareas > 0 &&
-            `${textoDeTareas(sinAsignar.tareas)} sin responsable (${sinAsignar.puntos} puntos) no se reparten. `}
-          {sinEstimar > 0 &&
-            `${textoDeTareas(sinEstimar)} asignadas no tienen estimación y suman 0 puntos.`}
-        </p>
-      )}
+      <p className="motivo">
+        Los puntos de una tarea con varios responsables se reparten en partes iguales entre
+        ellos.{" "}
+        {sinAsignar.tareas > 0 &&
+          `${textoDeTareas(sinAsignar.tareas)} sin responsable (${sinAsignar.puntos} puntos) no se reparten. `}
+        {sinEstimar > 0 &&
+          `${textoDeTareas(sinEstimar)} asignadas no tienen estimación y suman 0 puntos.`}
+      </p>
     </section>
   );
 }
 
-function PanelHoras({ horas: datosDeHoras, alcance }) {
-  const { configurado, personas, sinHoras, semanas, horasPorPunto, equipo } = datosDeHoras;
+// En la vista del proyecto, si la fecha de cierre va mas alla de los sprints
+// cargados, el periodo no es todo el proyecto: son los sprints cargados.
+const esParcial = (alcance, h) => alcance.esProyecto && h.diasDelPeriodo < h.diasDelProyecto;
+
+// `finConfigurado` es la fecha de cierre tal como esta en data/equipo.json; la
+// que se usa para repartir (y si es esa) viene en `horas.reparto`.
+function PanelHoras({ horas: datosDeHoras, alcance, finConfigurado }) {
+  const {
+    configurado,
+    personas,
+    sinHoras,
+    horasPactadasPorIntegrante,
+    diasDelPeriodo,
+    diasDelProyecto,
+    reparto,
+    horasPorPunto,
+    equipo,
+  } = datosDeHoras;
   const conCapacidad = personas.filter((p) => p.capacidad !== null);
+  const parcial = esParcial(alcance, datosDeHoras);
+  // "150 h pactadas por persona para el proyecto, de las que al sprint le
+  // tocan 14 de 29 días".
+  const pactadas =
+    horasPactadasPorIntegrante === null
+      ? "las horas que cada uno tiene pactadas para el proyecto"
+      : `las ${horasPactadasPorIntegrante} h pactadas por persona para el proyecto`;
+  const aQuien = parcial ? "a los sprints cargados" : alcance.al;
+  const prorrateo =
+    diasDelProyecto > 0 && diasDelPeriodo !== diasDelProyecto
+      ? `, de las que ${aQuien} le${parcial ? "s" : ""} tocan ${diasDelPeriodo} de ${diasDelProyecto} días`
+      : "";
   const datos = useMemo(
     () =>
       conCapacidad.map((p) => ({
@@ -1675,10 +1741,9 @@ function PanelHoras({ horas: datosDeHoras, alcance }) {
         Horas pactadas vs. extras <Insignia tipo="kpi" />
       </h2>
       <p className="subtitulo">
-        Las horas que demanda lo asignado a cada persona contra sus horas semanales pactadas
-        {semanas === null
-          ? ` ${alcance.en}`
-          : ` por las ${semanas} semanas ${alcance.semanas}`}
+        Las horas que demanda lo asignado a cada persona {alcance.en} (los puntos de una tarea
+        compartida se reparten) contra {pactadas}
+        {prorrateo}
         {horasPorPunto ? `, a ${horasPorPunto} h por punto` : ""}
       </p>
       {!configurado ? (
@@ -1688,14 +1753,14 @@ function PanelHoras({ horas: datosDeHoras, alcance }) {
         </p>
       ) : conCapacidad.length === 0 ? (
         <p className="motivo">
-          Nadie tiene horas semanales pactadas en data/equipo.json: no hay capacidad contra qué
-          comparar.
+          Nadie tiene horas pactadas en data/equipo.json (ni <code>horasPactadas.porIntegrante</code>{" "}
+          ni una cifra propia): no hay capacidad contra qué comparar.
         </p>
       ) : (
         <>
           <div className="grilla-kpis">
             <TarjetaKpi
-              etiqueta={`Capacidad ${alcance.del}`}
+              etiqueta={parcial ? "Capacidad de los sprints cargados" : `Capacidad ${alcance.del}`}
               valor={horas(equipo.capacidad)}
               detalle={`${conCapacidad.length === 1 ? "1 persona" : `${conCapacidad.length} personas`} con horas pactadas`}
             />
@@ -1723,6 +1788,22 @@ function PanelHoras({ horas: datosDeHoras, alcance }) {
       {configurado && sinHoras.length > 0 && (
         <p className="motivo">Sin horas pactadas, fuera de la comparación: {listar(sinHoras)}.</p>
       )}
+      {configurado && conCapacidad.length > 0 && reparto.fin && !reparto.configurado && (
+        <p className="motivo">
+          {finConfigurado
+            ? `La fecha de cierre cargada (${fechaCorta(finConfigurado)}) es anterior al último sprint: las horas pactadas se reparten hasta el ${fechaCorta(reparto.fin)}.`
+            : `Las horas pactadas se reparten hasta el ${fechaCorta(reparto.fin)}, el fin del último sprint cargado.`}{" "}
+          Si el proyecto sigue después, cargá la fecha de cierre en{" "}
+          <code>horasPactadas.finDelProyecto</code> de data/equipo.json: con eso cada sprint
+          recibe su parte real.
+        </p>
+      )}
+      {configurado && conCapacidad.length > 0 && parcial && (
+        <p className="motivo">
+          El proyecto cierra el {fechaCorta(reparto.fin)}: el resto de las horas pactadas queda
+          para los sprints que todavía no están en Shortcut.
+        </p>
+      )}
     </section>
   );
 }
@@ -1741,8 +1822,7 @@ function PanelEfectividad({ horas: datosDeHoras, metas }) {
       </h2>
       <p className="subtitulo">
         Utilización = demanda / capacidad. Efectividad de entrega = horas hechas / horas
-        comprometidas al cierre del primer día. Las mismas cuentas que los OKR, persona por
-        persona.
+        asignadas. Las mismas cuentas que los OKR, persona por persona.
       </p>
       {!configurado ? (
         <p className="motivo">Falta <code>horasPorPunto</code> en data/equipo.json.</p>
@@ -1759,7 +1839,6 @@ function PanelEfectividad({ horas: datosDeHoras, metas }) {
                 <th className="numero">Demanda</th>
                 <th className="numero">Utilización</th>
                 <th className="numero">Hechas</th>
-                <th className="numero">Comprometidas</th>
                 <th className="numero">Efectividad</th>
               </tr>
             </thead>
@@ -1767,14 +1846,16 @@ function PanelEfectividad({ horas: datosDeHoras, metas }) {
               {personas.map((p) => (
                 <tr key={p.nombre}>
                   <td>{p.nombre}</td>
-                  <td>{p.rol}</td>
+                  <td>
+                    {p.rol}
+                    {p.detalle && <span className="subtexto">{p.detalle}</span>}
+                  </td>
                   <td className="numero">{horas(p.capacidad)}</td>
                   <td className="numero">{horas(p.demanda)}</td>
                   <td className={"numero" + (fueraDeRango(p.utilizacion) ? " critico" : "")}>
                     {conPorcentaje(p.utilizacion)}
                   </td>
                   <td className="numero">{horas(p.hechas)}</td>
-                  <td className="numero">{horas(p.comprometidas)}</td>
                   <td className={"numero" + (bajaEfectividad(p.efectividad) ? " critico" : "")}>
                     {conPorcentaje(p.efectividad)}
                   </td>
@@ -1804,8 +1885,12 @@ function PanelEfectividad({ horas: datosDeHoras, metas }) {
 const textoDeSprints = (n) => (n === 1 ? "1 sprint" : `${n} sprints`);
 const concordar = (n, singular, plural) => `${n} ${n === 1 ? singular : plural}`;
 
+// Sin ningun bug en todo el workspace no hay "0 errores": no se registran.
+const sinErroresRegistrados = (errores) => errores.reportados === 0;
+
 function detalleDeErrores(errores) {
   if (errores.abiertos === null) return "no se pudieron contar los bugs en Shortcut";
+  if (sinErroresRegistrados(errores)) return "ningún defecto registrado en Shortcut todavía";
   const partes = [
     `${concordar(errores.resueltos, "resuelto", "resueltos")} de ${concordar(
       errores.reportados,
@@ -1843,7 +1928,9 @@ function FranjaProyecto({ proyecto, verProyecto, ocupado }) {
       <span className={errores.abiertos !== null && errores.abiertos > 0 ? "critico" : ""}>
         {errores.abiertos === null
           ? "errores sin contar"
-          : concordar(errores.abiertos, "error abierto", "errores abiertos")}
+          : sinErroresRegistrados(errores)
+            ? "sin defectos registrados"
+            : concordar(errores.abiertos, "error abierto", "errores abiertos")}
       </span>
       <button type="button" className="chip" onClick={verProyecto} disabled={ocupado}>
         Ver el proyecto completo
@@ -1861,14 +1948,20 @@ function detalleDeSprints({ terminados, enCurso, proximos }) {
   ].join(" · ");
 }
 
+// Los dias que quedan de los sprints cargados; si la fecha de cierre del
+// proyecto va mas alla, se la nombra aparte.
 function tarjetaDeDiasDelProyecto(periodo) {
   if (periodo.fin === null) return { valor: "–", detalle: "sin sprints" };
+  const cierre =
+    periodo.repartoConfigurado && periodo.finDelReparto > periodo.fin
+      ? ` · el proyecto cierra el ${fechaCorta(periodo.finDelReparto)}`
+      : "";
   if (periodo.diasRestantes === 0) {
-    return { valor: 0, detalle: `terminó el ${fechaCorta(periodo.fin)}` };
+    return { valor: 0, detalle: `el último sprint terminó el ${fechaCorta(periodo.fin)}${cierre}` };
   }
   return {
     valor: periodo.diasRestantes,
-    detalle: `de ${periodo.diasCalendario} · termina el ${fechaCorta(periodo.fin)}`,
+    detalle: `de ${periodo.diasTotales} · el último sprint termina el ${fechaCorta(periodo.fin)}${cierre}`,
   };
 }
 
@@ -1950,7 +2043,7 @@ function PanelAvanceTotal({ progreso, errores, periodo }) {
               />
               <TarjetaKpi
                 etiqueta="Errores abiertos"
-                valor={errores.abiertos === null ? "–" : errores.abiertos}
+                valor={errores.abiertos === null || sinErroresRegistrados(errores) ? "–" : errores.abiertos}
                 critico={errores.abiertos !== null && errores.abiertos > 0}
                 detalle={detalleDeErrores(errores)}
               />
@@ -1979,8 +2072,8 @@ function PanelAvanceTotal({ progreso, errores, periodo }) {
       )}
       {errores.reportados === 0 && (
         <p className="motivo">
-          El proyecto no tiene ninguna story de tipo «bug» en Shortcut: los errores se cuentan
-          cuando los defectos se carguen con ese tipo, no como feature.
+          El proyecto no tiene ninguna story de tipo «bug» en Shortcut: los errores y el OKR de
+          bugs se miden cuando los defectos se carguen con ese tipo, no como feature.
         </p>
       )}
     </section>

@@ -3,7 +3,7 @@ import { armarHistorial, sprintsDestino, sprintsParaHistorial } from "@/lib/kpis
 import { ESTADO_SIN_FUENTE } from "@/lib/secciones";
 
 // GET /api/performance/historial — una fila por sprint (en curso o terminado,
-// los ultimos SPRINTS_EN_HISTORIAL) con lo comprometido, lo agregado, lo
+// los ultimos SPRINTS_EN_HISTORIAL) con lo planificado, lo cumplido, lo
 // terminado y lo que se movio a otro sprint. Es mas caro que /api/performance
 // (lee las tareas y el historial de cada sprint), por eso va aparte.
 export async function GET(request) {
@@ -44,6 +44,7 @@ async function responder(request, { fresco }) {
         workflows: historial.datos.workflows,
         miembros: historial.datos.miembros,
         epics: historial.datos.epics,
+        camposCustom: historial.datos.camposCustom,
       },
       {
         ahora: new Date(),
