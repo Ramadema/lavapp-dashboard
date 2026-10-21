@@ -1,0 +1,25 @@
+{
+  "_comentario": "Lo que Shortcut no sabe del equipo: el rol de cada integrante, las horas pactadas para todo el proyecto, cuántas horas vale un punto y las metas de los OKR. Lo mantiene el equipo a mano. Un integrante se reconoce por su nombre tal como figura en Shortcut (Perfil > Name). rol agrupa (PM, PO, Dev, DevOps, QA, UX) y detalle cuenta el resto (especialidad, BA, Scrum Master). horasPactadas.porIntegrante es la cifra por persona para todo el proyecto (unas 150 h cada uno); un integrante puede traer la suya en horasPactadas. finDelProyecto (AAAA-MM-DD) dice hasta cuándo va el proyecto para repartir esas horas por sprint; sin él, el proyecto termina con el último sprint cargado. retrabajoMax es el porcentaje máximo de tareas cerradas que pueden volver atrás.",
+  "horasPorPunto": 4,
+  "wipMaxPorPersona": 3,
+  "horasPactadas": { "porIntegrante": 150, "finDelProyecto": null },
+  "metas": {
+    "bugsRatioMax": 0.25,
+    "retrabajoMax": 10,
+    "efectividadMin": 80,
+    "utilizacionMin": 70,
+    "utilizacionMax": 90
+  },
+  "integrantes": [
+    { "nombre": "Carolina Gabriela Avellaneda", "rol": "PM", "detalle": "Project Manager", "horasPactadas": null },
+    { "nombre": "Mariano Bruno", "rol": "PO", "detalle": "Product Owner", "horasPactadas": null },
+    { "nombre": "Ramiro De Marco", "rol": "Dev", "detalle": "BA y desarrollador full stack", "horasPactadas": null },
+    { "nombre": "Georges Davvid", "rol": "Dev", "detalle": "desarrollador full stack", "horasPactadas": null },
+    { "nombre": "Pedro Stella", "rol": "DevOps", "detalle": "DevOps", "horasPactadas": null },
+    { "nombre": "Maximiliano Lovato", "rol": "Dev", "detalle": "arquitecto de datos y desarrollador backend", "horasPactadas": null },
+    { "nombre": "lourdes avalos", "rol": "QA", "detalle": "tester", "horasPactadas": null },
+    { "nombre": "johanna fanara", "rol": "QA", "detalle": "tester", "horasPactadas": null },
+    { "nombre": "Bautista Corrado", "rol": "Dev", "detalle": "Scrum Master y desarrollador front end", "horasPactadas": null },
+    { "nombre": "Gaston Formoso", "rol": "Dev", "detalle": "desarrollador front end", "horasPactadas": null }
+  ]
+}

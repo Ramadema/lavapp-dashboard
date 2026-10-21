@@ -65,6 +65,7 @@ pide sesión, así que el primer `curl` es el login, que guarda la cookie:
 curl -s -c /tmp/sesion.txt -X POST localhost:3000/api/auth/login -H 'Content-Type: application/json' \
   -d '{"usuario":"admin","contrasena":"<BACKOFFICE_ADMIN_PASSWORD>"}'
 curl -s -b /tmp/sesion.txt localhost:3000/api/salud | python3 -m json.tool
+curl -s -b /tmp/sesion.txt localhost:3000/api/performance/proyecto | python3 -m json.tool
 curl -s -b /tmp/sesion.txt localhost:3000/api/performance | python3 -m json.tool
 curl -s -b /tmp/sesion.txt "localhost:3000/api/operacion?dias=7" | python3 -m json.tool
 curl -s -b /tmp/sesion.txt localhost:3000/api/facturacion | python3 -m json.tool
@@ -77,9 +78,9 @@ Con la planilla configurada tiene que decir `fuente: "planilla"`, `motivo: null`
 `filasRechazadas: 0`. Si dice `fuente: "respaldo"`, la planilla no se leyó y el
 resto del diagnóstico no significa nada.
 
-Con `SHORTCUT_API_TOKEN` configurado, `/api/performance` responde 200 con
-`problemas: []`. Un 501 es que falta el token; un 502 trae en `motivo` lo que
-contestó Shortcut.
+Con `SHORTCUT_API_TOKEN` configurado, `/api/performance/proyecto` (la vista por
+defecto) y `/api/performance` responden 200 con `problemas: []`. Un 501 es que
+falta el token; un 502 trae en `motivo` lo que contestó Shortcut.
 
 Con `GESTION_API_URL` y `GESTION_API_KEY` configuradas (y el backend corriendo
 con `BACKOFFICE_API_KEY`), `/api/operacion`, `/api/lavaderos`, `/api/clientes` y
@@ -103,8 +104,10 @@ Y mirar el backoffice en el navegador:
   chips de 7, 30 y 90 días cambian los números y «Actualizar» cambia la hora de
   «Datos de la app de gestión del…». Sin las variables `GESTION_*` muestran
   «Sin conectar», qué variable falta y **ningún número**.
-- `/dashboards/performance` muestra el sprint en curso, cambia al elegir otro en el
-  selector y "Actualizar" cambia la hora de "Datos de Shortcut del…".
+- `/dashboards/performance` abre en «Todo el proyecto» (OKRs principales, avance
+  total con dos anillos, sprint por sprint, iniciativas, responsables y
+  equipo); al elegir un sprint en «Ver» pasa al detalle de ese sprint y la URL
+  queda con `?sprint=`; "Actualizar" cambia la hora de "Datos de Shortcut del…".
 
 <!-- BEGIN:nextjs-agent-rules -->
 

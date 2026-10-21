@@ -159,10 +159,12 @@ body {
   line-height: 1.6;
 }
 
+/* A todo el ancho: es un tablero, no un documento. Los paneles con graficos se
+   reparten de a dos por fila (.tablero) para que la pantalla ancha no quede
+   como una columna de graficos estirados. */
 .contenedor {
-  max-width: 1080px;
-  margin: 0 auto;
-  padding: 0 28px 64px;
+  margin: 0;
+  padding: 0 28px 48px;
 }
 
 /* ─── Señales de estado ─────────────────────────────────────────────────── */
@@ -326,6 +328,101 @@ body {
 
 .kpi .valor.critico {
   color: var(--alerta);
+}
+
+/* Insignia KPI / OKR al lado de la etiqueta, con el tooltip que explica que es
+   cada una. Sale al pasar el mouse y al enfocarla con el teclado. */
+.kpi .etiqueta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.insignia {
+  position: relative;
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  padding: 3px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--tinta-clara);
+  color: var(--tinta-tenue);
+  background: var(--blanco);
+  cursor: help;
+}
+
+.insignia.okr {
+  border-color: var(--agua);
+  color: var(--agua-oscura);
+}
+
+.insignia.okr.cumple {
+  border-color: var(--verde);
+  color: var(--verde);
+}
+
+.insignia.okr.no-cumple {
+  border-color: var(--alerta);
+  color: var(--alerta);
+}
+
+.insignia .ayuda {
+  display: none;
+  position: absolute;
+  left: 0;
+  top: calc(100% + 8px);
+  z-index: 3;
+  width: 280px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--borde);
+  background: var(--blanco);
+  box-shadow: 0 4px 14px rgba(16, 49, 75, 0.12);
+  color: var(--tinta);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.5;
+  text-transform: none;
+  white-space: normal;
+}
+
+.insignia .ayuda strong {
+  display: block;
+  margin-bottom: 2px;
+}
+
+.insignia:hover .ayuda,
+.insignia:focus .ayuda,
+.insignia:focus-within .ayuda {
+  display: block;
+}
+
+/* Leyenda de la seccion de equipo: que es un KPI y que es un OKR. */
+.leyenda-metricas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  font-size: 12px;
+  color: var(--gris);
+  margin: 0 0 16px;
+}
+
+.leyenda-metricas .insignia {
+  margin-right: 6px;
+}
+
+.tabla-equipo td.numero,
+.tabla-equipo th.numero {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.tabla-equipo td.critico {
+  color: var(--alerta);
+  font-weight: 600;
 }
 
 .kpi .detalle {
@@ -637,6 +734,95 @@ body {
 
 .contrato td.sin-corte {
   white-space: nowrap;
+}
+
+/* Tablero: los paneles van de a dos por fila en pantallas anchas; abajo de
+   1340 px de ventana (1100 de contenido mas los 240 de la barra lateral)
+   vuelven a una columna. `minmax(0, 1fr)` para que un grafico o una tabla
+   ancha no estire su columna. */
+.tablero {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  margin-top: 20px;
+}
+
+.tablero > .panel {
+  margin-top: 0;
+  min-width: 0;
+}
+
+/* Los OKR son el primer panel de las dos vistas: llevan el borde de la marca. */
+.okrs-principales {
+  border-left: 4px solid var(--agua);
+}
+
+/* Avance total del proyecto: los dos anillos y, al lado, las tarjetas del
+   periodo en dos columnas. */
+.anillos {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr) minmax(300px, 2fr);
+  gap: 20px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.anillos .grilla-kpis {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 0;
+}
+
+/* En la vista de un sprint, el proyecto entero en una linea, con el boton
+   para ir a verlo. */
+.franja-proyecto {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 18px;
+  background: var(--blanco);
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+  padding: 12px 20px;
+  margin: 6px 0 20px;
+  font-size: 13px;
+  color: var(--gris);
+}
+
+.franja-proyecto strong {
+  color: var(--tinta);
+}
+
+.franja-proyecto .critico {
+  color: var(--alerta);
+  font-weight: 600;
+}
+
+.franja-proyecto .chip {
+  margin-left: auto;
+}
+
+@media (max-width: 1340px) {
+  .tablero {
+    grid-template-columns: 1fr;
+  }
+
+  .anillos {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .anillos .grilla-kpis {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 700px) {
+  .anillos {
+    grid-template-columns: 1fr;
+  }
+
+  .franja-proyecto .chip {
+    margin-left: 0;
+  }
 }
 
 /* ─── Estados de carga y error ──────────────────────────────────────────── */

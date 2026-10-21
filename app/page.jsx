@@ -5,6 +5,10 @@ import { sesionDelPedido } from "@/lib/auth/pedido";
 
 // El menu muestra solo las secciones que el rol puede abrir: ofrecer una
 // tarjeta que termina en un redirect seria un boton roto.
+//
+// Las tarjetas no precargan (`prefetch={false}`), por lo mismo que la barra
+// lateral: son todas las secciones a la vez y la precarga automatica llenaba
+// la pestaña Red de pedidos que no se usan.
 export default async function Inicio() {
   const rol = (await sesionDelPedido())?.rol;
 
@@ -24,6 +28,7 @@ export default async function Inicio() {
                 <Link
                   key={seccion.slug}
                   href={seccion.ruta}
+                  prefetch={false}
                   className="tarjeta-seccion"
                 >
                   <div className="tarjeta-titulo">

@@ -161,7 +161,7 @@ hay nada. Los `nombre` largos se recortan antes de pasarlos, como en
 
 Una dona para repartir un total entre **pocas categorías (2 a 4)**; con más,
 las barras horizontales se leen mejor. En el centro va el número que importa.
-Son las tres donas de "El sprint de un vistazo" en Performance.
+Son las donas de "El sprint de un vistazo" y del avance total del proyecto en Performance.
 
 ```jsx
 <Torta
@@ -326,8 +326,12 @@ ordenar por valor descendente. Para escalas con orden propio (frecuencia, Likert
 Archivo: `app/dashboards/encuesta-lavaderos/page.jsx`, dentro del `<main>`.
 
 Un gráfico va siempre dentro de un `<section className="panel">` con `<h2>` y
-`<p className="subtitulo">`. Para dos gráficos lado a lado, envolvelos en
-`<div className="dos-columnas">`.
+`<p className="subtitulo">`. Para dos gráficos lado a lado dentro del mismo
+panel, envolvelos en `<div className="dos-columnas">`. Para que paneles enteros
+vayan de a dos por fila en pantallas anchas (y en una columna en las angostas),
+envolvé los `<section className="panel">` en `<div className="tablero">`, como
+hace Performance. Las tablas anchas y las tarjetas quedan afuera del tablero,
+a todo el ancho.
 
 ```jsx
 <section className="panel">
@@ -561,12 +565,13 @@ Copiá esto en la descripción del PR y marcá cada punto.
 [ ] Los números de /api/kpis coinciden con los que muestra el dashboard
 [ ] Si agregué un campo, está también en data/encuestas.json
 [ ] curl /api/salud → con la planilla configurada: fuente: "planilla", motivo: null, filasRechazadas: 0
-[ ] npm test pasa (obligatorio si toqué lib/csv.js, lib/normalizar.js o lib/kpis/performance.js)
+[ ] npm test pasa (obligatorio si toqué lib/csv.js, lib/normalizar.js, lib/kpis/* o lib/auth/*)
 [ ] npm run build pasa sin errores ni warnings nuevos
 [ ] Vi el gráfico con barras dibujadas en el navegador, no solo los ejes
 [ ] Cero errores en la consola del navegador
 [ ] Si cambié una regla de negocio, dejé la firma @decision (ver convenciones.md)
 [ ] Actualicé el README si cambió la lista de KPIs o los endpoints
+[ ] Si cambió la forma de /api/performance*, actualicé VERSION_DE_DATOS (lib/kpis/performance.js)
 ```
 
 ## Comandos de verificación de referencia
@@ -574,7 +579,7 @@ Copiá esto en la descripción del PR y marcá cada punto.
 No necesitan server:
 
 ```bash
-npm test                     # tests de csv.js, normalizar.js y kpis/performance.js
+npm test                     # tests de csv.js, normalizar.js, kpis/* (performance, equipo, proyecto, gestión) y auth/*
 npm run build                # tiene que compilar sin errores
 ```
 

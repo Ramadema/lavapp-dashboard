@@ -11,9 +11,10 @@ import {
   armarReporte,
   avancePorIniciativa,
   calcularBurndown,
-  calcularCompromiso,
+  calcularCumplimiento,
   calcularCycleTime,
   calcularFlujo,
+  calcularRetrabajo,
   calcularRitmo,
   calcularTiempoEnSprint,
   calcularTiempoPorColumna,
@@ -26,7 +27,12 @@ import {
   pasoPorSprint,
   sprintsDestino,
   sprintsParaHistorial,
-  sprintsPosteriores,
+  otrosSprints,
+  describirProyecto,
+  repartirDias,
+  ETIQUETA_SIN_RETRABAJO,
+  MINUTOS_DE_CORRECCION,
+  VERSION_DE_DATOS,
 } from "../lib/kpis/performance.js";
 
 let ok = 0, fail = 0;
@@ -56,6 +62,9 @@ const MIEMBROS = [
 ];
 const EPICS = [{ id: 16, name: "Epic - LavApp " }];
 
+// Las `stats` vienen siempre en /iterations; sin ellas el progreso del
+// proyecto reporta un problema (ver proyecto.test.mjs), asi que la iteracion
+// de prueba las trae en 0.
 const iteracion = (o = {}) => ({
   id: 29,
   name: "Sprint 1",
@@ -63,6 +72,11 @@ const iteracion = (o = {}) => ({
   start_date: "2026-09-23",
   end_date: "2026-10-07",
   app_url: "https://app.shortcut.com/lavapp/iteration/29",
+  stats: {
+    num_stories_done: 0, num_stories_started: 0, num_stories_unstarted: 0, num_stories_backlog: 0,
+    num_stories_unestimated: 0, num_points: 0, num_points_done: 0, num_points_started: 0,
+    num_points_unstarted: 0, num_points_backlog: 0, num_related_documents: 0,
+  },
   ...o,
 });
 
@@ -107,20 +121,46 @@ const terminada = (o = {}) =>
 // Miercoles 30/09 a las 12 de Buenos Aires.
 const AHORA = new Date("2026-09-30T15:00:00Z");
 
-const reporte = (stories, o = {}) =>
-  armarReporte(
+// Las stats del sprint que se mira se derivan de sus stories, como las calcula
+// Shortcut: si no coincidieran, armarReporte reportaria la diferencia y los
+// tests que fijan `problemas` fallarian por eso y no por lo que prueban.
+const conStats = (it, stories) => {
+  const vivas = stories.filter((s) => !s.archived);
+  const terminadas = vivas.filter((s) => s.completed);
+  return {
+    ...it,
+    stats: {
+      ...it.stats,
+      num_stories_done: terminadas.length,
+      num_stories_started: vivas.filter((s) => s.started && !s.completed).length,
+      num_stories_unstarted: vivas.filter((s) => !s.started && !s.completed).length,
+      num_stories_backlog: 0,
+      num_stories_unestimated: vivas.filter((s) => s.estimate === null).length,
+      num_points: vivas.reduce((t, s) => t + (s.estimate ?? 0), 0),
+      num_points_done: terminadas.reduce((t, s) => t + (s.estimate ?? 0), 0),
+    },
+  };
+};
+
+const reporte = (stories, o = {}) => {
+  const it = conStats(o.iteracion ?? iteracion(), stories);
+  return armarReporte(
     {
-      iteraciones: o.iteraciones ?? [iteracion()],
-      iteracion: o.iteracion ?? iteracion(),
+      // La fila del proyecto sale de la lista: la iteracion que se mira va con
+      // las mismas stats en los dos lados.
+      iteraciones: (o.iteraciones ?? [iteracion()]).map((i) => (i.id === it.id ? it : i)),
+      iteracion: it,
       stories,
       workflows: o.workflows ?? [WORKFLOW],
       miembros: o.miembros ?? MIEMBROS,
       epics: o.epics ?? EPICS,
+      camposCustom: o.camposCustom,
       historiales: o.historiales,
       movidas: o.movidas,
     },
-    { ahora: o.ahora ?? AHORA, leidoEl: o.leidoEl ?? [], problemas: o.problemas }
+    { ahora: o.ahora ?? AHORA, leidoEl: o.leidoEl ?? [], problemas: o.problemas, equipo: o.equipo }
   );
+};
 
 // Entradas de /stories/{id}/history, con la forma real: `changes.iteration_id`
 // trae solo `new` cuando la story no tenia sprint.
@@ -356,9 +396,9 @@ console.log("### 8. burndown");
   check("tareas pendientes al cierre de cada dia; futuro en null", b.dias.map((d) => d.tareas), [2, 1, 1, 2, 2, null, null]);
   check("puntos pendientes (sin estimar suma 0)", b.dias.map((d) => d.puntos), [5, 2, 2, 2, 2, null, null]);
   check("alcance: sube cuando entran tareas", b.dias.map((d) => d.alcanceTareas), [2, 2, 3, 4, 4, null, null]);
-  check("ideal en tareas: de 2 a 0 en linea recta", b.dias.map((d) => d.idealTareas), [2, 1.7, 1.3, 1, 0.7, 0.3, 0]);
-  check("ideal en puntos: de 5 a 0", b.dias.map((d) => d.idealPuntos), [5, 4.2, 3.3, 2.5, 1.7, 0.8, 0]);
-  check("alcance inicial al cierre del primer dia", b.alcanceInicial, { tareas: 2, puntos: 5 });
+  check("ideal en tareas: del alcance total (4) a 0 en linea recta", b.dias.map((d) => d.idealTareas), [4, 3.3, 2.7, 2, 1.3, 0.7, 0]);
+  check("ideal en puntos: del alcance total (10) a 0", b.dias.map((d) => d.idealPuntos), [10, 8.3, 6.7, 5, 3.3, 1.7, 0]);
+  check("alcance total de hoy", b.alcance, { tareas: 4, puntos: 10 });
   check("cambios de alcance con el sprint empezado", b.cambiosDeAlcance, [
     { dia: "2026-09-25", tareas: 1, puntos: 5 },
     { dia: "2026-09-26", tareas: 1, puntos: 0 },
@@ -528,37 +568,36 @@ console.log("### Paso por el sprint (historial)");
   );
 }
 
-console.log("### Compromiso del sprint");
+console.log("### Cumplimiento del sprint");
 {
   const sprint = describirSprint(iteracion(), AHORA);
   const t1 = tarea({ id: 1, ingresoEl: "2026-09-20T12:00:00Z", terminada: true, terminadaEl: "2026-09-25T12:00:00Z", etapa: "Terminado", posicionEstado: 4 });
   const t2 = tarea({ id: 2, ingresoEl: "2026-09-23T20:00:00Z", etapa: "En curso", posicionEstado: 2 });
+  // Entro con el sprint empezado: planificada igual que las demas.
   const t3 = tarea({ id: 3, ingresoEl: "2026-09-28T12:00:00Z", etapa: "Pendiente", posicionEstado: 1 });
   const t4 = tarea({ id: 4, ingresoEl: "2026-09-29T12:00:00Z", terminada: true, terminadaEl: "2026-09-29T13:00:00Z", etapa: "Terminado", posicionEstado: 4 });
   const m1 = tarea({ id: 5, ingresoEl: "2026-09-21T12:00:00Z", salioEl: "2026-09-29T12:00:00Z", etapa: "Pendiente", posicionEstado: 1, movidaA: { id: 70, nombre: "Sprint 2" } });
-  // Entro y salio el primer dia (hora de Buenos Aires): nunca fue alcance.
+  // Entro y salio el primer dia (hora de Buenos Aires): nunca fue trabajo del sprint.
   const m2 = tarea({ id: 6, ingresoEl: "2026-09-23T02:00:00Z", salioEl: "2026-09-23T20:00:00Z", etapa: "Pendiente", posicionEstado: 1, movidaA: { id: 70, nombre: "Sprint 2" } });
-  const c = calcularCompromiso([t1, t2, t3, t4], [m1, m2], sprint, AHORA);
-  check("comprometidas: al cierre del primer dia, movidas incluidas", c.comprometidas, {
-    total: 3, terminadas: 1, enCurso: 1, pendientes: 0, movidas: 1, pct: 33.3,
-  });
-  check("agregadas: lo que entro despues", c.agregadas, {
-    total: 2, terminadas: 1, enCurso: 0, pendientes: 1, movidas: 0, pct: 50,
+  // Se saco antes de que el sprint empezara (el caso de las subtareas del Sprint 1).
+  const m3 = tarea({ id: 7, ingresoEl: "2026-09-10T12:00:00Z", salioEl: "2026-09-20T12:00:00Z", etapa: "Terminado", terminada: true, posicionEstado: 4, movidaA: { id: 10, nombre: "Sprint 0" } });
+  const c = calcularCumplimiento([t1, t2, t3, t4], [m1, m2, m3], sprint, AHORA);
+  check("planificadas: lo que esta hoy mas lo movido que estuvo al cierre de algun dia del sprint", c.planificadas, {
+    total: 5, terminadas: 2, enCurso: 1, pendientes: 1, movidas: 1, pct: 40,
   });
   check(
     "sin terminar: la mas avanzada primero, las movidas al final con su destino",
     c.sinTerminar.map((t) => [t.id, t.movidaA]),
-    [[2, null], [5, { id: 70, nombre: "Sprint 2" }]]
+    [[2, null], [3, null], [5, { id: 70, nombre: "Sprint 2" }]]
   );
-  check("alcance: cuanto del total se sumo despues", c.alcance, { total: 5, pctAgregado: 40 });
   check("proyeccion: regla de tres sobre los dias completos transcurridos", c.proyeccion, {
     diasTranscurridos: 7, terminadasPorDia: 0.3, terminadasAlCierre: 4, total: 4, pct: 100,
   });
   const terminado = describirSprint(iteracion(), new Date("2026-10-10T15:00:00Z"));
-  check("sin proyeccion en un sprint terminado", calcularCompromiso([t1], [], terminado, new Date("2026-10-10T15:00:00Z")).proyeccion, null);
+  check("sin proyeccion en un sprint terminado", calcularCumplimiento([t1], [], terminado, new Date("2026-10-10T15:00:00Z")).proyeccion, null);
   const primerDia = new Date("2026-09-23T15:00:00Z");
-  check("sin proyeccion el primer dia", calcularCompromiso([t1], [], describirSprint(iteracion(), primerDia), primerDia).proyeccion, null);
-  check("sin tareas: totales en cero y pct null", calcularCompromiso([], [], sprint, AHORA).comprometidas, {
+  check("sin proyeccion el primer dia", calcularCumplimiento([t1], [], describirSprint(iteracion(), primerDia), primerDia).proyeccion, null);
+  check("sin tareas: totales en cero y pct null", calcularCumplimiento([], [], sprint, AHORA).planificadas, {
     total: 0, terminadas: 0, enCurso: 0, pendientes: 0, movidas: 0, pct: null,
   });
 }
@@ -639,8 +678,8 @@ console.log("### Sprints posteriores y ventana del historial");
   const s10 = iteracion({ id: 10, name: "Sprint 0", status: "done", start_date: "2026-09-09", end_date: "2026-09-22" });
   const s29 = iteracion();
   const s70 = iteracion({ id: 70, name: "Sprint 2", status: "unstarted", start_date: "2026-10-07", end_date: "2026-10-21" });
-  check("posteriores al actual", sprintsPosteriores([s70, s10, s29], s29).map((i) => i.id), [70]);
-  check("posteriores al viejo, en orden", sprintsPosteriores([s70, s10, s29], s10).map((i) => i.id), [29, 70]);
+  check("los demas sprints, anteriores incluidos, del primero al ultimo", otrosSprints([s70, s10, s29], s29).map((i) => i.id), [10, 70]);
+  check("desde el viejo, en orden", otrosSprints([s70, s10, s29], s10).map((i) => i.id), [29, 70]);
   check("historial: solo en curso o terminados, del mas viejo al mas nuevo", sprintsParaHistorial([s70, s29, s10]).map((i) => i.id), [10, 29]);
   check("historial: se queda con los ultimos", sprintsParaHistorial([s70, s29, s10], { maximo: 1 }).map((i) => i.id), [29]);
   check("destinos: los de afuera de la ventana que empiezan despues del mas viejo", sprintsDestino([s70, s29, s10], [s29]).map((i) => i.id), [70]);
@@ -679,14 +718,14 @@ console.log("### Historial de sprints");
   check("una fila por sprint, del mas viejo al mas nuevo", h.sprints.map((s) => s.nombre), ["Sprint 0", "Sprint 1"]);
   const [viejo, actual] = h.sprints;
   check(
-    "sprint viejo: la movida sigue siendo comprometida y no cumplida",
-    [viejo.comprometidas, viejo.cumplidas, viejo.pctCumplimiento, viejo.movidas, viejo.total, viejo.terminadas, viejo.puntosTerminados],
+    "sprint viejo: la movida sigue siendo planificada y no cumplida",
+    [viejo.planificadas, viejo.cumplidas, viejo.pctCumplimiento, viejo.movidas, viejo.total, viejo.terminadas, viejo.puntosTerminados],
     [3, 1, 33.3, 1, 2, 1, 3]
   );
   check(
-    "sprint actual: la que vino del viejo entro antes del cierre del primer dia",
-    [actual.comprometidas, actual.cumplidas, actual.agregadas, actual.movidas, actual.estado],
-    [2, 1, 0, 0, "En curso"]
+    "sprint actual: la que vino del viejo cuenta como planificada aca",
+    [actual.planificadas, actual.cumplidas, actual.movidas, actual.estado],
+    [2, 1, 0, "En curso"]
   );
   check("sin problemas", h.problemas, []);
 
@@ -711,7 +750,7 @@ console.log("### Historial de sprints");
     },
     { ahora: AHORA }
   );
-  check("movida a un sprint de destino: comprometida, no cumplida, sin fila propia", [conDestino.sprints.length, conDestino.sprints[0].comprometidas, conDestino.sprints[0].movidas], [1, 3, 1]);
+  check("movida a un sprint de destino: planificada, no cumplida, sin fila propia", [conDestino.sprints.length, conDestino.sprints[0].planificadas, conDestino.sprints[0].movidas], [1, 3, 1]);
 }
 
 console.log("### Reporte con tareas movidas a otro sprint");
@@ -729,13 +768,161 @@ console.log("### Reporte con tareas movidas a otro sprint");
       historiales: { 9: [creada(9, "2026-09-17T12:00:00Z", { iteration_id: 29 }), movida(9, "2026-09-29T12:00:00Z", { old: 29, new: 70 })] },
     },
   });
-  check("compromiso: 1 cumplida de 2 comprometidas, 1 movida", r.compromiso.comprometidas, {
-    total: 2, terminadas: 1, enCurso: 0, pendientes: 0, movidas: 1, pct: 50,
+  check("cumplimiento: 1 cumplida de 3 planificadas (2 adentro y 1 movida)", r.cumplimiento.planificadas, {
+    total: 3, terminadas: 1, enCurso: 0, pendientes: 1, movidas: 1, pct: 33.3,
   });
-  check("la movida aparece en 'sin terminar' con su destino", r.compromiso.sinTerminar.map((t) => [t.id, t.movidaA?.nombre]), [[9, "Sprint 2"]]);
+  check("la movida aparece en 'sin terminar' con su destino, despues de las pendientes", r.cumplimiento.sinTerminar.map((t) => [t.id, t.movidaA?.nombre ?? null]), [[2, null], [9, "Sprint 2"]]);
   check("el resumen no cuenta la movida (es como cuenta Shortcut)", r.resumen.tareas.total, 2);
   check("el reporte trae ritmo, tiempo en el sprint y tiempo por columna", [r.ritmo.dias.length, r.tiempoEnSprint.tareas.length, r.tiempoPorColumna.columnas.length, r.tiempoPorColumna.sinDatos], [8, 1, 0, 1]);
-  check("sin movidas el compromiso igual se calcula", reporte([story()]).compromiso.comprometidas.movidas, 0);
+  check("sin movidas el cumplimiento igual se calcula", reporte([story()]).cumplimiento.planificadas.movidas, 0);
+}
+
+console.log("### Versión de los datos");
+{
+  check("el reporte de un sprint trae la versión de los datos", reporte([story()]).version, VERSION_DE_DATOS);
+  check("es una fecha AAAA-MM-DD, que se compara como texto", /^\d{4}-\d{2}-\d{2}$/.test(VERSION_DE_DATOS), true);
+  const h = armarHistorial({ iteraciones: [iteracion()], sprints: [], workflows: [WORKFLOW], miembros: MIEMBROS, epics: EPICS }, { ahora: AHORA });
+  check("el historial también", h.version, VERSION_DE_DATOS);
+}
+
+console.log("### Avance por tipo de trabajo (Skill Set)");
+{
+  const CAMPOS = [{ id: "cf-skill", name: "Skill Set" }, { id: "cf-prio", name: "Priority" }];
+  const skill = (valor) => [{ field_id: "cf-skill", value_id: "v-" + valor, value: valor }, { field_id: "cf-prio", value_id: "p", value: "High" }];
+  const r = reporte(
+    [
+      story({ estimate: 3, custom_fields: skill("Backend") }),
+      terminada({ estimate: 2, custom_fields: skill("Backend") }),
+      story({ custom_fields: skill("Frontend") }),
+      story(),
+    ],
+    { camposCustom: CAMPOS }
+  );
+  check("grupos por Skill Set, partidos por etapa; sin tipo aparte", r.porEspecialidad.grupos.map((g) => [g.nombre, g.total, g.terminadas, g.puntos]), [["Backend", 2, 1, 5], ["Frontend", 1, 0, 0], ["Sin tipo de trabajo", 1, 0, 0]]);
+  check("sin problemas cuando todos los campos están en el catálogo", [r.problemas, r.porEspecialidad.motivo], [[], null]);
+  const desconocido = reporte([story({ custom_fields: [{ field_id: "cf-otro", value_id: "x", value: "X" }] })], { camposCustom: CAMPOS });
+  check("un campo que no está en el catálogo se reporta", desconocido.problemas.map((p) => [p.campo, p.valor]), [["custom_fields", "cf-otro"]]);
+  const sinCatalogo = reporte([story({ custom_fields: skill("Backend") })], { camposCustom: null });
+  check("sin catálogo (no se pudo leer): sin grupos y con el motivo, no «nadie lo cargó»", [sinCatalogo.porEspecialidad, sinCatalogo.problemas], [{ grupos: [], motivo: "sin-catalogo" }, []]);
+  const sinCampo = reporte([story({ custom_fields: skill("Backend") })], { camposCustom: [{ id: "cf-prio", name: "Priority" }] });
+  check("el workspace no tiene el campo Skill Set: sin grupos y con el motivo", sinCampo.porEspecialidad, { grupos: [], motivo: "sin-campo" });
+}
+
+console.log("### Días de cada sprint para repartir las horas y fin del proyecto");
+{
+  const s1 = iteracion({ id: 29, start_date: "2026-09-23", end_date: "2026-10-07" });
+  const s2 = iteracion({ id: 70, name: "Sprint 2", start_date: "2026-10-07", end_date: "2026-10-21" });
+  const r = repartirDias([s2, s1]);
+  check("el día del cambio cuenta una vez, para el primero: 15 + 14 = 29, el proyecto", [r.porSprint.get(29), r.porSprint.get(70), r.solapados], [15, 14, []]);
+  const pisado = repartirDias([s1, { ...s2, start_date: "2026-10-01" }]);
+  check("si se pisan más que el día del cambio, el de después pierde esos días y se informa", [pisado.porSprint.get(70), pisado.solapados], [14, [{ id: 70, nombre: "Sprint 2", dias: 7 }]]);
+  check("fin configurado posterior: se usa", describirProyecto([s1, s2], { fin: "2026-12-05" }), { inicio: "2026-09-23", fin: "2026-12-05", dias: 74, configurado: true, descartado: false });
+  check("fin configurado igual al último sprint: se usa", describirProyecto([s1, s2], { fin: "2026-10-21" }).configurado, true);
+  check("fin configurado anterior al último sprint: se descarta y se dice", describirProyecto([s1, s2], { fin: "2026-10-10" }), { inicio: "2026-09-23", fin: "2026-10-21", dias: 29, configurado: false, descartado: true });
+  check("sin fin configurado: el del último sprint", describirProyecto([s1, s2]), { inicio: "2026-09-23", fin: "2026-10-21", dias: 29, configurado: false, descartado: false });
+}
+
+console.log("### La efectividad de un sprint cuenta lo que se movió a otro");
+{
+  // Sprint 1 con 3 tareas terminadas de 2 puntos de Ana y una cuarta suya que
+  // se movio al Sprint 2 sin terminar: el cumplimiento es 3 de 4 y la
+  // efectividad tiene que ser 75 %, no 100.
+  const EQUIPO_ANA = { horasPorPunto: 4, wipMaxPorPersona: 3, horasPactadas: { porIntegrante: 150, finDelProyecto: null }, metas: { bugsRatioMax: null, efectividadMin: 80, utilizacionMin: null, utilizacionMax: null }, integrantes: [{ nombre: "Ana Pérez", rol: "Dev", detalle: null, horasPactadas: null }] };
+  const s70 = iteracion({ id: 70, name: "Sprint 2", status: "unstarted", start_date: "2026-10-07", end_date: "2026-10-21" });
+  const ida = story({ id: 9, iteration_id: 70, estimate: 2, owner_ids: ["uuid-ana"], created_at: "2026-09-17T12:00:00Z", previous_iteration_ids: [29] });
+  const terminadas = [1, 2, 3].map((id) => terminada({ id, estimate: 2, owner_ids: ["uuid-ana"], created_at: "2026-09-17T12:00:00Z" }));
+  const r = reporte(terminadas, {
+    iteraciones: [iteracion(), s70],
+    historiales: Object.fromEntries(terminadas.map((t) => [t.id, [creada(t.id, "2026-09-17T12:00:00Z", { iteration_id: 29 })]])),
+    movidas: { stories: [ida], historiales: { 9: [creada(9, "2026-09-17T12:00:00Z", { iteration_id: 29 }), movida(9, "2026-09-29T12:00:00Z", { old: 29, new: 70 })] } },
+    equipo: EQUIPO_ANA,
+  });
+  check("cumplimiento 3 de 4 con la movida", [r.cumplimiento.planificadas.total, r.cumplimiento.planificadas.terminadas, r.cumplimiento.planificadas.movidas], [4, 3, 1]);
+  check("efectividad 24 h hechas de 32 h asignadas: 75 %, no cumple", [r.equipo.horas.equipo.hechas, r.equipo.horas.equipo.asignadas, ...(({ valor, cumple }) => [valor, cumple])(r.equipo.okrs.find((o) => o.clave === "efectividad"))], [24, 32, 75, false]);
+  check("la movida no suma demanda: la utilización mira lo que hay hoy", r.equipo.horas.equipo.demanda, 24);
+}
+
+console.log("### Retrabajo");
+{
+  const con = (id, changed_at, old, nuevo, member_id = "uuid-ana") => ({ ...cambioDeEstado(id, changed_at, old, nuevo), member_id });
+  // Un push a la rama de una story, como lo anota Shortcut: la accion de la rama
+  // y la story sumando la rama. `deLaStory` es la story duena de la rama.
+  const push = (changed_at, deLaStory) => ({
+    changed_at,
+    actions: [
+      { id: 900 + deLaStory, entity_type: "branch", action: "push", name: `feat-sc-${deLaStory}` },
+      { id: deLaStory, entity_type: "story", action: "update", changes: { branch_ids: { adds: [900 + deLaStory] } } },
+    ],
+  });
+  const cerrada = (id, o = {}) =>
+    tarea({ id, titulo: `Tarea ${id}`, url: `https://app.shortcut.com/lavapp/story/${id}`, terminada: true, creadaEl: "2026-09-20T12:00:00Z", ...o });
+  const empezada = (id) => [creada(id, "2026-09-20T12:00:00Z", { workflow_state_id: TO_DO }), con(id, "2026-09-22T12:00:00Z", TO_DO, IN_PROGRESS)];
+  const tareas = [
+    cerrada(1), cerrada(2), cerrada(3), cerrada(4), cerrada(5, { etiquetas: ["release 1.0", " No-Es-Retrabajo "] }),
+    cerrada(6), cerrada(7, { terminada: false }), cerrada(8), cerrada(9), cerrada(10, { terminada: false }), cerrada(11), cerrada(12),
+  ];
+  const historiales = {
+    // Reabierta a los dos dias por Beto, con un push a su rama antes del nuevo cierre.
+    1: [...empezada(1), con(1, "2026-09-25T12:00:00Z", IN_PROGRESS, DONE), con(1, "2026-09-27T12:00:00Z", DONE, IN_REVIEW, "uuid-beto"), push("2026-09-27T15:00:00Z", 1), con(1, "2026-09-28T12:00:00Z", IN_REVIEW, DONE)],
+    // Devuelta desde la revision a la hora, sin codigo vinculado.
+    2: [...empezada(2), con(2, "2026-09-24T12:00:00Z", IN_PROGRESS, IN_REVIEW), con(2, "2026-09-24T13:00:00Z", IN_REVIEW, IN_PROGRESS), con(2, "2026-09-25T12:00:00Z", IN_PROGRESS, IN_REVIEW), con(2, "2026-09-26T12:00:00Z", IN_REVIEW, DONE)],
+    // Sacada de Done a los dos minutos: tarjeta mal movida.
+    3: [...empezada(3), con(3, "2026-09-25T12:00:00Z", IN_PROGRESS, DONE), con(3, "2026-09-25T12:02:00Z", DONE, IN_REVIEW), con(3, "2026-09-25T12:03:00Z", IN_REVIEW, DONE)],
+    // Pausada a Backlog y, ya cerrada, devuelta a To Do: es replanificar.
+    4: [...empezada(4), con(4, "2026-09-23T12:00:00Z", IN_PROGRESS, BACKLOG), con(4, "2026-09-24T12:00:00Z", BACKLOG, IN_PROGRESS), con(4, "2026-09-25T12:00:00Z", IN_PROGRESS, DONE), con(4, "2026-09-27T12:00:00Z", DONE, TO_DO), con(4, "2026-09-28T12:00:00Z", TO_DO, DONE)],
+    // Reabierta, pero con la etiqueta: va aparte.
+    5: [...empezada(5), con(5, "2026-09-25T12:00:00Z", IN_PROGRESS, DONE), con(5, "2026-09-27T00:00:00Z", DONE, IN_PROGRESS), con(5, "2026-09-27T12:00:00Z", IN_PROGRESS, DONE)],
+    // La 6 esta terminada y no tiene historial.
+    // Devuelta desde la revision y todavia sin cerrar: entra cuando se cierre.
+    7: [...empezada(7), con(7, "2026-09-24T12:00:00Z", IN_PROGRESS, IN_REVIEW), con(7, "2026-09-25T12:00:00Z", IN_REVIEW, IN_PROGRESS)],
+    // Historia reabierta: el push de su historial es de una subtarea, no suyo.
+    8: [...empezada(8), con(8, "2026-09-25T12:00:00Z", IN_PROGRESS, DONE), con(8, "2026-09-26T12:00:00Z", DONE, IN_PROGRESS), push("2026-09-26T15:00:00Z", 81), con(8, "2026-09-27T12:00:00Z", IN_PROGRESS, DONE)],
+    // Dos vueltas: la tarea cuenta una vez.
+    9: [...empezada(9), con(9, "2026-09-24T12:00:00Z", IN_PROGRESS, DONE), con(9, "2026-09-25T12:00:00Z", DONE, IN_PROGRESS), con(9, "2026-09-26T12:00:00Z", IN_PROGRESS, DONE), con(9, "2026-09-28T18:00:00Z", DONE, IN_REVIEW), con(9, "2026-09-29T12:00:00Z", IN_REVIEW, DONE)],
+    // Reabierta y todavia abierta: cuenta, y el codigo se busca hasta ahora.
+    10: [...empezada(10), con(10, "2026-09-25T12:00:00Z", IN_PROGRESS, DONE), con(10, "2026-09-29T12:00:00Z", DONE, IN_PROGRESS), push("2026-09-30T12:00:00Z", 10)],
+    // Pasa por una columna que ya no esta en ningun workflow.
+    11: [...empezada(11), con(11, "2026-09-25T12:00:00Z", IN_PROGRESS, 999), con(11, "2026-09-26T12:00:00Z", 999, DONE)],
+    // Sin la creacion en el historial el primer tramo arranca cuando se creo la
+    // tarea (12:00): salir de In Review a las 12:05 es una correccion.
+    12: [con(12, "2026-09-20T12:05:00Z", IN_REVIEW, IN_PROGRESS), con(12, "2026-09-21T12:00:00Z", IN_PROGRESS, DONE)],
+  };
+  const problemas = [];
+  const r = calcularRetrabajo(tareas, historiales, [WORKFLOW], { miembros: MIEMBROS, ahora: AHORA }, problemas);
+  check("las constantes de la regla", [ETIQUETA_SIN_RETRABAJO, MINUTOS_DE_CORRECCION], ["no-es-retrabajo", 10]);
+  check("10 cerradas alguna vez (la abierta que nunca cerró no; la terminada sin historial se informa aparte)", [r.cerradas, r.sinHistorial], [10, 1]);
+  check("5 con retrabajo: el 50 %", [r.conRetrabajo, r.pct, r.vueltas], [5, 50, 6]);
+  check("la más reciente primero", r.casos.map((c) => c.id), [10, 9, 1, 8, 2]);
+  check("reabiertas, devueltas antes de cerrar y con código nuevo", [r.reabiertas, r.devueltas, r.conCodigoNuevo], [4, 1, 2]);
+  check("descartadas: dos replanificaciones (a Backlog y a To Do) y dos correcciones de menos de 10 minutos", r.descartadas, { replanificadas: 2, correcciones: 2 });
+  check("la etiqueta, sin mayúsculas ni espacios, saca a la 5 de la cuenta", r.excluidas.map((c) => c.id), [5]);
+  check("una vuelta, completa", r.casos.find((c) => c.id === 1), {
+    id: 1, titulo: "Tarea 1", url: "https://app.shortcut.com/lavapp/story/1", historia: null, responsables: [], terminada: true,
+    vueltas: [{ el: "2026-09-27T12:00:00Z", quien: "beto", desde: "Done", hacia: "In Review", reapertura: true, conCodigoNuevo: true }],
+    conCodigoNuevo: true,
+  });
+  check("devuelta desde la revisión: no es reapertura", r.casos.find((c) => c.id === 2).vueltas, [{ el: "2026-09-24T13:00:00Z", quien: "Ana Pérez", desde: "In Review", hacia: "In Progress", reapertura: false, conCodigoNuevo: false }]);
+  check("el push de una subtarea en el historial de su historia no es código de la historia", r.casos.find((c) => c.id === 8).conCodigoNuevo, false);
+  check("todavía abierta: cuenta, y el push de después también", [r.casos.find((c) => c.id === 10).terminada, r.casos.find((c) => c.id === 10).conCodigoNuevo], [false, true]);
+  check("la columna que no existe se anota una vez", problemas.map((p) => [p.tarea, p.campo, p.valor]), [[11, "historial", "999"]]);
+  check("sin tareas: nada que medir", (({ cerradas, pct, casos }) => [cerradas, pct, casos])(calcularRetrabajo([], {}, [WORKFLOW], { ahora: AHORA })), [0, null, []]);
+
+  // De punta a punta: armarReporte lee las etiquetas de la story y publica el
+  // retrabajo en el equipo, con el OKR segundo en la lista.
+  const reabierta = (id) => [
+    creada(id, "2026-09-20T12:00:00Z", { iteration_id: 29, workflow_state_id: TO_DO }),
+    cambioDeEstado(id, "2026-09-24T12:00:00Z", TO_DO, DONE),
+    cambioDeEstado(id, "2026-09-26T12:00:00Z", DONE, IN_PROGRESS),
+    cambioDeEstado(id, "2026-09-27T12:00:00Z", IN_PROGRESS, DONE),
+  ];
+  const metaDe10 = { horasPorPunto: null, wipMaxPorPersona: 3, horasPactadas: { porIntegrante: null, finDelProyecto: null }, metas: { bugsRatioMax: null, retrabajoMax: 10, efectividadMin: null, utilizacionMin: null, utilizacionMax: null }, integrantes: [] };
+  const rep = reporte(
+    [terminada({ id: 21, labels: [{ id: 1, name: "needs qa" }] }), terminada({ id: 22, labels: [{ id: 2, name: "no-es-retrabajo" }] }), terminada({ id: 23 })],
+    { historiales: { 21: reabierta(21), 22: reabierta(22), 23: [creada(23, "2026-09-20T12:00:00Z", { iteration_id: 29 })] }, equipo: metaDe10 }
+  );
+  check("armarReporte: 1 de 3 cerradas con retrabajo; la de la etiqueta va aparte", [rep.equipo.retrabajo.cerradas, rep.equipo.retrabajo.casos.map((c) => c.id), rep.equipo.retrabajo.excluidas.map((c) => c.id)], [3, [21], [22]]);
+  check("y el OKR, segundo en la lista, contra la meta", rep.equipo.okrs[1], { clave: "retrabajo", nombre: "Retrabajo", valor: 33.3, meta: 10, descripcionMeta: "como mucho 10%", cumple: false });
+  check("sin problemas", rep.problemas, []);
 }
 
 console.log("\n" + ok + " OK, " + fail + " fallas");

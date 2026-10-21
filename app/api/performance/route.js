@@ -1,5 +1,6 @@
-import { obtenerSprints, obtenerSprint, obtenerMovidas, vencerCache } from "@/lib/shortcut";
-import { armarReporte, elegirSprintPorDefecto, sprintsPosteriores } from "@/lib/kpis/performance";
+import { obtenerSprints, obtenerSprint, obtenerMovidas, obtenerConteos, vencerCache } from "@/lib/shortcut";
+import { cargarEquipo } from "@/lib/equipo";
+import { armarReporte, elegirSprintPorDefecto, otrosSprints } from "@/lib/kpis/performance";
 import { ESTADO_SIN_FUENTE } from "@/lib/secciones";
 
 // GET /api/performance[?sprint=<id>] — avance de un sprint, leido de Shortcut.
@@ -44,25 +45,48 @@ async function responder(request, { fresco }) {
     return Response.json({ fuente: "shortcut", motivo }, { status: 404 });
   }
 
-  const sprint = await obtenerSprint(id, { fresco });
+  // Los conteos del proyecto entero (bugs, tareas sin sprint) no dependen del
+  // sprint y van en paralelo con su lectura.
+  const [sprint, conteos] = await Promise.all([
+    obtenerSprint(id, { fresco }),
+    obtenerConteos({ fresco }),
+  ]);
   if (!sprint.datos) return responderSinDatos(sprint);
 
-  // Las tareas que se le sacaron a este sprint estan en los que empiezan despues.
+  // Las tareas que se le sacaron a este sprint estan en alguno de los demas
+  // (tambien en uno anterior), como las busca el historial.
   const movidas = await obtenerMovidas(
     id,
-    sprintsPosteriores(sprints.datos, iteracion).map((i) => i.id),
+    otrosSprints(sprints.datos, iteracion).map((i) => i.id),
     { fresco }
   );
+
+  // Roles, horas pactadas y metas: data/equipo.json. Si falta o esta roto, el
+  // reporte sale igual, con todos sin rol y las horas sin calcular, y el motivo
+  // viaja en `problemas`.
+  const equipo = await cargarEquipo();
 
   if (fresco) vencerCache();
 
   return Response.json(
     armarReporte(
-      { iteraciones: sprints.datos, iteracion, ...sprint.datos, movidas: movidas.datos },
+      {
+        iteraciones: sprints.datos,
+        iteracion,
+        ...sprint.datos,
+        movidas: movidas.datos,
+        conteos: conteos.datos,
+      },
       {
         ahora: new Date(),
-        leidoEl: [sprints.leidoEl, sprint.leidoEl, movidas.leidoEl],
-        problemas: [...sprint.problemas, ...movidas.problemas],
+        leidoEl: [sprints.leidoEl, sprint.leidoEl, movidas.leidoEl, conteos.leidoEl],
+        problemas: [
+          ...sprint.problemas,
+          ...movidas.problemas,
+          ...conteos.problemas,
+          ...equipo.problemas,
+        ],
+        equipo: equipo.datos,
       }
     )
   );
