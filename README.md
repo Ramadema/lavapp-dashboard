@@ -114,8 +114,8 @@ el segmento" pasa de 40 a 14 y "Gestión manual o nula" sube a 100 %.
 
 **Performance** abre en **Todo el proyecto**: los OKRs principales, el avance
 total con dos anillos (tareas y puntos), las tarjetas del período, el detalle
-sprint por sprint, el avance por iniciativa, la carga por responsable y los KPIs
-del equipo sobre todos los sprints. El selector **Ver** del encabezado lleva a
+sprint por sprint, el avance por iniciativa, la carga por responsable, los KPIs
+del equipo y el retrabajo sobre todos los sprints. El selector **Ver** del encabezado lleva a
 cada sprint (y lo deja en la URL como `?sprint=`): ahí están los OKRs del
 sprint, avance en tareas y en puntos, días restantes, una línea con el proyecto
 entero, las donas de un vistazo (avance en tareas y en puntos, y el
@@ -443,12 +443,13 @@ URL como `?sprint=<id>`, para compartir un enlace con el sprint puesto):
   **avance total** con dos anillos (tareas y puntos), las tarjetas del período y
   el desglose por sprint, la comparación **sprint por sprint** (planificado,
   cumplido y movido), y el avance por iniciativa y por tipo de trabajo, la
-  carga por responsable y los KPIs del equipo sobre todas las tareas.
+  carga por responsable, los KPIs del equipo y el retrabajo sobre todas las
+  tareas.
 - **Un sprint** (`/api/performance?sprint=<id>`): los OKRs principales del
   sprint, las cuatro tarjetas, una línea con el proyecto entero (y el botón para
   ir a verlo) y el detalle del sprint: cumplimiento, burndown, flujo, ritmo,
-  iniciativas, tipo de trabajo, responsables, equipo, historial, tiempos y las
-  listas de tareas.
+  iniciativas, tipo de trabajo, responsables, equipo, historial, retrabajo,
+  tiempos y las listas de tareas.
 
 La pantalla ocupa todo el ancho y los paneles con gráficos van de a dos por
 fila en pantallas anchas.
@@ -610,9 +611,8 @@ curl -b /tmp/sesion.txt http://localhost:3000/api/performance/historial   # el h
   en todo el workspace no hay ni un bug registrado, la tarjeta muestra «–» y
   dice que no hay defectos registrados. El detalle agrega los bugs de los
   sprints con el mismo vocabulario que el OKR del equipo: reportados en el
-  período y sin resolver. Hoy las 132 stories son feature, sin etiquetas ni
-  Severity cargadas: el indicador empieza a medir cuando los defectos se
-  carguen con el tipo bug.
+  período y sin resolver. Solo mide los defectos cargados con el tipo bug: uno
+  cargado como feature no cuenta.
 - **Equipo: KPIs y OKRs** (campo `equipo` de las dos respuestas). Los **OKRs
   principales** son el primer panel de las dos vistas; los KPIs del equipo van
   más abajo, de a dos por fila. En la vista del proyecto se calculan sobre
@@ -635,6 +635,20 @@ curl -b /tmp/sesion.txt http://localhost:3000/api/performance/historial   # el h
     bug registrado, también es «–» y la tarjeta lo dice: un 0 con la meta
     cumplida diría que no hubo defectos cuando lo que pasa es que no se
     registran.
+  - *OKR · Retrabajo*: el porcentaje de tareas cerradas que volvieron atrás
+    después de presentarse o de cerrarse, según el historial de Shortcut: pasar
+    de una columna de trabajo (In Progress, In Review, Ready for deploy) o de
+    Done a una columna de trabajo anterior, por ejemplo de Done a In Review. No
+    cuentan las vueltas a To Do o Backlog (replanificar o pausar), salir de una
+    columna antes de 10 minutos (una tarjeta mal movida) ni las tareas con la
+    etiqueta `no-es-retrabajo`, que el equipo pone cuando una vuelta no fue un
+    error. Una tarea cuenta una vez aunque vuelva varias, y las que nunca se
+    cerraron entran cuando se cierran. El panel **Retrabajo** lista cada vuelta
+    con quién la hizo y cuándo, para revisarla en la retro, y marca si hubo
+    código nuevo (un push a la rama de la tarea) antes del nuevo cierre; eso
+    solo se ve cuando la rama lleva el número de la tarea (`feat-sc-63`), porque
+    Shortcut no vincula las demás. La regla está firmada en `calcularRetrabajo`
+    (`lib/kpis/performance.js`).
   - *OKR · Efectividad de entrega*: horas hechas sobre horas asignadas: todo lo
     planificado del período que tiene responsable, incluidas en la vista de un
     sprint las tareas que se movieron a otro sprint sin terminar (sacar lo
@@ -680,7 +694,7 @@ mantiene el equipo a mano (no lleva secretos):
   "horasPorPunto": 4,
   "wipMaxPorPersona": 3,
   "horasPactadas": { "porIntegrante": 150, "finDelProyecto": null },
-  "metas": { "bugsRatioMax": 0.25, "efectividadMin": 80, "utilizacionMin": 70, "utilizacionMax": 90 },
+  "metas": { "bugsRatioMax": 0.25, "retrabajoMax": 10, "efectividadMin": 80, "utilizacionMin": 70, "utilizacionMax": 90 },
   "integrantes": [
     { "nombre": "Nombre tal como figura en Shortcut", "rol": "Dev", "detalle": "desarrollador full stack", "horasPactadas": null }
   ]
@@ -707,7 +721,8 @@ mantiene el equipo a mano (no lleva secretos):
 - `horasPorPunto` convierte los story points en horas; sin él no se calculan
   horas, utilización ni efectividad. `wipMaxPorPersona` es el umbral de
   sobrecarga del WIP.
-- `metas` son las de los tres OKR; con `null` la tarjeta muestra el valor sin
+- `metas` son las de los cuatro OKR (`retrabajoMax` es el porcentaje máximo de
+  tareas cerradas con retrabajo); con `null` la tarjeta muestra el valor sin
   decir si cumple.
 
 El archivo se lee en cada pedido (`lib/equipo.js`), así que un cambio se ve al
@@ -962,8 +977,11 @@ externo.
 En **Performance**, para todo el proyecto (la vista por defecto, todos los
 sprints de Shortcut sumados):
 
-- OKRs principales: bugs por historia terminada, efectividad de entrega y
-  utilización del equipo sobre todas las tareas, cada uno contra su meta
+- OKRs principales: bugs por historia terminada, retrabajo, efectividad de
+  entrega y utilización del equipo sobre todas las tareas, cada uno contra su
+  meta
+- Retrabajo: cada vuelta atrás de una tarea cerrada, con quién la hizo, cuándo
+  y si hubo código nuevo después
 - Avance total en tareas y en puntos (dos anillos), sprints, días restantes
   del proyecto, tareas en curso y errores (bugs) reportados, resueltos y
   abiertos en todo el workspace
@@ -991,7 +1009,8 @@ En **Performance**, por sprint de Shortcut:
 - Una línea con el proyecto entero (tareas y puntos terminados sobre el total
   de todos los sprints y los errores abiertos) y el botón para ir a verlo
 - Equipo, con `data/equipo.json`: OKRs de bugs por historia terminada,
-  efectividad de entrega y utilización, con su meta; KPIs de distribución de
+  retrabajo (con la lista de vueltas atrás del sprint), efectividad de entrega
+  y utilización, con su meta; KPIs de distribución de
   tareas y puntos por rol, WIP por rol con alerta de sobrecarga, carga por
   integrante (con los puntos de las tareas compartidas repartidos), horas
   pactadas para el proyecto contra extras, y utilización y efectividad por

@@ -14,6 +14,7 @@ import {
   calcularCumplimiento,
   calcularCycleTime,
   calcularFlujo,
+  calcularRetrabajo,
   calcularRitmo,
   calcularTiempoEnSprint,
   calcularTiempoPorColumna,
@@ -29,6 +30,8 @@ import {
   otrosSprints,
   describirProyecto,
   repartirDias,
+  ETIQUETA_SIN_RETRABAJO,
+  MINUTOS_DE_CORRECCION,
   VERSION_DE_DATOS,
 } from "../lib/kpis/performance.js";
 
@@ -835,8 +838,91 @@ console.log("### La efectividad de un sprint cuenta lo que se movió a otro");
     equipo: EQUIPO_ANA,
   });
   check("cumplimiento 3 de 4 con la movida", [r.cumplimiento.planificadas.total, r.cumplimiento.planificadas.terminadas, r.cumplimiento.planificadas.movidas], [4, 3, 1]);
-  check("efectividad 24 h hechas de 32 h asignadas: 75 %, no cumple", [r.equipo.horas.equipo.hechas, r.equipo.horas.equipo.asignadas, r.equipo.okrs[1].valor, r.equipo.okrs[1].cumple], [24, 32, 75, false]);
+  check("efectividad 24 h hechas de 32 h asignadas: 75 %, no cumple", [r.equipo.horas.equipo.hechas, r.equipo.horas.equipo.asignadas, ...(({ valor, cumple }) => [valor, cumple])(r.equipo.okrs.find((o) => o.clave === "efectividad"))], [24, 32, 75, false]);
   check("la movida no suma demanda: la utilización mira lo que hay hoy", r.equipo.horas.equipo.demanda, 24);
+}
+
+console.log("### Retrabajo");
+{
+  const con = (id, changed_at, old, nuevo, member_id = "uuid-ana") => ({ ...cambioDeEstado(id, changed_at, old, nuevo), member_id });
+  // Un push a la rama de una story, como lo anota Shortcut: la accion de la rama
+  // y la story sumando la rama. `deLaStory` es la story duena de la rama.
+  const push = (changed_at, deLaStory) => ({
+    changed_at,
+    actions: [
+      { id: 900 + deLaStory, entity_type: "branch", action: "push", name: `feat-sc-${deLaStory}` },
+      { id: deLaStory, entity_type: "story", action: "update", changes: { branch_ids: { adds: [900 + deLaStory] } } },
+    ],
+  });
+  const cerrada = (id, o = {}) =>
+    tarea({ id, titulo: `Tarea ${id}`, url: `https://app.shortcut.com/lavapp/story/${id}`, terminada: true, creadaEl: "2026-09-20T12:00:00Z", ...o });
+  const empezada = (id) => [creada(id, "2026-09-20T12:00:00Z", { workflow_state_id: TO_DO }), con(id, "2026-09-22T12:00:00Z", TO_DO, IN_PROGRESS)];
+  const tareas = [
+    cerrada(1), cerrada(2), cerrada(3), cerrada(4), cerrada(5, { etiquetas: ["release 1.0", " No-Es-Retrabajo "] }),
+    cerrada(6), cerrada(7, { terminada: false }), cerrada(8), cerrada(9), cerrada(10, { terminada: false }), cerrada(11), cerrada(12),
+  ];
+  const historiales = {
+    // Reabierta a los dos dias por Beto, con un push a su rama antes del nuevo cierre.
+    1: [...empezada(1), con(1, "2026-09-25T12:00:00Z", IN_PROGRESS, DONE), con(1, "2026-09-27T12:00:00Z", DONE, IN_REVIEW, "uuid-beto"), push("2026-09-27T15:00:00Z", 1), con(1, "2026-09-28T12:00:00Z", IN_REVIEW, DONE)],
+    // Devuelta desde la revision a la hora, sin codigo vinculado.
+    2: [...empezada(2), con(2, "2026-09-24T12:00:00Z", IN_PROGRESS, IN_REVIEW), con(2, "2026-09-24T13:00:00Z", IN_REVIEW, IN_PROGRESS), con(2, "2026-09-25T12:00:00Z", IN_PROGRESS, IN_REVIEW), con(2, "2026-09-26T12:00:00Z", IN_REVIEW, DONE)],
+    // Sacada de Done a los dos minutos: tarjeta mal movida.
+    3: [...empezada(3), con(3, "2026-09-25T12:00:00Z", IN_PROGRESS, DONE), con(3, "2026-09-25T12:02:00Z", DONE, IN_REVIEW), con(3, "2026-09-25T12:03:00Z", IN_REVIEW, DONE)],
+    // Pausada a Backlog y, ya cerrada, devuelta a To Do: es replanificar.
+    4: [...empezada(4), con(4, "2026-09-23T12:00:00Z", IN_PROGRESS, BACKLOG), con(4, "2026-09-24T12:00:00Z", BACKLOG, IN_PROGRESS), con(4, "2026-09-25T12:00:00Z", IN_PROGRESS, DONE), con(4, "2026-09-27T12:00:00Z", DONE, TO_DO), con(4, "2026-09-28T12:00:00Z", TO_DO, DONE)],
+    // Reabierta, pero con la etiqueta: va aparte.
+    5: [...empezada(5), con(5, "2026-09-25T12:00:00Z", IN_PROGRESS, DONE), con(5, "2026-09-27T00:00:00Z", DONE, IN_PROGRESS), con(5, "2026-09-27T12:00:00Z", IN_PROGRESS, DONE)],
+    // La 6 esta terminada y no tiene historial.
+    // Devuelta desde la revision y todavia sin cerrar: entra cuando se cierre.
+    7: [...empezada(7), con(7, "2026-09-24T12:00:00Z", IN_PROGRESS, IN_REVIEW), con(7, "2026-09-25T12:00:00Z", IN_REVIEW, IN_PROGRESS)],
+    // Historia reabierta: el push de su historial es de una subtarea, no suyo.
+    8: [...empezada(8), con(8, "2026-09-25T12:00:00Z", IN_PROGRESS, DONE), con(8, "2026-09-26T12:00:00Z", DONE, IN_PROGRESS), push("2026-09-26T15:00:00Z", 81), con(8, "2026-09-27T12:00:00Z", IN_PROGRESS, DONE)],
+    // Dos vueltas: la tarea cuenta una vez.
+    9: [...empezada(9), con(9, "2026-09-24T12:00:00Z", IN_PROGRESS, DONE), con(9, "2026-09-25T12:00:00Z", DONE, IN_PROGRESS), con(9, "2026-09-26T12:00:00Z", IN_PROGRESS, DONE), con(9, "2026-09-28T18:00:00Z", DONE, IN_REVIEW), con(9, "2026-09-29T12:00:00Z", IN_REVIEW, DONE)],
+    // Reabierta y todavia abierta: cuenta, y el codigo se busca hasta ahora.
+    10: [...empezada(10), con(10, "2026-09-25T12:00:00Z", IN_PROGRESS, DONE), con(10, "2026-09-29T12:00:00Z", DONE, IN_PROGRESS), push("2026-09-30T12:00:00Z", 10)],
+    // Pasa por una columna que ya no esta en ningun workflow.
+    11: [...empezada(11), con(11, "2026-09-25T12:00:00Z", IN_PROGRESS, 999), con(11, "2026-09-26T12:00:00Z", 999, DONE)],
+    // Sin la creacion en el historial el primer tramo arranca cuando se creo la
+    // tarea (12:00): salir de In Review a las 12:05 es una correccion.
+    12: [con(12, "2026-09-20T12:05:00Z", IN_REVIEW, IN_PROGRESS), con(12, "2026-09-21T12:00:00Z", IN_PROGRESS, DONE)],
+  };
+  const problemas = [];
+  const r = calcularRetrabajo(tareas, historiales, [WORKFLOW], { miembros: MIEMBROS, ahora: AHORA }, problemas);
+  check("las constantes de la regla", [ETIQUETA_SIN_RETRABAJO, MINUTOS_DE_CORRECCION], ["no-es-retrabajo", 10]);
+  check("10 cerradas alguna vez (la abierta que nunca cerró no; la terminada sin historial se informa aparte)", [r.cerradas, r.sinHistorial], [10, 1]);
+  check("5 con retrabajo: el 50 %", [r.conRetrabajo, r.pct, r.vueltas], [5, 50, 6]);
+  check("la más reciente primero", r.casos.map((c) => c.id), [10, 9, 1, 8, 2]);
+  check("reabiertas, devueltas antes de cerrar y con código nuevo", [r.reabiertas, r.devueltas, r.conCodigoNuevo], [4, 1, 2]);
+  check("descartadas: dos replanificaciones (a Backlog y a To Do) y dos correcciones de menos de 10 minutos", r.descartadas, { replanificadas: 2, correcciones: 2 });
+  check("la etiqueta, sin mayúsculas ni espacios, saca a la 5 de la cuenta", r.excluidas.map((c) => c.id), [5]);
+  check("una vuelta, completa", r.casos.find((c) => c.id === 1), {
+    id: 1, titulo: "Tarea 1", url: "https://app.shortcut.com/lavapp/story/1", historia: null, responsables: [], terminada: true,
+    vueltas: [{ el: "2026-09-27T12:00:00Z", quien: "beto", desde: "Done", hacia: "In Review", reapertura: true, conCodigoNuevo: true }],
+    conCodigoNuevo: true,
+  });
+  check("devuelta desde la revisión: no es reapertura", r.casos.find((c) => c.id === 2).vueltas, [{ el: "2026-09-24T13:00:00Z", quien: "Ana Pérez", desde: "In Review", hacia: "In Progress", reapertura: false, conCodigoNuevo: false }]);
+  check("el push de una subtarea en el historial de su historia no es código de la historia", r.casos.find((c) => c.id === 8).conCodigoNuevo, false);
+  check("todavía abierta: cuenta, y el push de después también", [r.casos.find((c) => c.id === 10).terminada, r.casos.find((c) => c.id === 10).conCodigoNuevo], [false, true]);
+  check("la columna que no existe se anota una vez", problemas.map((p) => [p.tarea, p.campo, p.valor]), [[11, "historial", "999"]]);
+  check("sin tareas: nada que medir", (({ cerradas, pct, casos }) => [cerradas, pct, casos])(calcularRetrabajo([], {}, [WORKFLOW], { ahora: AHORA })), [0, null, []]);
+
+  // De punta a punta: armarReporte lee las etiquetas de la story y publica el
+  // retrabajo en el equipo, con el OKR segundo en la lista.
+  const reabierta = (id) => [
+    creada(id, "2026-09-20T12:00:00Z", { iteration_id: 29, workflow_state_id: TO_DO }),
+    cambioDeEstado(id, "2026-09-24T12:00:00Z", TO_DO, DONE),
+    cambioDeEstado(id, "2026-09-26T12:00:00Z", DONE, IN_PROGRESS),
+    cambioDeEstado(id, "2026-09-27T12:00:00Z", IN_PROGRESS, DONE),
+  ];
+  const metaDe10 = { horasPorPunto: null, wipMaxPorPersona: 3, horasPactadas: { porIntegrante: null, finDelProyecto: null }, metas: { bugsRatioMax: null, retrabajoMax: 10, efectividadMin: null, utilizacionMin: null, utilizacionMax: null }, integrantes: [] };
+  const rep = reporte(
+    [terminada({ id: 21, labels: [{ id: 1, name: "needs qa" }] }), terminada({ id: 22, labels: [{ id: 2, name: "no-es-retrabajo" }] }), terminada({ id: 23 })],
+    { historiales: { 21: reabierta(21), 22: reabierta(22), 23: [creada(23, "2026-09-20T12:00:00Z", { iteration_id: 29 })] }, equipo: metaDe10 }
+  );
+  check("armarReporte: 1 de 3 cerradas con retrabajo; la de la etiqueta va aparte", [rep.equipo.retrabajo.cerradas, rep.equipo.retrabajo.casos.map((c) => c.id), rep.equipo.retrabajo.excluidas.map((c) => c.id)], [3, [21], [22]]);
+  check("y el OKR, segundo en la lista, contra la meta", rep.equipo.okrs[1], { clave: "retrabajo", nombre: "Retrabajo", valor: 33.3, meta: 10, descripcionMeta: "como mucho 10%", cumple: false });
+  check("sin problemas", rep.problemas, []);
 }
 
 console.log("\n" + ok + " OK, " + fail + " fallas");

@@ -29,7 +29,7 @@ const ALCANCES = {
     en: "en el proyecto",
     al: "al proyecto",
     durante: "en los sprints del proyecto",
-    okrs: "Los tres resultados clave de todo el proyecto, con todos los sprints sumados, contra la meta que acordó el equipo",
+    okrs: "Los resultados clave de todo el proyecto, con todos los sprints sumados, contra la meta que acordó el equipo",
     sinTareas: "El proyecto todavía no tiene tareas cargadas en ningún sprint.",
     sinBugs:
       "El proyecto no tiene ninguna story de tipo «bug» en Shortcut. El ratio empieza a decir algo cuando los defectos se carguen con ese tipo, no como feature.",
@@ -40,7 +40,7 @@ const ALCANCES = {
     en: "en el sprint",
     al: "al sprint",
     durante: "durante el sprint",
-    okrs: "Los tres resultados clave del sprint contra la meta que acordó el equipo",
+    okrs: "Los resultados clave del sprint contra la meta que acordó el equipo",
     sinTareas: "El sprint todavía no tiene tareas cargadas.",
     sinBugs:
       "El sprint no tiene ninguna story de tipo «bug» en Shortcut. El ratio empieza a decir algo cuando los defectos se carguen con ese tipo, no como feature.",
@@ -545,6 +545,8 @@ function Proyecto({ reporte }) {
 
       <PanelEfectividad horas={equipo.horas} metas={equipo.configuracion.metas} />
 
+      <PanelRetrabajo retrabajo={equipo.retrabajo} alcance={alcance} />
+
       {problemas.length > 0 && <Problemas problemas={problemas} />}
 
       <p className="nota">
@@ -553,8 +555,9 @@ function Proyecto({ reporte }) {
         Cada tarea es una story de Shortcut, subtareas incluidas, contada desde las stories de
         su sprint; lo planificado de un sprint es todo lo que entró a él, y una tarea movida a
         otro sprint cuenta como planificada y no cumplida. Los errores son las stories de tipo
-        «bug» de todo el proyecto. El rol y las horas pactadas de cada integrante, las horas por
-        punto y las metas de los OKR salen de <code>data/equipo.json</code>; las horas pactadas
+        «bug» de todo el proyecto, y el retrabajo sale del historial de cada tarjeta. El rol y las
+        horas pactadas de cada integrante, las horas por punto y las metas de los OKR salen de{" "}
+        <code>data/equipo.json</code>; las horas pactadas
         son por persona para todo el proyecto y cada período recibe la parte que le toca por sus
         días, y los puntos de una tarea compartida se reparten entre sus responsables. Los datos
         se releen solos cada pocos minutos y «Actualizar» los trae de Shortcut en el momento.
@@ -664,6 +667,8 @@ function Reporte({ reporte, pedidoDeHistorial, verProyecto, ocupado }) {
 
       <PanelEfectividad horas={equipo.horas} metas={equipo.configuracion.metas} />
 
+      <PanelRetrabajo retrabajo={equipo.retrabajo} alcance={alcance} />
+
       <PanelTiempoEnSprint tiempoEnSprint={tiempoEnSprint} tiempoPorColumna={tiempoPorColumna} />
 
       <PanelCycleTime cycleTime={cycleTime} />
@@ -696,8 +701,9 @@ function Reporte({ reporte, pedidoDeHistorial, verProyecto, ocupado }) {
         puntos de una tarea compartida se reparten entre sus responsables al pasarlos a
         horas, y las horas pactadas son por persona para todo el proyecto, prorrateadas a
         los días del sprint. El progreso del proyecto suma las
-        estadísticas de todos los sprints, y los errores son las stories de tipo «bug»
-        de todo el proyecto. El rol y las horas pactadas de cada
+        estadísticas de todos los sprints, los errores son las stories de tipo «bug»
+        de todo el proyecto y el retrabajo sale del historial de cada tarjeta. El rol y las
+        horas pactadas de cada
         integrante, las horas por punto y las metas de los OKR salen de{" "}
         <code>data/equipo.json</code>, que mantiene el equipo. Los datos se releen solos cada
         pocos minutos y «Actualizar» los trae de Shortcut en el momento.
@@ -1526,7 +1532,14 @@ function Leyenda() {
   );
 }
 
-function detalleDeOkr(okr, { bugs, horas: h }, alcance) {
+function detalleDeOkr(okr, { bugs, horas: h, retrabajo }, alcance) {
+  if (okr.clave === "retrabajo") {
+    if (!retrabajo) return "no se pudo leer el historial de las tareas";
+    if (retrabajo.cerradas === 0) return `todavía no se cerró ninguna tarea ${alcance.en}`;
+    return `${retrabajo.conRetrabajo} de ${textoDeTareas(retrabajo.cerradas)} ${
+      retrabajo.cerradas === 1 ? "cerrada" : "cerradas"
+    } ${retrabajo.conRetrabajo === 1 ? "volvió" : "volvieron"} atrás`;
+  }
   if (okr.clave === "bugsRatio") {
     if (bugs.sinRegistro) return "ningún defecto registrado en Shortcut: no hay con qué medirlo";
     if (bugs.historiasTerminadas === 0) return "todavía no hay historias terminadas para comparar";
@@ -1553,7 +1566,7 @@ const valorDeOkr = (okr) =>
 
 // Los OKR van primero en las dos vistas: son lo que el equipo acordó medir.
 function PanelOkrs({ equipo, alcance }) {
-  const { okrs, bugs, horas: horasDelEquipo, configuracion } = equipo;
+  const { okrs, bugs, retrabajo, horas: horasDelEquipo, configuracion } = equipo;
   return (
     <section className="panel okrs-principales">
       <h2>OKRs principales</h2>
@@ -1569,7 +1582,7 @@ function PanelOkrs({ equipo, alcance }) {
             meta={okr.descripcionMeta}
             cumple={okr.cumple}
             critico={okr.cumple === false}
-            detalle={detalleDeOkr(okr, { bugs, horas: horasDelEquipo }, alcance)}
+            detalle={detalleDeOkr(okr, { bugs, horas: horasDelEquipo, retrabajo }, alcance)}
           />
         ))}
       </div>
@@ -1904,6 +1917,115 @@ function PanelEfectividad({ horas: datosDeHoras, metas }) {
         </p>
       )}
     </section>
+  );
+}
+
+// ---- Retrabajo: las tareas que volvieron atras --------------------------------
+
+// El detalle del OKR de retrabajo: cada vuelta atras con quien la hizo y
+// cuando, para revisarla en la retro. Una tarea con dos vueltas ocupa dos
+// filas; la cuenta del OKR la toma una sola vez.
+function PanelRetrabajo({ retrabajo, alcance }) {
+  if (!retrabajo) return null;
+  const { cerradas, casos, excluidas, descartadas, sinHistorial, etiqueta, minutosDeCorreccion } = retrabajo;
+  const filas = casos.flatMap((c) => c.vueltas.map((v, i) => ({ ...v, tarea: c, clave: `${c.id}-${i}` })));
+  return (
+    <section className="panel" id="retrabajo">
+      <h2>
+        Retrabajo <Insignia tipo="okr" />
+      </h2>
+      <p className="subtitulo">
+        Las tareas {alcance.del} que volvieron atrás después de presentarse o de cerrarse, con
+        quién las movió y cuándo, para revisarlas en la retro
+      </p>
+      <div className="grilla-kpis">
+        <TarjetaKpi
+          etiqueta="Con retrabajo"
+          valor={retrabajo.conRetrabajo}
+          detalle={`de ${textoDeTareas(cerradas)} ${cerradas === 1 ? "cerrada" : "cerradas"}`}
+        />
+        <TarjetaKpi etiqueta="Reabiertas" valor={retrabajo.reabiertas} detalle="volvieron después de Done" />
+        <TarjetaKpi
+          etiqueta="Devueltas antes de cerrar"
+          valor={retrabajo.devueltas}
+          detalle="volvieron desde la revisión o el deploy"
+        />
+        <TarjetaKpi
+          etiqueta="Con código nuevo"
+          valor={retrabajo.conCodigoNuevo}
+          detalle="hubo un push a su rama después de volver"
+        />
+      </div>
+      {filas.length === 0 ? (
+        <p className="motivo">
+          {cerradas === 0
+            ? `Todavía no se cerró ninguna tarea ${alcance.en}.`
+            : `Ninguna tarea volvió atrás ${alcance.en}.`}
+        </p>
+      ) : (
+        <Plegable items={filas} visibles={FILAS_VISIBLES}>
+          {(porcion) => <TablaDeVueltas filas={porcion} />}
+        </Plegable>
+      )}
+      {excluidas.length > 0 && (
+        <p className="motivo">
+          No cuentan, porque tienen la etiqueta «{etiqueta}»:{" "}
+          {listar(excluidas.map((c) => `sc-${c.id}`))}.
+        </p>
+      )}
+      <p className="motivo">
+        Cuenta como retrabajo que una tarea pase de la revisión, el deploy o Done a una columna de
+        trabajo anterior, por ejemplo de Done a In Review. No cuentan{" "}
+        {concordar(descartadas.replanificadas, "vuelta", "vueltas")} a To Do o Backlog, que son
+        replanificar o pausar, ni {concordar(descartadas.correcciones, "salida", "salidas")} de una
+        columna antes de {minutosDeCorreccion} minutos, que son tarjetas mal movidas. Si una vuelta
+        no fue un error, la etiqueta «{etiqueta}» en la tarjeta la saca de la cuenta. El código
+        nuevo solo se ve cuando la rama lleva el número de la tarea, como <code>feat-sc-63</code>:
+        Shortcut no vincula las demás.
+        {sinHistorial > 0 && ` ${textoDeTareas(sinHistorial)} sin historial no se midieron.`}
+      </p>
+    </section>
+  );
+}
+
+function TablaDeVueltas({ filas }) {
+  return (
+    <div className="contrato">
+      <table>
+        <thead>
+          <tr>
+            <th>Tarea</th>
+            <th>Vuelta</th>
+            <th>Cuándo</th>
+            <th>Quién</th>
+            <th>Código nuevo</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filas.map((f) => (
+            <tr key={f.clave}>
+              <td>
+                {f.tarea.titulo}
+                <a className="id-tarea" href={f.tarea.url} target="_blank" rel="noreferrer">
+                  sc-{f.tarea.id}
+                </a>
+                {f.tarea.historia && (
+                  <span className="subtexto">
+                    Subtarea de {f.tarea.historia.titulo ?? `sc-${f.tarea.historia.id}`}
+                  </span>
+                )}
+              </td>
+              <td className="sin-corte">
+                {f.desde} → {f.hacia}
+              </td>
+              <td className="sin-corte">{diaYHora(f.el)}</td>
+              <td>{f.quien ?? "–"}</td>
+              <td className="sin-corte">{f.conCodigoNuevo ? "Sí" : "Sin vincular"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

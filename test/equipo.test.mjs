@@ -33,7 +33,7 @@ const EQUIPO = {
   horasPorPunto: 4,
   wipMaxPorPersona: 2,
   horasPactadas: { porIntegrante: null, finDelProyecto: null },
-  metas: { bugsRatioMax: 0.25, efectividadMin: 80, utilizacionMin: 70, utilizacionMax: 90 },
+  metas: { bugsRatioMax: 0.25, retrabajoMax: 10, efectividadMin: 80, utilizacionMin: 70, utilizacionMax: 90 },
   integrantes: [
     { nombre: "Ana", rol: "Dev", detalle: null, horasPactadas: 40 },
     { nombre: "Beto", rol: "Dev", detalle: null, horasPactadas: 20 },
@@ -230,13 +230,18 @@ console.log("Bugs ratio");
 console.log("OKRs");
 {
   const metas = EQUIPO.metas;
-  const okrs = evaluarOkrs({ bugs: { ratio: 0.2 }, horas: { equipo: { efectividad: 85, utilizacion: 95 } } }, metas);
-  check("claves y cumplimiento", okrs.map((o) => [o.clave, o.valor, o.cumple]), [["bugsRatio", 0.2, true], ["efectividad", 85, true], ["utilizacion", 95, false]]);
-  check("metas en texto", okrs.map((o) => o.descripcionMeta), ["como mucho 0.25", "al menos 80%", "entre 70% y 90%"]);
+  const okrs = evaluarOkrs({ bugs: { ratio: 0.2 }, retrabajo: { pct: 12.5 }, horas: { equipo: { efectividad: 85, utilizacion: 95 } } }, metas);
+  check("claves y cumplimiento, en el orden de la pantalla: calidad primero", okrs.map((o) => [o.clave, o.valor, o.cumple]), [["bugsRatio", 0.2, true], ["retrabajo", 12.5, false], ["efectividad", 85, true], ["utilizacion", 95, false]]);
+  check("metas en texto", okrs.map((o) => o.descripcionMeta), ["como mucho 0.25", "como mucho 10%", "al menos 80%", "entre 70% y 90%"]);
+  check("retrabajo justo en la meta: cumple", evaluarOkrs({ bugs: { ratio: null }, retrabajo: { pct: 10 }, horas: { equipo: null } }, metas)[1].cumple, true);
+  check("sin tareas cerradas el retrabajo no tiene valor", evaluarOkrs({ bugs: { ratio: null }, retrabajo: { pct: null }, horas: { equipo: null } }, metas)[1], { clave: "retrabajo", nombre: "Retrabajo", valor: null, meta: 10, descripcionMeta: "como mucho 10%", cumple: null });
   const sinDatos = evaluarOkrs({ bugs: { ratio: null }, horas: { equipo: null } }, metas);
-  check("sin valor no se puede decir si cumple", sinDatos.map((o) => o.cumple), [null, null, null]);
-  const sinMetas = evaluarOkrs({ bugs: { ratio: 0.2 }, horas: { equipo: { efectividad: 85, utilizacion: 80 } } }, EQUIPO_VACIO.metas);
-  check("sin meta tampoco", sinMetas.map((o) => [o.cumple, o.descripcionMeta]), [[null, null], [null, null], [null, null]]);
+  check("sin valor no se puede decir si cumple (sin el cálculo del retrabajo, tampoco)", sinDatos.map((o) => o.cumple), [null, null, null, null]);
+  const sinMetas = evaluarOkrs({ bugs: { ratio: 0.2 }, retrabajo: { pct: 3.4 }, horas: { equipo: { efectividad: 85, utilizacion: 80 } } }, EQUIPO_VACIO.metas);
+  check("sin meta tampoco", sinMetas.map((o) => [o.cumple, o.descripcionMeta]), [[null, null], [null, null], [null, null], [null, null]]);
+  check("metas armadas sin retrabajoMax: el OKR queda sin meta, no se rompe",
+    evaluarOkrs({ bugs: { ratio: 0.2 }, retrabajo: { pct: 3.4 }, horas: { equipo: null } }, { bugsRatioMax: 0.25, efectividadMin: 80, utilizacionMin: 70, utilizacionMax: 90 })[1],
+    { clave: "retrabajo", nombre: "Retrabajo", valor: 3.4, meta: null, descripcionMeta: null, cumple: null });
 }
 
 // ---- configuración ------------------------------------------------------------
@@ -247,7 +252,7 @@ console.log("Normalización de data/equipo.json");
     horasPorPunto: 4,
     wipMaxPorPersona: "tres",
     horasPactadas: { porIntegrante: 150, finDelProyecto: "2026-12-05" },
-    metas: { bugsRatioMax: 0.25, efectividadMin: -1 },
+    metas: { bugsRatioMax: 0.25, retrabajoMax: 10, efectividadMin: -1 },
     integrantes: [
       { nombre: " Ana ", rol: "Dev", detalle: " BA ", horasPactadas: 120 },
       { nombre: "Ana", rol: "QA" },
@@ -256,7 +261,7 @@ console.log("Normalización de data/equipo.json");
       { nombre: "Caro" },
     ],
   });
-  check("lo válido se normaliza, lo inválido cae al default", [r.datos.horasPorPunto, r.datos.wipMaxPorPersona, r.datos.horasPactadas, r.datos.metas], [4, 3, { porIntegrante: 150, finDelProyecto: "2026-12-05" }, { bugsRatioMax: 0.25, efectividadMin: null, utilizacionMin: null, utilizacionMax: null }]);
+  check("lo válido se normaliza, lo inválido cae al default", [r.datos.horasPorPunto, r.datos.wipMaxPorPersona, r.datos.horasPactadas, r.datos.metas], [4, 3, { porIntegrante: 150, finDelProyecto: "2026-12-05" }, { bugsRatioMax: 0.25, retrabajoMax: 10, efectividadMin: null, utilizacionMin: null, utilizacionMax: null }]);
   check("integrantes: recortados, sin repetidos, rol y horas inválidos a null", r.datos.integrantes, [
     { nombre: "Ana", rol: "Dev", detalle: "BA", horasPactadas: 120 },
     { nombre: "Beto", rol: null, detalle: null, horasPactadas: null },
@@ -313,7 +318,7 @@ console.log("armarReporte publica `equipo`");
   check("configuración resumida", [e.configuracion.integrantes, e.configuracion.sinRol, e.configuracion.sinHoras, e.configuracion.fueraDeLaConfiguracion], [1, [], [], []]);
   check("sin configuración: todo sin rol y horas sin calcular",
     (() => { const r = armarReporte({ iteraciones: [iteracion], iteracion, stories: [story({})], workflows: [WORKFLOW], miembros: MIEMBROS, epics: [], historiales: {}, movidas: null }, { ahora: new Date("2026-09-30T15:00:00Z") }).equipo; return [r.porRol.grupos[0].rol, r.horas.configurado, r.okrs.map((o) => o.cumple)]; })(),
-    [SIN_ROL, false, [null, null, null]]);
+    [SIN_ROL, false, [null, null, null, null]]);
 }
 
 console.log(`\n${ok} OK, ${fail} fallas`);
