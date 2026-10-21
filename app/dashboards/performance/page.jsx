@@ -13,7 +13,7 @@ import Plegable from "@/components/Plegable";
 import BarraDeProgreso from "@/components/BarraDeProgreso";
 import Insignia from "@/components/Insignia";
 import { buscarSeccion, ESTADO_SIN_FUENTE } from "@/lib/secciones";
-import { diaLocal, ESTADOS_SPRINT, ETAPAS, ZONA_HORARIA } from "@/lib/kpis/performance";
+import { diaLocal, ESTADOS_SPRINT, ETAPAS, VERSION_DE_DATOS, ZONA_HORARIA } from "@/lib/kpis/performance";
 import { SIN_ASIGNAR, SIN_ROL, TIPOS_DE_METRICA } from "@/lib/kpis/equipo";
 import { AMBITO_PROYECTO } from "@/lib/kpis/proyecto";
 
@@ -182,6 +182,19 @@ function diasDeCalendario(n) {
 
 // El proyecto entero y cada sprint tienen su endpoint: el del proyecto lee las
 // tareas de todos los sprints.
+// La respuesta es de otra version que esta pantalla: o el servidor sigue con
+// el codigo viejo (un `next dev` que no recargo, ver VERSION_DE_DATOS), o la
+// pagina abierta es la vieja. Sin esto, la pantalla se rompe leyendo un campo
+// que no vino. Las versiones son fechas AAAA-MM-DD y se comparan como texto.
+const ESTADO_VERSION_DISTINTA = "version";
+function versionDistinta(cuerpo) {
+  if (cuerpo?.version === VERSION_DE_DATOS) return null;
+  const servidorViejo = !cuerpo?.version || cuerpo.version < VERSION_DE_DATOS;
+  return servidorViejo
+    ? "El servidor está respondiendo con una versión anterior del código: hay que reiniciarlo. En desarrollo, cortá «next dev» y volvé a levantarlo."
+    : "Esta página es de una versión anterior a la del servidor: recargala.";
+}
+
 async function pedirReporte(ambito, metodo) {
   const url =
     ambito === AMBITO_PROYECTO
@@ -207,11 +220,14 @@ async function pedirReporte(ambito, metodo) {
       },
     };
   }
+  const distinta = versionDistinta(cuerpo);
+  if (distinta) return { error: { estado: ESTADO_VERSION_DISTINTA, motivo: distinta } };
   return { reporte: cuerpo };
 }
 
 function senalDe(reporte, error) {
   if (error?.estado === ESTADO_SIN_FUENTE) return { tono: "pendiente", texto: "Sin conectar" };
+  if (error?.estado === ESTADO_VERSION_DISTINTA) return { tono: "alerta", texto: "Versiones distintas" };
   if (error) return { tono: "alerta", texto: "Sin datos de Shortcut" };
   if (!reporte) return null;
   if (reporte.lectura.desactualizado) return { tono: "alerta", texto: "Datos desactualizados" };
@@ -452,6 +468,15 @@ function PanelDeError({ error, volver }) {
       </button>
     </p>
   );
+  if (error.estado === ESTADO_VERSION_DISTINTA) {
+    return (
+      <div className="panel error">
+        <strong>La pantalla y el servidor son de versiones distintas.</strong>
+        <br />
+        {error.motivo}
+      </div>
+    );
+  }
   if (error.estado === ESTADO_SIN_FUENTE) {
     return (
       <div className="panel error">
@@ -1114,6 +1139,8 @@ async function pedirHistorial(metodo) {
   }
   const cuerpo = await res.json().catch(() => null);
   if (!res.ok) return { error: cuerpo?.motivo ?? `El backoffice respondió HTTP ${res.status}.` };
+  const distinta = versionDistinta(cuerpo);
+  if (distinta) return { error: distinta };
   return { historial: cuerpo };
 }
 

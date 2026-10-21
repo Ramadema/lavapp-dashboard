@@ -4,6 +4,7 @@
 
 import { armarReporte, erroresDelProyecto, progresoDelProyecto } from "../lib/kpis/performance.js";
 import { armarProyecto, describirPeriodo } from "../lib/kpis/proyecto.js";
+import { VERSION_DE_DATOS } from "../lib/kpis/performance.js";
 
 let ok = 0, fail = 0;
 const check = (nombre, real, esperado) => {
@@ -237,7 +238,7 @@ console.log("armarProyecto: el proyecto entero desde las stories de todos los sp
     { iteraciones: [S2, S1], sprints: LECTURAS, ...CATALOGOS, conteos: { stories: 5, bugs: 1, bugsResueltos: 1, bugsAbiertos: 0 } },
     { ahora: AHORA, equipo: EQUIPO }
   );
-  check("ámbito y sprints para el selector, del más nuevo al más viejo", [r.ambito, r.sprints.map((s) => s.id)], ["proyecto", [70, 29]]);
+  check("ámbito, versión de los datos y sprints para el selector, del más nuevo al más viejo", [r.ambito, r.version, r.sprints.map((s) => s.id)], ["proyecto", VERSION_DE_DATOS, [70, 29]]);
   check("progreso: 3 de 5 tareas y 4 de 11 puntos, contados desde las stories", [r.progreso.tareas, r.progreso.puntos], [
     { total: 5, terminadas: 3, enCurso: 1, pendientes: 1, pct: 60 },
     { total: 11, terminados: 4, pct: 36.4, tareasSinEstimar: 1 },

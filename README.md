@@ -747,6 +747,16 @@ que la próxima carga de cualquiera también trae el dato nuevo. La pantalla
 siempre dice de cuándo es el dato ("Datos de Shortcut del…") y avisa si tiene
 más de 30 minutos.
 
+### Si la pantalla dice «Versiones distintas»
+
+Cada respuesta de `/api/performance`, `/proyecto` y `/historial` trae la
+versión de la forma de sus datos (`VERSION_DE_DATOS` en
+`lib/kpis/performance.js`) y la pantalla la compara con la suya. Si no
+coinciden, en vez de romperse muestra el aviso: el servidor sigue con el código
+viejo (un `next dev` que no recargó lo de `lib/`: cortarlo y volver a
+levantarlo) o la página abierta es la vieja (recargarla). Cada vez que cambia la
+forma de esas respuestas, se actualiza la fecha de `VERSION_DE_DATOS`.
+
 ### Si Shortcut falla
 
 No hay respaldo en disco: inventar un sprint sería peor que no mostrarlo. El

@@ -29,6 +29,7 @@ import {
   otrosSprints,
   describirProyecto,
   repartirDias,
+  VERSION_DE_DATOS,
 } from "../lib/kpis/performance.js";
 
 let ok = 0, fail = 0;
@@ -771,6 +772,14 @@ console.log("### Reporte con tareas movidas a otro sprint");
   check("el resumen no cuenta la movida (es como cuenta Shortcut)", r.resumen.tareas.total, 2);
   check("el reporte trae ritmo, tiempo en el sprint y tiempo por columna", [r.ritmo.dias.length, r.tiempoEnSprint.tareas.length, r.tiempoPorColumna.columnas.length, r.tiempoPorColumna.sinDatos], [8, 1, 0, 1]);
   check("sin movidas el cumplimiento igual se calcula", reporte([story()]).cumplimiento.planificadas.movidas, 0);
+}
+
+console.log("### Versión de los datos");
+{
+  check("el reporte de un sprint trae la versión de los datos", reporte([story()]).version, VERSION_DE_DATOS);
+  check("es una fecha AAAA-MM-DD, que se compara como texto", /^\d{4}-\d{2}-\d{2}$/.test(VERSION_DE_DATOS), true);
+  const h = armarHistorial({ iteraciones: [iteracion()], sprints: [], workflows: [WORKFLOW], miembros: MIEMBROS, epics: EPICS }, { ahora: AHORA });
+  check("el historial también", h.version, VERSION_DE_DATOS);
 }
 
 console.log("### Avance por tipo de trabajo (Skill Set)");
