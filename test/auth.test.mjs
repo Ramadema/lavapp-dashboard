@@ -42,20 +42,20 @@ console.log("Permisos: roles");
 console.log("\nPermisos: que ve cada rol");
 {
   check("admin ve todas las secciones del registro", seccionesVisibles("admin").map((s) => s.slug), SECCIONES.map((s) => s.slug));
-  check("visitors ve solo performance", seccionesVisibles("visitors").map((s) => s.slug), ["performance"]);
+  check("visitors ve la sección del cliente y performance", seccionesVisibles("visitors").map((s) => s.slug), ["inversion", "performance"]);
   check("un rol desconocido no ve ninguna", seccionesVisibles("root"), []);
   check("seccionesVisibles filtra por grupo, en el orden del registro", seccionesVisibles("admin", "Proyecto").map((s) => s.slug), ["inversion", "performance"]);
   check("admin tiene todos los grupos", gruposVisibles("admin"), ["Gestión", "Investigación", "Proyecto", "Sistema"]);
-  check("visitors tiene solo el grupo de performance", gruposVisibles("visitors"), ["Proyecto"]);
+  check("visitors tiene solo el grupo del proyecto", gruposVisibles("visitors"), ["Proyecto"]);
   check("la descripcion de admin", describirRol("admin"), "Acceso completo");
-  check("la descripcion de visitors nombra su seccion", describirRol("visitors"), "Solo Performance");
+  check("la descripcion de visitors nombra sus secciones", describirRol("visitors"), "Solo Avance e inversión y Performance");
   check("la descripcion de un rol desconocido", describirRol("root"), "Sin acceso");
 }
 
 console.log("\nPermisos: a donde entra cada uno");
 {
   check("admin entra al menu", rutaInicial("admin"), "/");
-  check("visitors entra derecho a performance", rutaInicial("visitors"), "/dashboards/performance");
+  check("visitors entra derecho a la sección del cliente", rutaInicial("visitors"), "/dashboards/inversion");
 }
 
 console.log("\nPermisos: que rutas puede abrir cada rol");
@@ -63,6 +63,7 @@ console.log("\nPermisos: que rutas puede abrir cada rol");
   const rutas = ["/", "/dashboards/performance", "/dashboards/estado", "/api/performance", "/api/performance/historial", "/api/salud", "/api/kpis"];
   check("admin abre todo, incluso lo que no es una seccion", rutas.map((r) => puedeVer("admin", r)), rutas.map(() => true));
   check("visitors abre performance y sus endpoints", ["/dashboards/performance", "/api/performance", "/api/performance/historial"].map((r) => puedeVer("visitors", r)), [true, true, true]);
+  check("visitors abre la sección del cliente y su endpoint", ["/dashboards/inversion", "/api/inversion"].map((r) => puedeVer("visitors", r)), [true, true]);
   check("visitors no abre el menu ni otras secciones ni sus endpoints", ["/", "/dashboards/estado", "/dashboards/operacion", "/api/salud", "/api/kpis", "/api/respuestas"].map((r) => puedeVer("visitors", r)), [false, false, false, false, false, false]);
   check("el prefijo se compara por segmento, no por texto", [puedeVer("visitors", "/dashboards/performance-privada"), puedeVer("visitors", "/api/performancex")], [false, false]);
   check("un rol desconocido no abre nada", puedeVer("root", "/dashboards/performance"), false);
