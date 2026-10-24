@@ -572,6 +572,7 @@ Copiá esto en la descripción del PR y marcá cada punto.
 [ ] Si cambié una regla de negocio, dejé la firma @decision (ver convenciones.md)
 [ ] Actualicé el README si cambió la lista de KPIs o los endpoints
 [ ] Si cambió la forma de /api/performance*, actualicé VERSION_DE_DATOS (lib/kpis/performance.js)
+[ ] Si cambió la forma de /api/inversion, actualicé VERSION_DE_INVERSION (lib/kpis/inversion.js)
 ```
 
 ## Comandos de verificación de referencia

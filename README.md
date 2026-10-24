@@ -2,8 +2,9 @@
 
 Backoffice del proyecto LavApp, desarrollado para el Seminario de Integración
 Profesional. Reúne los tableros internos del producto: la encuesta a 40 lavaderos
-de autos sobre gestión operativa (con datos), **Performance**, el avance del
-sprint del equipo leído en vivo de Shortcut, y las cuatro secciones de **Gestión**
+de autos sobre gestión operativa (con datos), **Avance e inversión**, el MVP
+contado para el cliente que pone la plata, y **Performance**, lo interno del
+equipo, las dos leídas en vivo de Shortcut, y las cuatro secciones de **Gestión**
 —Operación, Lavaderos y sucursales, Clientes y vehículos, Facturación y
 suscripciones— leídas en vivo de la app de gestión de LavApp (`lavapp-backend`)
 a través de su API de backoffice.
@@ -16,7 +17,7 @@ se mantiene: cada pantalla consume los endpoints por `fetch`, no accede al dato
 directo.
 
 - **`/app`** — el menú inicial (`page.jsx`), las secciones bajo `/app/dashboards/<slug>/` y los Route Handlers bajo `/app/api`, que exponen la API REST.
-- **`/lib`** — lógica del lado del servidor: `encuestas.js` resuelve la fuente de datos, `csv.js` parsea el CSV, `normalizar.js` valida y traduce los valores, `kpis/encuesta.js` calcula los indicadores, `secciones.js` declara qué secciones existen y qué contrato tiene cada endpoint. Para Performance, `shortcut.js` lee la API de Shortcut, `kpis/performance.js` arma el reporte de un sprint, `kpis/proyecto.js` el del proyecto entero (todos los sprints sumados), `kpis/equipo.js` los KPIs y OKRs del equipo, y `equipo.js` lee `data/equipo.json` (roles, horas pactadas, metas). Para Gestión, `gestion.js` lee la API de backoffice de la app de gestión y `kpis/{operacion,lavaderos,clientes,facturacion}.js` arman cada tablero; `kpis/tiempo.js` es el tiempo y la estadística que comparten.
+- **`/lib`** — lógica del lado del servidor: `encuestas.js` resuelve la fuente de datos, `csv.js` parsea el CSV, `normalizar.js` valida y traduce los valores, `kpis/encuesta.js` calcula los indicadores, `secciones.js` declara qué secciones existen y qué contrato tiene cada endpoint. Para Performance, `shortcut.js` lee la API de Shortcut, `kpis/performance.js` arma el reporte de un sprint, `kpis/proyecto.js` el del proyecto entero (todos los sprints sumados), `kpis/equipo.js` los KPIs y OKRs del equipo, y `equipo.js` lee `data/equipo.json` (roles, horas pactadas, metas y lo que pide el cliente). Para Avance e inversión, `kpis/inversion.js` cuenta el MVP para el cliente con las mismas tareas. Para Gestión, `gestion.js` lee la API de backoffice de la app de gestión y `kpis/{operacion,lavaderos,clientes,facturacion}.js` arman cada tablero; `kpis/tiempo.js` es el tiempo y la estadística que comparten.
 - **`proxy.js` y `/lib/auth`** — el acceso: dos usuarios fijos (`admin` y `visitors`), la sesión en una cookie firmada y qué sección ve cada rol. Ver [Acceso](#acceso-usuarios-y-roles).
 - **`/components`** — navegación, encabezado de sección, la sección remota (carga, «Actualizar» y errores de una fuente), bloque de sesión, tarjetas de KPI y gráficos (Recharts).
 - **`/data`** — `encuestas.json`, las 40 respuestas originales, que además funcionan como respaldo.
@@ -94,8 +95,8 @@ Salida esperada:
 ### 4. Abrir el backoffice
 
 Ir a **http://localhost:3000**. La primera pantalla es el login: entrar con
-`admin` y la contraseña de `BACKOFFICE_ADMIN_PASSWORD`. Con `visitors` se ve
-únicamente Performance.
+`admin` y la contraseña de `BACKOFFICE_ADMIN_PASSWORD`. Con `visitors` se ven
+Avance e inversión (por donde entra) y Performance.
 
 Un solo proceso sirve el front y la API: no hace falta un segundo servidor ni
 configurar proxies. La raíz es el menú, con una tarjeta por sección.
@@ -158,7 +159,10 @@ curl -b /tmp/sesion.txt "http://localhost:3000/api/operacion?dias=7"
 curl -b /tmp/sesion.txt http://localhost:3000/api/facturacion
 # {"conectada":true,"totales":{"cuentasConPlan":2,"mrrPorPlanes":[{"moneda":"ARS","valor":190000}],...
 
-# Performance (necesita SHORTCUT_API_TOKEN):
+# Avance e inversión y Performance (necesitan SHORTCUT_API_TOKEN):
+curl -b /tmp/sesion.txt http://localhost:3000/api/inversion
+# {"version":"2026-10-24","unidad":"horas","mvp":{"hoy":"2026-10-24","entrega":"2026-10-28",...
+#  "alcance":{"tareas":{"total":128,"terminadas":102,...},"valor":{"total":1328,"terminado":1072,...
 curl -b /tmp/sesion.txt http://localhost:3000/api/performance/proyecto
 # {"ambito":"proyecto","sprints":[...],"periodo":{"inicio":"2026-09-23","fin":"2026-10-21",...
 #  "progreso":{"sprints":[...],"tareas":{"total":128,"terminadas":85,...
@@ -167,7 +171,7 @@ curl -b /tmp/sesion.txt http://localhost:3000/api/performance
 #  "resumen":{"tareas":{"total":56,"terminadas":4,...
 
 # Sin cookie, cualquier endpoint responde 401; con la sesion de visitors, los
-# que no son de Performance responden 403.
+# que no son de Avance e inversión ni de Performance responden 403.
 curl -i http://localhost:3000/api/salud
 # HTTP/1.1 401 Unauthorized
 ```
@@ -188,7 +192,7 @@ de datos de usuarios: las contraseñas viven en variables de entorno.
 | Usuario | Qué ve | A dónde entra |
 |---------|--------|---------------|
 | `admin` | Todo: las secciones, el menú y toda la API. | El menú inicial. |
-| `visitors` | Solo **Performance** y sus endpoints (`/api/performance*`). Para compartir el avance del proyecto con gente de afuera del equipo. | Directo a Performance. En la barra lateral no ve ninguna otra sección. |
+| `visitors` | **Avance e inversión** y **Performance**, con sus endpoints (`/api/inversion`, `/api/performance*`). Para compartir el avance del proyecto con gente de afuera del equipo: el cliente, los profesores. | Directo a Avance e inversión. En la barra lateral no ve ninguna otra sección. |
 
 ### Variables
 
@@ -252,6 +256,7 @@ Route (app)
 ├ ƒ /api/auth/logout
 ├ ƒ /api/clientes
 ├ ƒ /api/facturacion
+├ ƒ /api/inversion
 ├ ƒ /api/kpis
 ├ ƒ /api/lavaderos
 ├ ƒ /api/operacion
@@ -264,6 +269,7 @@ Route (app)
 ├ ƒ /dashboards/encuesta-lavaderos
 ├ ƒ /dashboards/estado
 ├ ƒ /dashboards/facturacion
+├ ƒ /dashboards/inversion
 ├ ƒ /dashboards/lavaderos
 ├ ƒ /dashboards/operacion
 ├ ƒ /dashboards/performance
@@ -428,23 +434,123 @@ ninguna fila es válida, `lib/encuestas.js` cae a `data/encuestas.json` y deja e
 motivo en `/api/salud`. El dashboard nunca queda en blanco, y el fallback nunca
 pasa desapercibido.
 
+## Avance e inversión: el MVP para el cliente
+
+La sección **Avance e inversión** (`/dashboards/inversion`) cuenta el proyecto
+para quien pone la plata: cuánto del MVP está terminado y si llega a la entrega,
+cuántas horas se justificaron y en qué tipo de trabajo, qué se entregó en cada
+sprint, qué falta y qué puede salir mal. Lee de Shortcut lo mismo que la vista
+del proyecto de Performance (`/api/inversion`, con el mismo cache) y lo cuenta
+con las mismas tareas. Lo interno del equipo (roles, carga, bugs, retrabajo)
+queda en Performance.
+
+Se lee de arriba abajo, de lo que más le importa al cliente a lo que menos:
+
+1. **El MVP en una mirada**: una frase con los días que quedan para la entrega,
+   el avance, las funcionalidades entregadas, las horas justificadas y cuándo se
+   termina lo que falta al ritmo actual, y cuatro tarjetas con esos números.
+2. **Objetivos del MVP**: los OKR del cliente, cada uno contra su meta.
+3. **¿Llegamos?**: el ritmo de los últimos 14 días contra el que hace falta, lo
+   que falta y el fin proyectado; la curva acumulada día a día (alcance,
+   planificado a la fecha, terminado y proyección) y cada sprint contra su
+   plazo: lo entregado dentro del sprint, después del cierre y lo pendiente.
+4. **¿En qué se invirtieron las horas?**: justificadas, en curso, por empezar y
+   comprometidas; por tipo de trabajo (una dona con lo justificado y una barra
+   de avance por tipo) y por sprint.
+5. **¿Qué se entregó?**: las notas de cada sprint, del más reciente al primero:
+   las historias terminadas por tipo de trabajo, con su fecha y si se cerraron
+   después del sprint.
+6. **¿Qué falta para el MVP?**: lo pendiente por tipo de trabajo, lo que está en
+   curso primero, y una línea sobre lo que queda para después del MVP.
+7. **Riesgos y alertas**: lo que puede demorar la entrega o hacer que un número
+   no diga lo que parece, del más grave al menos.
+8. **Cómo se calcula**: los supuestos, al pie.
+
+### Qué se calcula
+
+Las reglas están firmadas con `@decision` en `lib/kpis/inversion.js`.
+
+- **El MVP** va del inicio del primer sprint a la entrega,
+  `horasPactadas.finDelProyecto` de `data/equipo.json` (hoy el 28/10/2026), que
+  es también la fecha límite para justificar las horas. Entran los sprints que
+  empiezan hasta ese día; los que empiezan después son de una versión posterior
+  y solo se mencionan. Sin la fecha, el MVP es todo lo cargado y la pantalla lo
+  avisa. Los días restantes incluyen hoy.
+- **Las horas** salen de los puntos: `horasPorPunto` (4) por punto, porque
+  Shortcut no registra horas. Las **justificadas** son las de las tareas
+  terminadas, una vez por tarea aunque tenga varios responsables; lo en curso y
+  lo pendiente se muestran aparte. El mínimo que pide el cliente
+  (`cliente.horasMinimas`, 680 h) y las pactadas (70 por persona, 700 h) no son
+  un tope: se pueden justificar más. Sin `horasPorPunto`, todo se cuenta en
+  puntos y la pantalla lo dice.
+- **El tipo de trabajo** sale del código con que el equipo nombra cada historia:
+  HU es una funcionalidad, HT la base técnica, QA la calidad, y HG y SM la
+  gestión. Una subtarea sin código toma el de su historia; lo que no tiene ni
+  código ni historia queda «Sin clasificar» y figura en los riesgos. El Skill Set
+  no sirve para esto: en el Sprint 2, el 95 % de las tareas dice «Product».
+- **Las funcionalidades** son las historias de usuario: las HU sin historia
+  madre. Sus subtareas no cuentan aparte.
+- **El avance contra el plan** es lo terminado sobre lo que tendría que estar
+  terminado a hoy: cada sprint aporta su alcance repartido parejo entre sus
+  días (uno terminado aporta todo; uno que no empezó, nada), con cada tarea en
+  el sprint en que está hoy.
+- **El ritmo** es lo terminado en los últimos 14 días (un sprint) sobre 14. La
+  proyección sigue desde lo terminado a hoy y dice cuándo se termina lo que
+  falta y cuánto estaría terminado el día de la entrega. Sin nada terminado en
+  esos días no hay fecha. Se descartó el ritmo de todo el proyecto: arrastra el
+  Sprint 1 y prometería una fecha que el ritmo de hoy no sostiene.
+- **Una entrega** es lo que se terminó en un sprint, y cuenta como después del
+  cierre si se terminó pasado su último día, en hora de Buenos Aires. Las
+  releases son los sprints: la etiqueta «release 1.0» de Shortcut no la tiene
+  ninguna tarea.
+- **Los OKR del cliente**: alcance del MVP terminado (100 % el día de la
+  entrega; antes, se cumple si al ritmo actual se llega), funcionalidades
+  entregadas (todas; antes de la entrega no se juzga salvo que ya estén),
+  horas justificadas (al menos `cliente.horasMinimas`; antes, si ya están o si
+  al ritmo actual se llega) y avance contra el plan (al menos
+  `cliente.avanceContraElPlanMin`, 90 %).
+- **Los riesgos**: sin fecha de entrega o sin horas por punto, sin ritmo, no
+  llega a la entrega, entrega vencida con trabajo pendiente, horas bajo el
+  mínimo, sin sprint en curso, un sprint cerrado con pendientes, entregas
+  después del cierre, tareas sin estimar o sin tipo de trabajo y un sprint que
+  cruza la entrega.
+
+La configuración (`cliente` y `horasPactadas` en `data/equipo.json`) está en
+[Configuración del equipo](#configuración-del-equipo-dataequipojson). Si se carga
+`cliente.costoPorHora` con su moneda, las horas también se ven en plata.
+
+### Verificar
+
+```bash
+curl -b /tmp/sesion.txt http://localhost:3000/api/inversion | python3 -m json.tool
+```
+
+Tiene que responder 200 con `problemas: []`, `unidad: "horas"` y
+`mvp.configurada: true`. Como Performance, responde `501` sin
+`SHORTCUT_API_TOKEN` y `502` con el motivo si Shortcut falla, y trae `version`
+(`VERSION_DE_INVERSION` en `lib/kpis/inversion.js`): si la pantalla dice
+«Versiones distintas», el servidor tiene código viejo y hay que reiniciarlo.
+
 ## Performance: avance del sprint desde Shortcut
 
-La sección **Performance** (`/dashboards/performance`) muestra el avance del
-proyecto y de cada sprint de Shortcut para la gente de negocio, que en el plan
-Free de Shortcut no puede tener usuarios de solo lectura. Todo lo que se ve sale
-de la API REST v3 de Shortcut, leída desde el servidor.
+La sección **Performance** (`/dashboards/performance`) muestra lo interno del
+equipo, para el proyecto entero y para cada sprint de Shortcut: los OKR del
+equipo, cuánto de lo planificado se cumple, las horas y la carga de cada
+integrante, los roles, los bugs y el retrabajo. El avance para el cliente está en
+[Avance e inversión](#avance-e-inversión-el-mvp-para-el-cliente). Todo lo que se
+ve sale de la API REST v3 de Shortcut, leída desde el servidor.
 
 Tiene dos vistas, que se eligen con el selector del encabezado (y quedan en la
 URL como `?sprint=<id>`, para compartir un enlace con el sprint puesto):
 
 - **Todo el proyecto** (la que se abre por defecto, `/api/performance/proyecto`):
-  todos los sprints sumados. Arriba de todo los **OKRs principales**, después el
-  **avance total** con dos anillos (tareas y puntos), las tarjetas del período y
-  el desglose por sprint, la comparación **sprint por sprint** (planificado,
-  cumplido y movido), y el avance por iniciativa y por tipo de trabajo, la
-  carga por responsable, los KPIs del equipo y el retrabajo sobre todas las
-  tareas.
+  todos los sprints sumados. Arriba, una franja que lleva a Avance e inversión;
+  después los **OKRs principales** del equipo y los bloques **Planificación**
+  (sprint por sprint: planificado, cumplido y movido), **Horas y carga del
+  equipo** (horas pactadas contra extras, carga por integrante y por
+  responsable, WIP, utilización y efectividad), **Roles y tipo de trabajo** (por
+  rol, por Skill Set y por iniciativa) y **Calidad** (errores y retrabajo), sobre
+  todas las tareas.
 - **Un sprint** (`/api/performance?sprint=<id>`): los OKRs principales del
   sprint, las cuatro tarjetas, una línea con el proyecto entero (y el botón para
   ir a verlo) y el detalle del sprint: cumplimiento, burndown, flujo, ritmo,
@@ -573,12 +679,12 @@ curl -b /tmp/sesion.txt http://localhost:3000/api/performance/historial   # el h
   tablero, reconstruido de los cambios de `workflow_state_id` del historial,
   desde que se creó hasta que se terminó. Promedio, mediana y cuántas tareas
   pasaron por cada una. Las columnas de tipo done no se miden.
-- **Avance total del proyecto** (vista «Todo el proyecto», campo `progreso` de
+- **Avance total del proyecto** (campo `progreso` de
   `/api/performance/proyecto`; en la vista de un sprint, la línea «Todo el
   proyecto» con el campo `proyecto.progreso`): lo terminado sobre el total de
   todos los sprints juntos (terminados, en curso y por empezar), en tareas y en
-  puntos, con dos anillos, las tarjetas del período (sprints, días restantes,
-  en curso hoy, errores abiertos) y el desglose por sprint. En la vista del
+  puntos. La vista del proyecto ya no lo dibuja: el avance para el cliente está
+  en Avance e inversión, que lo cuenta en horas y contra la entrega del MVP. En la vista del
   proyecto cada sprint se cuenta desde sus stories, con la misma traducción
   que la vista de un sprint; las `stats` que Shortcut guarda por iteración
   quedan de contraste y, si difieren (son dos lecturas con cache propio), la
@@ -598,8 +704,8 @@ curl -b /tmp/sesion.txt http://localhost:3000/api/performance/historial   # el h
   puntos), para todos los sprints empezados, sin pedir nada aparte: la vista
   del proyecto ya leyó las tareas de cada uno.
 - **Errores del proyecto** (campo `errores` del proyecto y `proyecto.errores`
-  del sprint; tarjeta «Errores abiertos» en el avance total y en la línea del
-  proyecto): las stories de tipo `bug` de todo el workspace (no solo del
+  del sprint; panel «Errores (bugs)» del bloque Calidad y la línea del proyecto
+  en la vista de un sprint): las stories de tipo `bug` de todo el workspace (no solo del
   sprint), reportadas, resueltas (`is:done`) y abiertas (`-is:done`), cada una
   con su propia búsqueda de Shortcut (`page_size=1`, solo importa el `total`),
   así el número principal no sale de restar dos lecturas. Si los tres no
@@ -954,11 +1060,12 @@ Production y Preview: sin ellas, un preview muestra el login pero no deja entrar
 | GET | `/api/kpis` | KPIs agregados calculados en el servidor |
 | GET | `/api/kpis?registro=Papel/pizarra` | KPIs del segmento filtrado por método de registro |
 | GET | `/api/salud` | Health check y estado de la fuente de datos (ver [Datos en vivo](#datos-en-vivo-desde-google-sheets)) |
+| GET | `/api/inversion` | El MVP para el cliente: avance, horas justificadas, entregas por sprint, lo que falta, los OKR del cliente y los riesgos (ver [Avance e inversión](#avance-e-inversión-el-mvp-para-el-cliente)) |
 | GET | `/api/performance/proyecto` | El proyecto entero de Shortcut, todos los sprints sumados: la vista por defecto de Performance (ver [Performance](#performance-avance-del-sprint-desde-shortcut)) |
 | GET | `/api/performance` | Reporte del sprint en curso de Shortcut |
 | GET | `/api/performance?sprint=29` | Reporte de un sprint puntual |
 | GET | `/api/performance/historial` | Una fila por sprint empezado (los últimos 8): planificado, cumplido y movido |
-| POST | `/api/performance/proyecto`, `/api/performance?sprint=29`, `/api/performance/historial` | Lo mismo leyendo de Shortcut sin cache: es el botón "Actualizar" |
+| POST | `/api/inversion`, `/api/performance/proyecto`, `/api/performance?sprint=29`, `/api/performance/historial` | Lo mismo leyendo de Shortcut sin cache: es el botón "Actualizar" |
 | GET | `/api/operacion?dias=30` | Operación leída de la app de gestión: cola de ahora, órdenes del período (7, 30 o 90 días) y tiempos (ver [Gestión](#gestión-las-secciones-que-leen-la-app-de-gestión)) |
 | GET | `/api/lavaderos` | El padrón de cuentas: plan, sucursales, actividad y altas |
 | GET | `/api/clientes` | Los clientes finales: vehículos, lavados y recurrencia |
@@ -985,23 +1092,35 @@ externo.
 - Promedios Likert (1–5) de dificultad para mantener el orden y estimar tiempos
 - Distribuciones: método de registro, principal dificultad declarada, criterio de orden
 
+En **Avance e inversión**, el MVP para el cliente:
+
+- El estado del MVP en una frase y cuatro tarjetas: avance, funcionalidades
+  entregadas, horas justificadas contra el mínimo y la entrega con su fin
+  proyectado
+- OKR del cliente: alcance del MVP terminado, funcionalidades entregadas, horas
+  justificadas y avance contra el plan, cada uno contra su meta
+- Ritmo de los últimos 14 días contra el necesario, lo que falta, el fin
+  proyectado, el avance acumulado día a día y cada sprint contra su plazo
+- Horas justificadas, en curso, por empezar y comprometidas, por tipo de
+  trabajo (funcionalidades, base técnica, calidad y gestión) y por sprint, y en
+  plata si se carga el costo por hora
+- Las entregas de cada sprint, lo que falta del MVP y los riesgos
+
 En **Performance**, para todo el proyecto (la vista por defecto, todos los
 sprints de Shortcut sumados):
 
 - OKRs principales: bugs por historia terminada, retrabajo, efectividad de
   entrega y utilización del equipo sobre todas las tareas, cada uno contra su
   meta
-- Retrabajo: cada vuelta atrás de una tarea cerrada, con quién la hizo, cuándo
-  y si hubo código nuevo después
-- Avance total en tareas y en puntos (dos anillos), sprints, días restantes
-  del proyecto, tareas en curso y errores (bugs) reportados, resueltos y
-  abiertos en todo el workspace
-- Sprint por sprint: planificadas, cumplidas, movidas, terminadas y puntos de
-  cada sprint empezado
-- Avance por iniciativa y por tipo de trabajo (Skill Set), carga por
-  responsable y los KPIs del equipo (por rol, WIP, carga por integrante, horas
-  pactadas contra extras, utilización y efectividad por integrante) sobre todo
-  el proyecto
+- Planificación: sprint por sprint, planificadas, cumplidas, movidas,
+  terminadas y puntos de cada sprint empezado
+- Horas y carga del equipo: horas pactadas contra extras, carga por integrante
+  y por responsable, WIP por rol, utilización y efectividad por integrante
+- Roles y tipo de trabajo: distribución por rol, avance por tipo de trabajo
+  (Skill Set) y por iniciativa
+- Calidad: errores (bugs) reportados, resueltos y abiertos en todo el
+  workspace, y el retrabajo con cada vuelta atrás de una tarea cerrada, quién
+  la hizo, cuándo y si hubo código nuevo después
 
 En **Performance**, por sprint de Shortcut:
 
