@@ -297,6 +297,12 @@ body {
   color: var(--blanco);
 }
 
+/* Un enlace con forma de chip (ir a otra seccion), sin el subrayado. */
+a.chip {
+  text-decoration: none;
+  white-space: nowrap;
+}
+
 /* ─── KPIs y paneles ────────────────────────────────────────────────────── */
 
 .grilla-kpis {
@@ -750,6 +756,17 @@ body {
 .tablero > .panel {
   margin-top: 0;
   min-width: 0;
+}
+
+/* Los bloques de la vista del proyecto en Performance (Planificacion, Horas y
+   carga, Roles, Calidad): un titulo chico que ordena la lectura. */
+.bloque-titulo {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--tinta-tenue);
+  margin: 34px 0 -6px;
 }
 
 /* Los OKR son el primer panel de las dos vistas: llevan el borde de la marca. */
