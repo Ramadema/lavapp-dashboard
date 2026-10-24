@@ -825,6 +825,184 @@ body {
   }
 }
 
+/* ─── Avance e inversión ────────────────────────────────────────────────── */
+
+/* El primer panel del informe al cliente: el estado del MVP en cuatro frases,
+   con el borde de la marca como los OKR. */
+.titular {
+  border-left: 4px solid var(--agua);
+}
+
+.titular-texto {
+  font-size: 16px;
+  line-height: 1.6;
+  margin: 6px 0 18px;
+  max-width: 980px;
+}
+
+/* Las entregas de un sprint, como notas de version: un bloque por sprint y,
+   adentro, un grupo por tipo de trabajo. */
+.entrega {
+  border-top: 1px solid var(--borde);
+  padding-top: 16px;
+  margin-top: 8px;
+}
+
+.entrega:first-of-type {
+  border-top: none;
+  padding-top: 0;
+  margin-top: 0;
+}
+
+.entrega h3 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+
+.entrega h3 .subtexto {
+  font-weight: 400;
+}
+
+/* Los tipos de trabajo de una entrega, de a dos por fila en pantallas anchas. */
+.entregas-grupos {
+  display: grid;
+  /* min() para que en un telefono la columna no pida mas que el ancho que hay. */
+  grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr));
+  gap: 4px 32px;
+}
+
+.entrega-grupo {
+  margin-bottom: 12px;
+  min-width: 0;
+}
+
+.titulo-grupo {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 10px 0 6px;
+}
+
+.fecha-entrega {
+  font-size: 12px;
+  color: var(--gris-suave);
+  margin-left: 8px;
+  white-space: nowrap;
+}
+
+.tarde {
+  font-size: 11px;
+  font-weight: 600;
+  color: #b8471c;
+  background: rgba(235, 104, 52, 0.1);
+  border-radius: 999px;
+  padding: 1px 8px;
+  margin-left: 8px;
+  white-space: nowrap;
+}
+
+/* El avance de cada tipo de trabajo: una barra por tipo, en su color. */
+.avance-por-tipo {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.avance-por-tipo li {
+  margin-bottom: 14px;
+}
+
+.avance-por-tipo .titulo-grupo {
+  margin: 0 0 4px;
+}
+
+/* Lo que falta: las tablas de cada tipo con las mismas columnas. */
+.tabla-pendientes {
+  table-layout: fixed;
+}
+
+.tabla-pendientes th:nth-child(1) {
+  width: 56%;
+}
+
+.tabla-pendientes th:nth-child(2),
+.tabla-pendientes th:nth-child(3) {
+  width: 17%;
+}
+
+.punto-tipo {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+
+.lista-entregas {
+  margin: 4px 0 10px;
+  padding-left: 18px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.lista-entregas li {
+  margin-bottom: 4px;
+}
+
+.contrato td.en-curso {
+  color: var(--agua-oscura);
+  font-weight: 600;
+}
+
+/* Riesgos: el nivel a la izquierda, con el color de su gravedad. */
+.riesgos {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+}
+
+.riesgo {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  padding: 10px 0;
+  border-top: 1px solid var(--borde);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.riesgo:first-child {
+  border-top: none;
+}
+
+.riesgo .nivel {
+  flex: none;
+  min-width: 58px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
+.riesgo.alto .nivel {
+  background: rgba(216, 90, 48, 0.14);
+  color: var(--alerta);
+}
+
+.riesgo.medio .nivel {
+  background: rgba(235, 104, 52, 0.1);
+  color: #b8471c;
+}
+
+.riesgo.bajo .nivel {
+  background: var(--espuma);
+  color: var(--gris);
+}
+
 /* ─── Estados de carga y error ──────────────────────────────────────────── */
 
 .nota {

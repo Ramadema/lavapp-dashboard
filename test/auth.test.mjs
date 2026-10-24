@@ -44,7 +44,7 @@ console.log("\nPermisos: que ve cada rol");
   check("admin ve todas las secciones del registro", seccionesVisibles("admin").map((s) => s.slug), SECCIONES.map((s) => s.slug));
   check("visitors ve solo performance", seccionesVisibles("visitors").map((s) => s.slug), ["performance"]);
   check("un rol desconocido no ve ninguna", seccionesVisibles("root"), []);
-  check("seccionesVisibles filtra por grupo", seccionesVisibles("admin", "Proyecto").map((s) => s.slug), ["performance"]);
+  check("seccionesVisibles filtra por grupo, en el orden del registro", seccionesVisibles("admin", "Proyecto").map((s) => s.slug), ["inversion", "performance"]);
   check("admin tiene todos los grupos", gruposVisibles("admin"), ["Gestión", "Investigación", "Proyecto", "Sistema"]);
   check("visitors tiene solo el grupo de performance", gruposVisibles("visitors"), ["Proyecto"]);
   check("la descripcion de admin", describirRol("admin"), "Acceso completo");
