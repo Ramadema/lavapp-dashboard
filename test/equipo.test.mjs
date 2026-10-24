@@ -279,6 +279,30 @@ console.log("Normalización de data/equipo.json");
   check("horas pactadas y fin del proyecto inválidos se anotan y caen al default",
     (() => { const n = normalizarEquipo({ horasPactadas: { porIntegrante: "muchas", finDelProyecto: "diciembre" }, integrantes: [] }); return [n.problemas.map((p) => p.campo), n.datos.horasPactadas]; })(),
     [["horasPactadas.porIntegrante", "horasPactadas.finDelProyecto"], { porIntegrante: null, finDelProyecto: null }]);
+  check("cliente: lo que pide del MVP se normaliza",
+    normalizarEquipo({ cliente: { horasMinimas: 680, avanceContraElPlanMin: 90, costoPorHora: 12000, moneda: " ARS " }, integrantes: [] }).datos.cliente,
+    { horasMinimas: 680, avanceContraElPlanMin: 90, costoPorHora: 12000, moneda: "ARS" });
+  check("cliente: sin el bloque, todo en null y sin problemas",
+    (() => { const n = normalizarEquipo({ integrantes: [] }); return [n.datos.cliente, n.problemas]; })(),
+    [{ horasMinimas: null, avanceContraElPlanMin: null, costoPorHora: null, moneda: null }, []]);
+  check("cliente: números inválidos se anotan y quedan en null",
+    (() => { const n = normalizarEquipo({ cliente: { horasMinimas: "680", avanceContraElPlanMin: 0, moneda: 5 }, integrantes: [] }); return [n.problemas.map((p) => p.campo), n.datos.cliente]; })(),
+    [["cliente.horasMinimas", "cliente.avanceContraElPlanMin", "cliente.moneda"], { horasMinimas: null, avanceContraElPlanMin: null, costoPorHora: null, moneda: null }]);
+  check("cliente: un costo por hora sin moneda no se usa y se anota",
+    (() => { const n = normalizarEquipo({ cliente: { costoPorHora: 12000 }, integrantes: [] }); return [n.problemas.map((p) => [p.campo, p.motivo]), n.datos.cliente.costoPorHora]; })(),
+    [[["cliente.moneda", "falta la moneda del costo por hora: se muestran solo horas"]], null]);
+  check("cliente que no es un objeto se anota",
+    normalizarEquipo({ cliente: [680], integrantes: [] }).problemas.map((p) => p.campo),
+    ["cliente"]);
+}
+
+console.log("data/equipo.json del repo es válido");
+{
+  const { readFileSync } = await import("node:fs");
+  const real = normalizarEquipo(JSON.parse(readFileSync(new URL("../data/equipo.json", import.meta.url), "utf8")));
+  check("sin problemas", real.problemas, []);
+  check("70 h por persona hasta la entrega del MVP", real.datos.horasPactadas, { porIntegrante: 70, finDelProyecto: "2026-10-28" });
+  check("el cliente pide 680 h y 90 % de avance contra el plan", [real.datos.cliente.horasMinimas, real.datos.cliente.avanceContraElPlanMin], [680, 90]);
 }
 
 // ---- enganche con armarReporte ------------------------------------------------

@@ -695,6 +695,7 @@ mantiene el equipo a mano (no lleva secretos):
   "wipMaxPorPersona": 3,
   "horasPactadas": { "porIntegrante": 70, "finDelProyecto": "2026-10-28" },
   "metas": { "bugsRatioMax": 0.25, "retrabajoMax": 10, "efectividadMin": 80, "utilizacionMin": 70, "utilizacionMax": 90 },
+  "cliente": { "horasMinimas": 680, "avanceContraElPlanMin": 90, "costoPorHora": null, "moneda": "ARS" },
   "integrantes": [
     { "nombre": "Nombre tal como figura en Shortcut", "rol": "Dev", "detalle": "desarrollador full stack", "horasPactadas": null }
   ]
@@ -727,6 +728,13 @@ mantiene el equipo a mano (no lleva secretos):
 - `metas` son las de los cuatro OKR (`retrabajoMax` es el porcentaje máximo de
   tareas cerradas con retrabajo); con `null` la tarjeta muestra el valor sin
   decir si cumple.
+- `cliente` es lo que el cliente pide del MVP, para «Avance e inversión»:
+  `horasMinimas` son las horas del equipo que tienen que estar justificadas
+  para la entrega (un mínimo, se pueden justificar más),
+  `avanceContraElPlanMin` el porcentaje de lo planificado a la fecha que tiene
+  que estar terminado, y `costoPorHora` con su `moneda` pasa las horas a plata.
+  Con `costoPorHora` en `null` la sección muestra solo horas; un costo sin
+  moneda no se usa y se anota.
 
 El archivo se lee en cada pedido (`lib/equipo.js`), así que un cambio se ve al
 recargar, sin reiniciar. Lo que no se entiende se rechaza con el valor por
