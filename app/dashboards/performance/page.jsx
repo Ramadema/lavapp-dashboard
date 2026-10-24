@@ -1755,8 +1755,8 @@ function PanelHoras({ horas: datosDeHoras, alcance, finConfigurado }) {
   } = datosDeHoras;
   const conCapacidad = personas.filter((p) => p.capacidad !== null);
   const parcial = esParcial(alcance, datosDeHoras);
-  // "150 h pactadas por persona para el proyecto, de las que al sprint le
-  // tocan 14 de 29 días".
+  // "70 h pactadas por persona para el proyecto, de las que al sprint le
+  // tocan 14 de 36 días".
   const pactadas =
     horasPactadasPorIntegrante === null
       ? "las horas que cada uno tiene pactadas para el proyecto"

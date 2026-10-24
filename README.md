@@ -693,7 +693,7 @@ mantiene el equipo a mano (no lleva secretos):
 {
   "horasPorPunto": 4,
   "wipMaxPorPersona": 3,
-  "horasPactadas": { "porIntegrante": 150, "finDelProyecto": null },
+  "horasPactadas": { "porIntegrante": 70, "finDelProyecto": "2026-10-28" },
   "metas": { "bugsRatioMax": 0.25, "retrabajoMax": 10, "efectividadMin": 80, "utilizacionMin": 70, "utilizacionMax": 90 },
   "integrantes": [
     { "nombre": "Nombre tal como figura en Shortcut", "rol": "Dev", "detalle": "desarrollador full stack", "horasPactadas": null }
@@ -707,14 +707,17 @@ mantiene el equipo a mano (no lleva secretos):
   `null` la persona cuenta como «Sin rol». `detalle` es el resto de lo que hace
   (la especialidad, BA, Scrum Master): se muestra, no agrupa.
 - `horasPactadas.porIntegrante` son las horas de cada persona para **todo el
-  proyecto** (hoy, 150), y valen solo para los integrantes de la lista. Un
+  proyecto** (hoy, 70: el cliente pide al menos 680 h del equipo para la
+  entrega del MVP), y valen solo para los integrantes de la lista. Un
   integrante puede traer las suyas en `horasPactadas`; sin ninguna de las dos,
   o si no está en la lista, queda fuera de capacidad, utilización y horas
   extras (la demanda se calcula igual).
 - `horasPactadas.finDelProyecto` (`AAAA-MM-DD`) dice hasta cuándo va el
-  proyecto, para repartir esas horas entre los sprints. Sin él, el proyecto
-  termina con el último sprint cargado y la pantalla lo avisa: cuando se cargue
-  un sprint nuevo, la parte de cada sprint baja. Una fecha anterior al fin del
+  proyecto, para repartir esas horas entre los sprints. Hoy es el 28/10/2026,
+  la entrega del MVP, que es también la fecha límite para justificar las
+  horas. Sin él, el proyecto termina con el último sprint cargado y la
+  pantalla lo avisa: cuando se cargue un sprint nuevo, la parte de cada sprint
+  baja. Una fecha anterior al fin del
   último sprint se descarta y se anota en el panel de problemas. Con la fecha
   cargada, la vista del proyecto mide los sprints cargados contra su parte de
   las horas y dice que el resto queda para los sprints que faltan.
