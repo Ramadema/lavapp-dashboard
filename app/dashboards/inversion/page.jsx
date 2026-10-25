@@ -22,9 +22,9 @@ import {
 const seccion = buscarSeccion("inversion");
 const performance = buscarSeccion("performance");
 
-// Cada metrica dice si es un KPI, un OKR o las dos cosas, con los textos del
-// cliente en el tooltip. Las listas (entregas, pendientes, riesgos) no llevan
-// insignia: no son metricas.
+// Cada metrica dice si es un KPI o un OKR, nunca las dos: es OKR si tiene una
+// meta para la entrega, y lo es en todos los paneles donde aparece. Las listas
+// (entregas, pendientes, riesgos) no llevan insignia: no son metricas.
 const CLASES = TIPOS_DE_METRICA_DEL_CLIENTE;
 const Kpi = () => <Insignia tipo="kpi" clases={CLASES} />;
 
@@ -304,6 +304,7 @@ function Informe({ reporte }) {
 // de un vistazo y el detalle sigue abajo.
 function PanelEntregable({ reporte, medida }) {
   const { mvp, alcance } = reporte;
+  const okrDeAlcance = reporte.okrs.find((o) => o.clave === "alcance");
   const pct = alcance.valor.pct ?? alcance.tareas.pct;
   const plazo =
     mvp.diasTotales > 0 ? Math.round((Math.min(mvp.diasTranscurridos, mvp.diasTotales) / mvp.diasTotales) * 1000) / 10 : null;
@@ -325,7 +326,18 @@ function PanelEntregable({ reporte, medida }) {
         </div>
         <div>
           <p className="titulo-barra">
-            Alcance terminado <Kpi />
+            Alcance terminado{" "}
+            {okrDeAlcance ? (
+              <Insignia
+                tipo="okr"
+                clases={CLASES}
+                meta={metaDeOkr(okrDeAlcance, mvp)}
+                cumple={okrDeAlcance.cumple}
+                estado={estadoDeOkr(okrDeAlcance, mvp)}
+              />
+            ) : (
+              <Kpi />
+            )}
           </p>
           <BarraDeProgreso
             pct={pct}
@@ -349,7 +361,6 @@ function LeyendaMetricas() {
           {clase.nombre}: {clase.resumen}
         </span>
       ))}
-      <span>Los objetivos del MVP llevan las dos: son indicadores con meta.</span>
     </p>
   );
 }
@@ -440,7 +451,7 @@ function PanelObjetivos({ reporte, medida }) {
         {reporte.okrs.map((okr) => (
           <TarjetaKpi
             key={okr.clave}
-            tipo={["kpi", "okr"]}
+            tipo="okr"
             clases={CLASES}
             etiqueta={okr.nombre}
             valor={valorDeOkr(okr)}
@@ -630,7 +641,7 @@ function PanelInversion({ reporte, medida }) {
       )}
       <div className="grilla-kpis">
         <TarjetaKpi
-          tipo={okrDeHoras?.meta ? ["kpi", "okr"] : "kpi"}
+          tipo={okrDeHoras?.meta ? "okr" : "kpi"}
           clases={CLASES}
           meta={okrDeHoras ? metaDeOkr(okrDeHoras, reporte.mvp) : null}
           cumple={okrDeHoras?.cumple}
