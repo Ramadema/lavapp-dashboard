@@ -471,14 +471,18 @@ armadas, de lo que más le importa a lo que menos:
    entrega y lo que no se pudo traducir de Shortcut.
 9. **Metodología**: de dónde sale cada número, al pie.
 
-**KPI y OKR.** Cada tarjeta, gráfico y tabla lleva su insignia con un tooltip:
-KPI es un indicador que se sigue, sin meta; OKR, un resultado clave con meta
-para la entrega. Los cuatro objetivos del MVP y las horas justificadas llevan
-las dos, porque son indicadores con meta, y el tooltip del OKR dice la meta y
-cómo está (cumplido, en curso, en riesgo según la proyección o no cumplido).
-Las listas (entregas, pendientes, riesgos) no llevan insignia. Los textos son
-los del cliente, `TIPOS_DE_METRICA_DEL_CLIENTE` en `lib/kpis/inversion.js`; los
-de Performance hablan de metas del equipo.
+**KPI y OKR.** Cada tarjeta, gráfico y tabla lleva una sola insignia: KPI, un
+indicador que se sigue, sin meta, u OKR, un resultado clave con meta para la
+entrega. Nunca las dos. Son OKR los cuatro objetivos del MVP, y lo siguen siendo
+donde vuelven a aparecer (el alcance terminado del entregable central y las
+horas justificadas de la inversión); el resto es KPI. El tooltip de cada
+insignia no repite la definición general de KPI u OKR: dice qué mide ese
+indicador (`definicionesDe` en la página) y, en los OKR, la meta y cómo está
+(cumplido, en curso, en riesgo según la proyección o no cumplido). La leyenda
+del entregable explica una vez qué es cada insignia. Las listas (entregas,
+pendientes, riesgos) no llevan insignia. Las siglas y los nombres son los del
+cliente, `TIPOS_DE_METRICA_DEL_CLIENTE` en `lib/kpis/inversion.js`; Performance
+sigue con los del equipo y su definición general en el tooltip.
 
 ### Qué se calcula
 
@@ -1112,7 +1116,7 @@ En **Avance e inversión**, el MVP para el cliente:
 
 - El entregable central: el MVP, su fecha de entrega comprometida y el plazo
   transcurrido contra el alcance terminado
-- OKR del cliente (también KPI): alcance del MVP terminado, funcionalidades
+- OKR del cliente: alcance del MVP terminado, funcionalidades
   entregadas, horas justificadas y avance contra el plan, cada uno contra su meta
 - Ritmo de los últimos 14 días contra el requerido, lo pendiente, la fecha
   estimada de finalización, el avance acumulado día a día y el cumplimiento por

@@ -114,7 +114,8 @@ Y mirar el backoffice en el navegador:
 - `/dashboards/inversion` se lee de arriba abajo, en tono formal: el
   entregable central (el MVP, su fecha de entrega con los días restantes, las
   barras del plazo y del alcance y la leyenda KPI/OKR), los cuatro objetivos
-  del MVP con las insignias KPI y OKR, la proyección de la entrega (con la curva
+  del MVP como OKR (cada métrica lleva una sola insignia, KPI u OKR, y su
+  tooltip dice qué mide), la proyección de la entrega (con la curva
   acumulada **con líneas dibujadas** y el cumplimiento por sprint), la
   inversión de horas (la dona y las barras), las entregas por sprint, lo
   pendiente, los riesgos y las notas sobre los datos, plegadas. Ningún texto
