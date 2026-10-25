@@ -892,6 +892,12 @@ a.chip {
   margin: 0 0 6px;
 }
 
+.entregable .leyenda-metricas {
+  margin: 20px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--borde);
+}
+
 /* Las entregas de un sprint, como notas de version: un bloque por sprint y,
    adentro, un grupo por tipo de trabajo. */
 .entrega {

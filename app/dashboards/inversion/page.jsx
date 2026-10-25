@@ -9,12 +9,24 @@ import BarrasApiladas from "@/components/BarrasApiladas";
 import Torta from "@/components/Torta";
 import Plegable from "@/components/Plegable";
 import BarraDeProgreso from "@/components/BarraDeProgreso";
+import Insignia from "@/components/Insignia";
 import { buscarSeccion, ESTADO_SIN_FUENTE } from "@/lib/secciones";
 import { ETAPAS, ZONA_HORARIA, diaLocal } from "@/lib/kpis/performance";
-import { DIAS_DEL_RITMO, SIN_CLASIFICAR, VERSION_DE_INVERSION } from "@/lib/kpis/inversion";
+import {
+  DIAS_DEL_RITMO,
+  SIN_CLASIFICAR,
+  TIPOS_DE_METRICA_DEL_CLIENTE,
+  VERSION_DE_INVERSION,
+} from "@/lib/kpis/inversion";
 
 const seccion = buscarSeccion("inversion");
 const performance = buscarSeccion("performance");
+
+// Cada metrica dice si es un KPI, un OKR o las dos cosas, con los textos del
+// cliente en el tooltip. Las listas (entregas, pendientes, riesgos) no llevan
+// insignia: no son metricas.
+const CLASES = TIPOS_DE_METRICA_DEL_CLIENTE;
+const Kpi = () => <Insignia tipo="kpi" clases={CLASES} />;
 
 // La pantalla se lee de arriba abajo como un informe al cliente: primero como
 // viene el MVP y si llega a la entrega, despues en que se invirtieron las
@@ -305,7 +317,9 @@ function PanelEntregable({ reporte, medida }) {
       <FechaDeEntrega mvp={mvp} />
       <div className="entregable-barras">
         <div>
-          <p className="titulo-barra">Plazo transcurrido</p>
+          <p className="titulo-barra">
+            Plazo transcurrido <Kpi />
+          </p>
           <BarraDeProgreso
             pct={plazo}
             color="var(--tinta-tenue)"
@@ -313,7 +327,9 @@ function PanelEntregable({ reporte, medida }) {
           />
         </div>
         <div>
-          <p className="titulo-barra">Alcance terminado</p>
+          <p className="titulo-barra">
+            Alcance terminado <Kpi />
+          </p>
           <BarraDeProgreso
             pct={pct}
             color="var(--verde)"
@@ -321,7 +337,23 @@ function PanelEntregable({ reporte, medida }) {
           />
         </div>
       </div>
+      <LeyendaMetricas />
     </section>
+  );
+}
+
+// Que es un KPI y que es un OKR, una sola vez, debajo del entregable.
+function LeyendaMetricas() {
+  return (
+    <p className="leyenda-metricas">
+      {Object.entries(CLASES).map(([tipo, clase]) => (
+        <span key={tipo}>
+          <Insignia tipo={tipo} clases={CLASES} />
+          {clase.nombre}: {clase.resumen}
+        </span>
+      ))}
+      <span>Los objetivos del MVP llevan las dos: son indicadores con meta.</span>
+    </p>
   );
 }
 
@@ -384,6 +416,18 @@ function metaDeOkr(okr, mvp) {
   return `al menos ${numero(okr.meta)}%`;
 }
 
+// Como esta cada OKR, para el tooltip de su insignia. Antes de la entrega, un
+// alcance o unas horas que no llegan es lo que dice la proyeccion, no un
+// incumplimiento.
+function estadoDeOkr(okr, mvp) {
+  if (okr.cumple === true) return "cumplido";
+  if (okr.cumple === false) {
+    if (okr.clave === "plan") return "por debajo de la meta";
+    return mvp.vencida ? "no cumplido" : "en riesgo según la proyección";
+  }
+  return okr.clave === "funcionalidades" && !mvp.vencida ? "en curso" : "sin evaluar";
+}
+
 function PanelObjetivos({ reporte, medida }) {
   return (
     <section className="panel okrs-principales">
@@ -396,11 +440,13 @@ function PanelObjetivos({ reporte, medida }) {
         {reporte.okrs.map((okr) => (
           <TarjetaKpi
             key={okr.clave}
-            tipo="okr"
+            tipo={["kpi", "okr"]}
+            clases={CLASES}
             etiqueta={okr.nombre}
             valor={valorDeOkr(okr)}
             meta={metaDeOkr(okr, reporte.mvp)}
             cumple={okr.cumple}
+            estado={estadoDeOkr(okr, reporte.mvp)}
             critico={okr.cumple === false}
             detalle={detalleDeOkr(okr, reporte, medida)}
           />
@@ -436,11 +482,15 @@ function PanelLlegada({ reporte, medida }) {
       </p>
       <div className="grilla-kpis">
         <TarjetaKpi
+          tipo="kpi"
+          clases={CLASES}
           etiqueta="Ritmo actual"
           valor={`${medida(ritmo.porDia)} por día`}
           detalle={`${tareas(ritmo.tareasTerminadas)} ${ritmo.tareasTerminadas === 1 ? "terminada" : "terminadas"} desde el ${fechaCorta(ritmo.desde)}`}
         />
         <TarjetaKpi
+          tipo="kpi"
+          clases={CLASES}
           etiqueta="Ritmo necesario"
           valor={ritmo.necesarioPorDia === null ? "–" : `${medida(ritmo.necesarioPorDia)} por día`}
           critico={ritmo.necesarioPorDia !== null && ritmo.necesarioPorDia > ritmo.porDia}
@@ -454,8 +504,10 @@ function PanelLlegada({ reporte, medida }) {
                 : `para terminar en ${dias(mvp.diasRestantes)}, hoy incluido`
           }
         />
-        <TarjetaKpi etiqueta="Falta" valor={medida(ritmo.restante)} detalle="del alcance del MVP" />
+        <TarjetaKpi tipo="kpi" clases={CLASES} etiqueta="Falta" valor={medida(ritmo.restante)} detalle="del alcance del MVP" />
         <TarjetaKpi
+          tipo="kpi"
+          clases={CLASES}
           etiqueta="Fin proyectado"
           valor={p?.terminado ? "Terminado" : p ? fechaProyectada(p.fin, mvp.hoy) : "–"}
           critico={p !== null && p.llegaALaEntrega === false}
@@ -475,14 +527,21 @@ function PanelLlegada({ reporte, medida }) {
       {datos.length === 0 ? (
         <p className="motivo">Todavía no hay sprints cargados en Shortcut.</p>
       ) : (
-        <Lineas datos={datos} series={SERIES_AVANCE} />
+        <>
+          <p className="titulo-grafico">
+            Avance acumulado <Kpi />
+          </p>
+          <Lineas datos={datos} series={SERIES_AVANCE} />
+        </>
       )}
       <p className="motivo">
         Alcance: lo que ya estaba en algún sprint ese día. Planificado: lo que tendría que estar
         terminado según cada sprint, repartido parejo entre sus días. La proyección sigue desde hoy al
         ritmo actual y no pasa del alcance.
       </p>
-      <h3 className="subtitulo">Cada sprint, contra su plazo</h3>
+      <h3 className="subtitulo">
+        Cada sprint, contra su plazo <Kpi />
+      </h3>
       <TablaDeSprints entregas={entregas} medida={medida} hoy={mvp.hoy} />
     </section>
   );
@@ -556,6 +615,7 @@ function PanelInversion({ reporte, medida }) {
     ),
   }));
   const plata = horas.plata;
+  const okrDeHoras = reporte.okrs.find((o) => o.clave === "horas");
   return (
     <section className="panel">
       <h2>¿En qué se invirtieron las horas?</h2>
@@ -571,21 +631,32 @@ function PanelInversion({ reporte, medida }) {
       )}
       <div className="grilla-kpis">
         <TarjetaKpi
+          tipo={okrDeHoras?.meta ? ["kpi", "okr"] : "kpi"}
+          clases={CLASES}
+          meta={okrDeHoras ? metaDeOkr(okrDeHoras, reporte.mvp) : null}
+          cumple={okrDeHoras?.cumple}
+          estado={okrDeHoras ? estadoDeOkr(okrDeHoras, reporte.mvp) : null}
           etiqueta="Justificadas"
           valor={medida(horas.justificadas ?? reporte.alcance.valor.terminado)}
           detalle={plata ? enPlata(plata.justificadas, plata.moneda) : "lo terminado"}
         />
         <TarjetaKpi
+          tipo="kpi"
+          clases={CLASES}
           etiqueta="En curso"
           valor={medida(horas.enCurso ?? reporte.alcance.valor.enCurso)}
           detalle="en marcha, sin terminar"
         />
         <TarjetaKpi
+          tipo="kpi"
+          clases={CLASES}
           etiqueta="Por empezar"
           valor={medida(horas.pendientes ?? reporte.alcance.valor.pendiente)}
           detalle="planificado, sin empezar"
         />
         <TarjetaKpi
+          tipo="kpi"
+          clases={CLASES}
           etiqueta="Comprometidas en el MVP"
           valor={medida(horas.comprometidas ?? reporte.alcance.valor.total)}
           detalle={
@@ -599,7 +670,9 @@ function PanelInversion({ reporte, medida }) {
       </div>
       <div className="dos-columnas">
         <div>
-          <p className="titulo-grafico">Lo justificado, por tipo de trabajo</p>
+          <p className="titulo-grafico">
+            Lo justificado, por tipo de trabajo <Kpi />
+          </p>
           <Torta
             datos={dona}
             colores={colores}
@@ -609,7 +682,9 @@ function PanelInversion({ reporte, medida }) {
           />
         </div>
         <div>
-          <p className="titulo-grafico">Cada tipo de trabajo: justificado sobre lo comprometido</p>
+          <p className="titulo-grafico">
+            Cada tipo de trabajo: justificado sobre lo comprometido <Kpi />
+          </p>
           <ul className="avance-por-tipo">
             {tiposConValor.map((t) => (
               <li key={t.clave}>
@@ -633,7 +708,9 @@ function PanelInversion({ reporte, medida }) {
       </div>
       {porSprint.length > 0 && (
         <>
-          <p className="titulo-grafico">Lo justificado en cada sprint, por tipo de trabajo</p>
+          <p className="titulo-grafico">
+            Lo justificado en cada sprint, por tipo de trabajo <Kpi />
+          </p>
           <BarrasApiladas datos={porSprint} series={seriesTipo} anchoEtiquetas={160} />
         </>
       )}
