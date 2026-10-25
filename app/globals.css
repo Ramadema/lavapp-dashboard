@@ -406,6 +406,19 @@ a.chip {
   display: block;
 }
 
+/* En el telefono, o sin mouse, el tooltip no entra al lado de la insignia: va
+   fijo abajo, a lo ancho de la pantalla, para no abrir scroll horizontal. */
+@media (hover: none), (max-width: 700px) {
+  .insignia .ayuda {
+    position: fixed;
+    top: auto;
+    left: 16px;
+    right: 16px;
+    bottom: 16px;
+    width: auto;
+  }
+}
+
 /* Leyenda de la seccion de equipo: que es un KPI y que es un OKR. */
 .leyenda-metricas {
   display: flex;
