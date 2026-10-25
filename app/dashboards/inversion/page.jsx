@@ -23,10 +23,14 @@ const seccion = buscarSeccion("inversion");
 const performance = buscarSeccion("performance");
 
 // Cada metrica dice si es un KPI o un OKR, nunca las dos: es OKR si tiene una
-// meta para la entrega, y lo es en todos los paneles donde aparece. Las listas
-// (entregas, pendientes, riesgos) no llevan insignia: no son metricas.
+// meta para la entrega, y lo es en todos los paneles donde aparece. El tooltip
+// de la insignia dice que mide ese indicador (definicionesDe) y, en los OKR, la
+// meta y como esta. Las listas (entregas, pendientes, riesgos) no llevan
+// insignia: no son metricas.
 const CLASES = TIPOS_DE_METRICA_DEL_CLIENTE;
-const Kpi = () => <Insignia tipo="kpi" clases={CLASES} />;
+const Kpi = ({ indicador, definicion }) => (
+  <Insignia tipo="kpi" clases={CLASES} indicador={indicador} definicion={definicion} />
+);
 
 // La pantalla se lee de arriba abajo como un informe al cliente, en tono
 // formal y sin frases armadas: primero el entregable central (el MVP y su
@@ -110,6 +114,37 @@ const SERIES_AVANCE = [
 ];
 
 const FILAS_VISIBLES = 6;
+
+// Que mide cada indicador, en una o dos oraciones, para el tooltip de su
+// insignia: el lector entiende el numero sin ir a la metodologia. Los de los
+// OKR van por su clave (alcance, funcionalidades, horas y plan).
+function definicionesDe({ supuestos }) {
+  const ritmo = dias(supuestos.diasDelRitmo);
+  const porPunto = supuestos.horasPorPunto ? `, a ${numero(supuestos.horasPorPunto)} h por punto` : "";
+  return {
+    plazo:
+      "Porcentaje de los días del MVP que ya transcurrieron, desde el inicio del primer sprint hasta la fecha de entrega.",
+    alcance: `Porcentaje de las horas del MVP que corresponden a tareas terminadas. Hasta la fecha de entrega, la meta se evalúa con la proyección al ritmo de los últimos ${ritmo}.`,
+    funcionalidades:
+      "Historias de usuario (HU) del MVP terminadas sobre el total. Cada historia de usuario es una funcionalidad que usa el cliente final.",
+    horas: `Horas de las tareas terminadas${porPunto}, contadas una vez por tarea aunque tenga varios responsables. Se pueden justificar más horas que el mínimo.`,
+    plan: "Horas terminadas sobre las que debían estar terminadas a la fecha según la planificación de cada sprint.",
+    ritmoActual: `Promedio de horas terminadas por día en los últimos ${ritmo}.`,
+    ritmoRequerido: "Horas por día que hay que terminar, desde hoy, para completar el alcance en la fecha de entrega.",
+    pendiente: "Horas de las tareas del MVP que todavía no se terminaron, en curso o por iniciar.",
+    finalizacion: "Fecha en que se completaría el alcance del MVP si se mantiene el ritmo actual.",
+    avanceAcumulado:
+      "Evolución diaria del alcance, de lo planificado, de lo terminado y de la proyección al ritmo actual, en horas acumuladas.",
+    cumplimiento:
+      "Para cada sprint, lo planificado frente a lo entregado dentro de su plazo, lo entregado después del cierre y lo pendiente.",
+    enCurso: "Horas de las tareas iniciadas que todavía no se terminaron.",
+    porIniciar: "Horas de las tareas planificadas en los sprints que todavía no se iniciaron.",
+    comprometido: "Horas de todas las tareas del MVP: justificadas, en curso y por iniciar.",
+    porTipo: "Reparto de las horas justificadas entre funcionalidades, base técnica, calidad y gestión.",
+    avancePorTipo: "Para cada tipo de trabajo, las horas justificadas sobre las horas comprometidas.",
+    porSprint: "Horas justificadas en cada sprint, separadas por tipo de trabajo.",
+  };
+}
 
 // ---- Pedido a la API -----------------------------------------------------------
 
@@ -305,6 +340,7 @@ function Informe({ reporte }) {
 function PanelEntregable({ reporte, medida }) {
   const { mvp, alcance } = reporte;
   const okrDeAlcance = reporte.okrs.find((o) => o.clave === "alcance");
+  const def = definicionesDe(reporte);
   const pct = alcance.valor.pct ?? alcance.tareas.pct;
   const plazo =
     mvp.diasTotales > 0 ? Math.round((Math.min(mvp.diasTranscurridos, mvp.diasTotales) / mvp.diasTotales) * 1000) / 10 : null;
@@ -316,7 +352,7 @@ function PanelEntregable({ reporte, medida }) {
       <div className="entregable-barras">
         <div>
           <p className="titulo-barra">
-            Plazo transcurrido <Kpi />
+            Plazo transcurrido <Kpi indicador="Plazo transcurrido" definicion={def.plazo} />
           </p>
           <BarraDeProgreso
             pct={plazo}
@@ -331,12 +367,14 @@ function PanelEntregable({ reporte, medida }) {
               <Insignia
                 tipo="okr"
                 clases={CLASES}
+                indicador="Alcance terminado"
+                definicion={def.alcance}
                 meta={metaDeOkr(okrDeAlcance, mvp)}
                 cumple={okrDeAlcance.cumple}
                 estado={estadoDeOkr(okrDeAlcance, mvp)}
               />
             ) : (
-              <Kpi />
+              <Kpi indicador="Alcance terminado" definicion={def.alcance} />
             )}
           </p>
           <BarraDeProgreso
@@ -351,16 +389,19 @@ function PanelEntregable({ reporte, medida }) {
   );
 }
 
-// Que es un KPI y que es un OKR, una sola vez, debajo del entregable.
+// Que es un KPI y que es un OKR, una sola vez, debajo del entregable. Las
+// insignias de la leyenda son muestras, sin tooltip: lo que mide cada
+// indicador lo dice la insignia de cada metrica.
 function LeyendaMetricas() {
   return (
     <p className="leyenda-metricas">
       {Object.entries(CLASES).map(([tipo, clase]) => (
         <span key={tipo}>
-          <Insignia tipo={tipo} clases={CLASES} />
+          <span className={`insignia ${tipo} muestra`}>{clase.sigla}</span>
           {clase.nombre}: {clase.resumen}
         </span>
       ))}
+      <span>Cada insignia explica qué mide su indicador.</span>
     </p>
   );
 }
@@ -439,6 +480,7 @@ function estadoDeOkr(okr, mvp) {
 }
 
 function PanelObjetivos({ reporte, medida }) {
+  const def = definicionesDe(reporte);
   return (
     <section className="panel okrs-principales">
       <h2>Objetivos del MVP</h2>
@@ -453,6 +495,7 @@ function PanelObjetivos({ reporte, medida }) {
             key={okr.clave}
             tipo="okr"
             clases={CLASES}
+            definicion={def[okr.clave]}
             etiqueta={okr.nombre}
             valor={valorDeOkr(okr)}
             meta={metaDeOkr(okr, reporte.mvp)}
@@ -471,6 +514,7 @@ function PanelObjetivos({ reporte, medida }) {
 // del avance y cada sprint, cuanto entrego dentro de su plazo.
 function PanelLlegada({ reporte, medida }) {
   const { mvp, ritmo, avanceAcumulado, entregas, unidad } = reporte;
+  const def = definicionesDe(reporte);
   const p = ritmo.proyeccion;
   const datos = useMemo(
     () =>
@@ -494,6 +538,7 @@ function PanelLlegada({ reporte, medida }) {
         <TarjetaKpi
           tipo="kpi"
           clases={CLASES}
+          definicion={def.ritmoActual}
           etiqueta="Ritmo actual"
           valor={`${medida(ritmo.porDia)} por día`}
           detalle={`promedio diario · ${tareas(ritmo.tareasTerminadas)} ${ritmo.tareasTerminadas === 1 ? "terminada" : "terminadas"} desde el ${fechaCorta(ritmo.desde)}`}
@@ -501,6 +546,7 @@ function PanelLlegada({ reporte, medida }) {
         <TarjetaKpi
           tipo="kpi"
           clases={CLASES}
+          definicion={def.ritmoRequerido}
           etiqueta="Ritmo requerido"
           valor={ritmo.necesarioPorDia === null ? "–" : `${medida(ritmo.necesarioPorDia)} por día`}
           critico={ritmo.necesarioPorDia !== null && ritmo.necesarioPorDia > ritmo.porDia}
@@ -514,10 +560,18 @@ function PanelLlegada({ reporte, medida }) {
                 : `para completar el alcance en los ${dias(mvp.diasRestantes)} restantes`
           }
         />
-        <TarjetaKpi tipo="kpi" clases={CLASES} etiqueta="Pendiente" valor={medida(ritmo.restante)} detalle="del alcance del MVP" />
         <TarjetaKpi
           tipo="kpi"
           clases={CLASES}
+          definicion={def.pendiente}
+          etiqueta="Pendiente"
+          valor={medida(ritmo.restante)}
+          detalle="del alcance del MVP"
+        />
+        <TarjetaKpi
+          tipo="kpi"
+          clases={CLASES}
+          definicion={def.finalizacion}
           etiqueta="Fecha estimada de finalización"
           valor={p?.terminado ? "Completo" : p ? fechaCompleta(p.fin) : "–"}
           critico={p !== null && p.llegaALaEntrega === false}
@@ -539,7 +593,7 @@ function PanelLlegada({ reporte, medida }) {
       ) : (
         <>
           <p className="titulo-grafico">
-            Avance acumulado del MVP <Kpi />
+            Avance acumulado del MVP <Kpi indicador="Avance acumulado del MVP" definicion={def.avanceAcumulado} />
           </p>
           <Lineas datos={datos} series={SERIES_AVANCE} />
         </>
@@ -550,7 +604,7 @@ function PanelLlegada({ reporte, medida }) {
         continuación desde hoy al ritmo actual, sin superar el alcance.
       </p>
       <h3 className="subtitulo">
-        Cumplimiento por sprint <Kpi />
+        Cumplimiento por sprint <Kpi indicador="Cumplimiento por sprint" definicion={def.cumplimiento} />
       </h3>
       <TablaDeSprints entregas={entregas} medida={medida} hoy={mvp.hoy} />
     </section>
@@ -626,6 +680,7 @@ function PanelInversion({ reporte, medida }) {
   }));
   const plata = horas.plata;
   const okrDeHoras = reporte.okrs.find((o) => o.clave === "horas");
+  const def = definicionesDe(reporte);
   return (
     <section className="panel">
       <h2>Inversión de horas</h2>
@@ -646,6 +701,7 @@ function PanelInversion({ reporte, medida }) {
           meta={okrDeHoras ? metaDeOkr(okrDeHoras, reporte.mvp) : null}
           cumple={okrDeHoras?.cumple}
           estado={okrDeHoras ? estadoDeOkr(okrDeHoras, reporte.mvp) : null}
+          definicion={def.horas}
           etiqueta="Horas justificadas"
           valor={medida(horas.justificadas ?? reporte.alcance.valor.terminado)}
           detalle={plata ? enPlata(plata.justificadas, plata.moneda) : "tareas terminadas"}
@@ -653,6 +709,7 @@ function PanelInversion({ reporte, medida }) {
         <TarjetaKpi
           tipo="kpi"
           clases={CLASES}
+          definicion={def.enCurso}
           etiqueta="En curso"
           valor={medida(horas.enCurso ?? reporte.alcance.valor.enCurso)}
           detalle="tareas iniciadas, sin terminar"
@@ -660,6 +717,7 @@ function PanelInversion({ reporte, medida }) {
         <TarjetaKpi
           tipo="kpi"
           clases={CLASES}
+          definicion={def.porIniciar}
           etiqueta="Por iniciar"
           valor={medida(horas.pendientes ?? reporte.alcance.valor.pendiente)}
           detalle="tareas planificadas, sin iniciar"
@@ -667,6 +725,7 @@ function PanelInversion({ reporte, medida }) {
         <TarjetaKpi
           tipo="kpi"
           clases={CLASES}
+          definicion={def.comprometido}
           etiqueta="Total comprometido"
           valor={medida(horas.comprometidas ?? reporte.alcance.valor.total)}
           detalle={
@@ -681,7 +740,8 @@ function PanelInversion({ reporte, medida }) {
       <div className="dos-columnas">
         <div>
           <p className="titulo-grafico">
-            Horas justificadas por tipo de trabajo <Kpi />
+            Horas justificadas por tipo de trabajo{" "}
+            <Kpi indicador="Horas justificadas por tipo de trabajo" definicion={def.porTipo} />
           </p>
           <Torta
             datos={dona}
@@ -693,7 +753,8 @@ function PanelInversion({ reporte, medida }) {
         </div>
         <div>
           <p className="titulo-grafico">
-            Avance por tipo de trabajo: justificado sobre comprometido <Kpi />
+            Avance por tipo de trabajo: justificado sobre comprometido{" "}
+            <Kpi indicador="Avance por tipo de trabajo" definicion={def.avancePorTipo} />
           </p>
           <ul className="avance-por-tipo">
             {tiposConValor.map((t) => (
@@ -719,7 +780,8 @@ function PanelInversion({ reporte, medida }) {
       {porSprint.length > 0 && (
         <>
           <p className="titulo-grafico">
-            Horas justificadas por sprint y tipo de trabajo <Kpi />
+            Horas justificadas por sprint y tipo de trabajo{" "}
+            <Kpi indicador="Horas justificadas por sprint y tipo de trabajo" definicion={def.porSprint} />
           </p>
           <BarrasApiladas datos={porSprint} series={seriesTipo} anchoEtiquetas={160} />
         </>

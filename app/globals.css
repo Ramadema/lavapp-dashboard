@@ -433,6 +433,11 @@ a.chip {
   margin-right: 6px;
 }
 
+/* En la leyenda del cliente la insignia es solo la muestra: sin tooltip. */
+.leyenda-metricas .insignia.muestra {
+  cursor: default;
+}
+
 .tabla-equipo td.numero,
 .tabla-equipo th.numero {
   text-align: right;
