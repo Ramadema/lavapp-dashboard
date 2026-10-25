@@ -28,15 +28,16 @@ const performance = buscarSeccion("performance");
 const CLASES = TIPOS_DE_METRICA_DEL_CLIENTE;
 const Kpi = () => <Insignia tipo="kpi" clases={CLASES} />;
 
-// La pantalla se lee de arriba abajo como un informe al cliente: primero como
-// viene el MVP y si llega a la entrega, despues en que se invirtieron las
-// horas, que se entrego, que falta y que puede salir mal. Lo interno del
-// equipo esta en Performance.
+// La pantalla se lee de arriba abajo como un informe al cliente, en tono
+// formal y sin frases armadas: primero el entregable central (el MVP y su
+// fecha), sus objetivos y la proyeccion de la entrega; despues la inversion de
+// horas, las entregas, lo pendiente y los riesgos. Lo interno del equipo esta
+// en Performance.
 
-const FECHA_CORTA = new Intl.DateTimeFormat("es-AR", { day: "numeric", month: "short", timeZone: "UTC" });
+const FECHA_CORTA = new Intl.DateTimeFormat("es-AR", { day: "2-digit", month: "2-digit", timeZone: "UTC" });
 const DIA_Y_HORA = new Intl.DateTimeFormat("es-AR", {
-  day: "numeric",
-  month: "short",
+  day: "2-digit",
+  month: "2-digit",
   hour: "2-digit",
   minute: "2-digit",
   hourCycle: "h23",
@@ -45,15 +46,12 @@ const DIA_Y_HORA = new Intl.DateTimeFormat("es-AR", {
 const NUMERO = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 1 });
 
 // Las fechas del MVP y de los sprints son dias de calendario ("2026-10-28"):
-// se formatean en UTC para que la zona del navegador no las corra un dia.
+// se formatean en UTC para que la zona del navegador no las corra un dia. En
+// tablas y listas van cortas («28/10»); la entrega y las proyecciones, con el
+// año («18/11/2026»), porque una proyeccion puede caer en otro año.
 const fechaCorta = (dia) => (dia ? FECHA_CORTA.format(new Date(`${dia}T00:00:00Z`)) : "–");
-// Una fecha proyectada puede caer en otro año (con poco ritmo, muy lejos): ahi
-// lleva el año, para que «28 dic» no se lea como este diciembre.
-const FECHA_CON_ANIO = new Intl.DateTimeFormat("es-AR", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
-const fechaProyectada = (dia, hoy) =>
-  dia && hoy && dia.slice(0, 4) !== hoy.slice(0, 4)
-    ? FECHA_CON_ANIO.format(new Date(`${dia}T00:00:00Z`))
-    : fechaCorta(dia);
+const FECHA_COMPLETA = new Intl.DateTimeFormat("es-AR", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" });
+const fechaCompleta = (dia) => (dia ? FECHA_COMPLETA.format(new Date(`${dia}T00:00:00Z`)) : "–");
 // La fecha de entrega, completa y con el dia de la semana: «miércoles, 28/10/2026».
 const FECHA_LARGA = new Intl.DateTimeFormat("es-AR", {
   weekday: "long",
@@ -123,8 +121,8 @@ function versionDistinta(cuerpo) {
   if (cuerpo?.version === VERSION_DE_INVERSION) return null;
   const servidorViejo = !cuerpo?.version || cuerpo.version < VERSION_DE_INVERSION;
   return servidorViejo
-    ? "El servidor está respondiendo con una versión anterior del código: hay que reiniciarlo. En desarrollo, cortá «next dev» y volvé a levantarlo."
-    : "Esta página es de una versión anterior a la del servidor: recargala.";
+    ? "El servidor responde con una versión anterior de esta pantalla: hay que reiniciarlo o volver a publicarlo. Si persiste, avisale al equipo técnico."
+    : "Esta página es de una versión anterior a la del servidor: recargala para ver la actual.";
 }
 
 async function pedirReporte(metodo) {
@@ -152,11 +150,11 @@ function estadoDelMvp(reporte) {
   const alcance = reporte.okrs.find((o) => o.clave === "alcance");
   if (!reporte.mvp.configurada) return { tono: "pendiente", texto: "Sin fecha de entrega" };
   if (reporte.alcance.valor.pct === 100 || reporte.alcance.tareas.pct === 100) {
-    return { tono: "ok", texto: "MVP terminado" };
+    return { tono: "ok", texto: "MVP completo" };
   }
   if (reporte.mvp.vencida) return { tono: "alerta", texto: "Entrega vencida" };
   const horas = reporte.okrs.find((o) => o.clave === "horas");
-  if (alcance?.cumple === true && horas?.cumple !== false) return { tono: "ok", texto: "En camino" };
+  if (alcance?.cumple === true && horas?.cumple !== false) return { tono: "ok", texto: "En plazo" };
   return { tono: "alerta", texto: "En riesgo" };
 }
 
@@ -263,11 +261,11 @@ function PanelDeError({ error }) {
   }
   return (
     <div className="panel error">
-      <strong>No pudimos traer los datos de Shortcut.</strong>
+      <strong>No se pudieron obtener los datos de Shortcut.</strong>
       <br />
       {error.motivo}
       <br />
-      Si vuelve a pasar en unos minutos, avisale al equipo técnico.
+      Si el problema persiste, avisale al equipo técnico.
     </div>
   );
 }
@@ -280,8 +278,8 @@ function Informe({ reporte }) {
     <>
       {reporte.lectura.desactualizado && (
         <div className="aviso" role="status">
-          Estos datos son del {diaYHora(reporte.lectura.leidoEl)}. Ya se le pidió una lectura nueva a
-          Shortcut: tocá «Actualizar» para verla.
+          Estos datos son del {diaYHora(reporte.lectura.leidoEl)}. Se pidió una lectura más reciente a
+          Shortcut: usá «Actualizar» para verla.
         </div>
       )}
       <PanelEntregable reporte={reporte} medida={medida} />
@@ -290,14 +288,13 @@ function Informe({ reporte }) {
       <PanelInversion reporte={reporte} medida={medida} />
       <PanelEntregas entregas={reporte.entregas} medida={medida} />
       <PanelPendientes pendientes={reporte.pendientes} despues={reporte.despuesDelMvp} medida={medida} />
-      <PanelRiesgos riesgos={reporte.riesgos.filter((r) => r.categoria === "entrega")} medida={medida} hoy={reporte.mvp.hoy} />
+      <PanelRiesgos riesgos={reporte.riesgos.filter((r) => r.categoria === "entrega")} medida={medida} />
       <NotasSobreLosDatos
         notas={reporte.riesgos.filter((r) => r.categoria === "datos")}
         problemas={reporte.problemas}
         medida={medida}
-        hoy={reporte.mvp.hoy}
       />
-      <ComoSeCalcula reporte={reporte} />
+      <Metodologia reporte={reporte} />
     </>
   );
 }
@@ -372,47 +369,49 @@ function FechaDeEntrega({ mvp }) {
   );
 }
 
-// 2. Los resultados clave que el cliente espera del MVP, contra su meta.
+// 2. Los resultados clave del MVP, cada uno contra su meta.
 function detalleDeOkr(okr, { mvp, ritmo, plan, funcionalidades, inversion, alcance }, medida) {
   if (okr.clave === "alcance") {
-    if (okr.valor === 100) return "todo el alcance está terminado";
-    if (!mvp.configurada) return "sin fecha de entrega no se puede juzgar";
-    if (mvp.vencida) return `la entrega fue el ${fechaCorta(mvp.entrega)}`;
-    if (!ritmo.proyeccion) return `nada terminado en los últimos ${dias(ritmo.dias)}`;
+    const hecho = `${medida(alcance.valor.terminado)} de ${medida(alcance.valor.total)}`;
+    if (okr.valor === 100) return `${hecho} · alcance completo`;
+    if (!mvp.configurada) return `${hecho} · sin fecha de entrega definida`;
+    if (mvp.vencida) return `${hecho} · fecha de entrega vencida`;
+    if (!ritmo.proyeccion) return `${hecho} · sin avance en los últimos ${dias(ritmo.dias)}`;
     const alaEntrega = ritmo.proyeccion.alaEntrega;
     const total = alcance.valor.total;
     return alaEntrega === null || total === 0
-      ? `al ritmo actual termina el ${fechaProyectada(ritmo.proyeccion.fin, mvp.hoy)}`
-      : `al ritmo actual llega al ${conPorcentaje(Math.round((alaEntrega / total) * 1000) / 10)} el ${fechaCorta(mvp.entrega)}`;
+      ? `${hecho} · fin estimado: ${fechaCompleta(ritmo.proyeccion.fin)}`
+      : `${hecho} · proyección al ${fechaCorta(mvp.entrega)}: ${conPorcentaje(Math.round((alaEntrega / total) * 1000) / 10)}`;
   }
   if (okr.clave === "funcionalidades") {
     if (funcionalidades.total === 0) return "no hay historias de usuario en los sprints";
     const faltan = enOrden(funcionalidades.faltan.map(codigo));
-    return `${funcionalidades.entregadas} de ${funcionalidades.total}${faltan.length > 0 ? ` · faltan ${listar(faltan)}` : ""}`;
+    return faltan.length > 0 ? `pendientes: ${listar(faltan)}` : "todas las historias de usuario entregadas";
   }
   if (okr.clave === "horas") {
     const { horas } = inversion;
-    if (!horas.configurado) return "falta horasPorPunto en data/equipo.json";
-    if (horas.minimo === null) return "falta cliente.horasMinimas en data/equipo.json";
-    const pactadas = horas.pactadas === null ? "" : ` · pactadas ${numero(horas.pactadas)} h`;
+    if (!horas.configurado) return "sin equivalencia definida entre puntos y horas";
+    if (horas.minimo === null) return "sin mínimo de horas definido";
+    const pactadas = horas.pactadas === null ? "" : ` · ${numero(horas.pactadas)} h comprometidas por el equipo`;
     return `${conPorcentaje(horas.pctDelMinimo)} del mínimo${pactadas}`;
   }
-  if (plan.pct === null) return "todavía no hay nada planificado";
-  return `${medida(plan.terminado)} terminadas de ${medida(plan.planificado)} previstas a hoy`;
+  if (plan.pct === null) return "sin trabajo planificado a la fecha";
+  return `${medida(plan.terminado)} terminadas de ${medida(plan.planificado)} previstas a la fecha`;
 }
 
 function valorDeOkr(okr) {
   if (okr.valor === null) return "–";
   if (okr.clave === "horas") return `${numero(okr.valor)} h`;
+  if (okr.clave === "funcionalidades") return `${okr.entregadas} de ${okr.total}`;
   return conPorcentaje(okr.valor);
 }
 
 function metaDeOkr(okr, mvp) {
   if (okr.meta === null) return null;
-  const el = mvp.configurada ? ` el ${fechaCorta(mvp.entrega)}` : "";
-  if (okr.clave === "alcance") return `100%${el}`;
-  if (okr.clave === "funcionalidades") return `todas${el}`;
-  if (okr.clave === "horas") return `al menos ${numero(okr.meta)} h${el}`;
+  const al = mvp.configurada ? ` al ${fechaCompleta(mvp.entrega)}` : "";
+  if (okr.clave === "alcance") return `100%${al}`;
+  if (okr.clave === "funcionalidades") return `todas${al}`;
+  if (okr.clave === "horas") return `al menos ${numero(okr.meta)} h${al}`;
   return `al menos ${numero(okr.meta)}%`;
 }
 
@@ -433,8 +432,9 @@ function PanelObjetivos({ reporte, medida }) {
     <section className="panel okrs-principales">
       <h2>Objetivos del MVP</h2>
       <p className="subtitulo">
-        Lo que el cliente espera de la entrega, cada resultado contra su meta. Antes de la entrega, el
-        alcance y las horas se juzgan con el ritmo de los últimos {dias(DIAS_DEL_RITMO)}.
+        Resultados clave comprometidos para la entrega, cada uno frente a su meta. Hasta la fecha de
+        entrega, el alcance y las horas se evalúan con la proyección al ritmo de los últimos{" "}
+        {dias(DIAS_DEL_RITMO)}.
       </p>
       <div className="grilla-kpis">
         {reporte.okrs.map((okr) => (
@@ -456,8 +456,8 @@ function PanelObjetivos({ reporte, medida }) {
   );
 }
 
-// 3. ¿Llegamos? El ritmo de hoy contra el que hace falta, la curva del avance y
-// cada sprint: cuanto entrego dentro de su plazo.
+// 3. La proyeccion de la entrega: el ritmo de hoy contra el requerido, la curva
+// del avance y cada sprint, cuanto entrego dentro de su plazo.
 function PanelLlegada({ reporte, medida }) {
   const { mvp, ritmo, avanceAcumulado, entregas, unidad } = reporte;
   const p = ritmo.proyeccion;
@@ -472,13 +472,12 @@ function PanelLlegada({ reporte, medida }) {
       })),
     [avanceAcumulado]
   );
-  const titulo = mvp.configurada ? `¿Llegamos al ${fechaCorta(mvp.entrega)}?` : "¿Cuándo se termina?";
   return (
     <section className="panel">
-      <h2>{titulo}</h2>
+      <h2>Proyección de la entrega</h2>
       <p className="subtitulo">
-        El ritmo de los últimos {dias(ritmo.dias)} contra el que hace falta para terminar lo que queda,
-        y el avance acumulado día a día, en {unidad}
+        Ritmo de los últimos {dias(ritmo.dias)} frente al requerido para completar el alcance en la
+        fecha comprometida, y avance acumulado del MVP, en {unidad}
       </p>
       <div className="grilla-kpis">
         <TarjetaKpi
@@ -486,61 +485,61 @@ function PanelLlegada({ reporte, medida }) {
           clases={CLASES}
           etiqueta="Ritmo actual"
           valor={`${medida(ritmo.porDia)} por día`}
-          detalle={`${tareas(ritmo.tareasTerminadas)} ${ritmo.tareasTerminadas === 1 ? "terminada" : "terminadas"} desde el ${fechaCorta(ritmo.desde)}`}
+          detalle={`promedio diario · ${tareas(ritmo.tareasTerminadas)} ${ritmo.tareasTerminadas === 1 ? "terminada" : "terminadas"} desde el ${fechaCorta(ritmo.desde)}`}
         />
         <TarjetaKpi
           tipo="kpi"
           clases={CLASES}
-          etiqueta="Ritmo necesario"
+          etiqueta="Ritmo requerido"
           valor={ritmo.necesarioPorDia === null ? "–" : `${medida(ritmo.necesarioPorDia)} por día`}
           critico={ritmo.necesarioPorDia !== null && ritmo.necesarioPorDia > ritmo.porDia}
           detalle={
             ritmo.restante === 0
-              ? "no falta nada"
+              ? "alcance completo"
               : ritmo.necesarioPorDia === null
                 ? mvp.configurada
-                  ? "ya no quedan días"
-                  : "sin fecha de entrega"
-                : `para terminar en ${dias(mvp.diasRestantes)}, hoy incluido`
+                  ? "plazo vencido"
+                  : "sin fecha de entrega definida"
+                : `para completar el alcance en los ${dias(mvp.diasRestantes)} restantes`
           }
         />
-        <TarjetaKpi tipo="kpi" clases={CLASES} etiqueta="Falta" valor={medida(ritmo.restante)} detalle="del alcance del MVP" />
+        <TarjetaKpi tipo="kpi" clases={CLASES} etiqueta="Pendiente" valor={medida(ritmo.restante)} detalle="del alcance del MVP" />
         <TarjetaKpi
           tipo="kpi"
           clases={CLASES}
-          etiqueta="Fin proyectado"
-          valor={p?.terminado ? "Terminado" : p ? fechaProyectada(p.fin, mvp.hoy) : "–"}
+          etiqueta="Fecha estimada de finalización"
+          valor={p?.terminado ? "Completo" : p ? fechaCompleta(p.fin) : "–"}
           critico={p !== null && p.llegaALaEntrega === false}
           detalle={
             p === null
-              ? `nada terminado en ${dias(ritmo.dias)}`
+              ? `sin avance en los últimos ${dias(ritmo.dias)}`
               : p.terminado
-                ? "no queda nada pendiente"
+                ? "sin trabajo pendiente"
                 : p.llegaALaEntrega === false
-                  ? `${dias(p.diasDeAtraso)} después de la entrega`
+                  ? `${dias(p.diasDeAtraso)} después de la fecha comprometida`
                   : p.llegaALaEntrega
-                    ? "antes de la entrega"
+                    ? "antes de la fecha comprometida"
                     : "al ritmo actual"
           }
         />
       </div>
       {datos.length === 0 ? (
-        <p className="motivo">Todavía no hay sprints cargados en Shortcut.</p>
+        <p className="motivo">No hay sprints cargados en Shortcut.</p>
       ) : (
         <>
           <p className="titulo-grafico">
-            Avance acumulado <Kpi />
+            Avance acumulado del MVP <Kpi />
           </p>
           <Lineas datos={datos} series={SERIES_AVANCE} />
         </>
       )}
       <p className="motivo">
-        Alcance: lo que ya estaba en algún sprint ese día. Planificado: lo que tendría que estar
-        terminado según cada sprint, repartido parejo entre sus días. La proyección sigue desde hoy al
-        ritmo actual y no pasa del alcance.
+        Alcance: trabajo incluido en los sprints a cada fecha. Planificado: lo que debía estar
+        terminado según cada sprint, distribuido en partes iguales entre sus días. Proyección:
+        continuación desde hoy al ritmo actual, sin superar el alcance.
       </p>
       <h3 className="subtitulo">
-        Cada sprint, contra su plazo <Kpi />
+        Cumplimiento por sprint <Kpi />
       </h3>
       <TablaDeSprints entregas={entregas} medida={medida} hoy={mvp.hoy} />
     </section>
@@ -548,7 +547,7 @@ function PanelLlegada({ reporte, medida }) {
 }
 
 function TablaDeSprints({ entregas, medida, hoy }) {
-  if (entregas.length === 0) return <p className="motivo">Todavía no hay sprints en el MVP.</p>;
+  if (entregas.length === 0) return <p className="motivo">No hay sprints en el MVP.</p>;
   return (
     <div className="contrato">
       <table>
@@ -557,7 +556,7 @@ function TablaDeSprints({ entregas, medida, hoy }) {
             <th>Sprint</th>
             <th>Planificado</th>
             <th>Entregado en el sprint</th>
-            <th>Después del cierre</th>
+            <th>Entregado después del cierre</th>
             <th>Pendiente</th>
           </tr>
         </thead>
@@ -597,8 +596,8 @@ function TablaDeSprints({ entregas, medida, hoy }) {
   );
 }
 
-// 4. En que se invirtieron las horas: lo justificado, lo que esta en marcha y lo
-// que falta, por tipo de trabajo y por sprint.
+// 4. La inversion de horas: lo justificado, lo que esta en curso y lo que
+// falta, por tipo de trabajo y por sprint.
 function PanelInversion({ reporte, medida }) {
   const { inversion, entregas, unidad } = reporte;
   const { horas, porTipo } = inversion;
@@ -618,15 +617,15 @@ function PanelInversion({ reporte, medida }) {
   const okrDeHoras = reporte.okrs.find((o) => o.clave === "horas");
   return (
     <section className="panel">
-      <h2>¿En qué se invirtieron las horas?</h2>
+      <h2>Inversión de horas</h2>
       <p className="subtitulo">
-        Las horas justificadas son las de las tareas terminadas
-        {horas.horasPorPunto ? `, a ${numero(horas.horasPorPunto)} h por punto` : ""}. El tipo de trabajo
-        sale del código de cada historia en Shortcut
+        Horas justificadas por las tareas terminadas
+        {horas.horasPorPunto ? `, a ${numero(horas.horasPorPunto)} h por punto` : ""}, y su distribución
+        por tipo de trabajo según el código de cada historia
       </p>
       {!horas.configurado && (
         <p className="motivo">
-          Falta <code>horasPorPunto</code> en data/equipo.json: todo se muestra en puntos.
+          La equivalencia entre puntos y horas no está definida: los valores se muestran en puntos.
         </p>
       )}
       <div className="grilla-kpis">
@@ -636,42 +635,42 @@ function PanelInversion({ reporte, medida }) {
           meta={okrDeHoras ? metaDeOkr(okrDeHoras, reporte.mvp) : null}
           cumple={okrDeHoras?.cumple}
           estado={okrDeHoras ? estadoDeOkr(okrDeHoras, reporte.mvp) : null}
-          etiqueta="Justificadas"
+          etiqueta="Horas justificadas"
           valor={medida(horas.justificadas ?? reporte.alcance.valor.terminado)}
-          detalle={plata ? enPlata(plata.justificadas, plata.moneda) : "lo terminado"}
+          detalle={plata ? enPlata(plata.justificadas, plata.moneda) : "tareas terminadas"}
         />
         <TarjetaKpi
           tipo="kpi"
           clases={CLASES}
           etiqueta="En curso"
           valor={medida(horas.enCurso ?? reporte.alcance.valor.enCurso)}
-          detalle="en marcha, sin terminar"
+          detalle="tareas iniciadas, sin terminar"
         />
         <TarjetaKpi
           tipo="kpi"
           clases={CLASES}
-          etiqueta="Por empezar"
+          etiqueta="Por iniciar"
           valor={medida(horas.pendientes ?? reporte.alcance.valor.pendiente)}
-          detalle="planificado, sin empezar"
+          detalle="tareas planificadas, sin iniciar"
         />
         <TarjetaKpi
           tipo="kpi"
           clases={CLASES}
-          etiqueta="Comprometidas en el MVP"
+          etiqueta="Total comprometido"
           valor={medida(horas.comprometidas ?? reporte.alcance.valor.total)}
           detalle={
             plata
               ? enPlata(plata.comprometidas, plata.moneda)
               : horas.minimo !== null && unidad === "horas"
-                ? `mínimo pedido: ${numero(horas.minimo)} h`
-                : "todo lo planificado"
+                ? `alcance del MVP · mínimo requerido: ${numero(horas.minimo)} h`
+                : "alcance del MVP"
           }
         />
       </div>
       <div className="dos-columnas">
         <div>
           <p className="titulo-grafico">
-            Lo justificado, por tipo de trabajo <Kpi />
+            Horas justificadas por tipo de trabajo <Kpi />
           </p>
           <Torta
             datos={dona}
@@ -683,7 +682,7 @@ function PanelInversion({ reporte, medida }) {
         </div>
         <div>
           <p className="titulo-grafico">
-            Cada tipo de trabajo: justificado sobre lo comprometido <Kpi />
+            Avance por tipo de trabajo: justificado sobre comprometido <Kpi />
           </p>
           <ul className="avance-por-tipo">
             {tiposConValor.map((t) => (
@@ -698,7 +697,7 @@ function PanelInversion({ reporte, medida }) {
                   texto={`${medida(t.valor.terminado)} de ${medida(t.valor.total)} · ${conPorcentaje(t.valor.pct)}`}
                 />
                 <span className="subtexto">
-                  {medida(t.valor.enCurso)} en curso · {medida(t.valor.pendiente)} por empezar
+                  {medida(t.valor.enCurso)} en curso · {medida(t.valor.pendiente)} por iniciar
                   {plata && t.valor.terminado > 0 && ` · ${enPlata(t.valor.terminado * plata.porHora, plata.moneda)} justificados`}
                 </span>
               </li>
@@ -709,18 +708,16 @@ function PanelInversion({ reporte, medida }) {
       {porSprint.length > 0 && (
         <>
           <p className="titulo-grafico">
-            Lo justificado en cada sprint, por tipo de trabajo <Kpi />
+            Horas justificadas por sprint y tipo de trabajo <Kpi />
           </p>
           <BarrasApiladas datos={porSprint} series={seriesTipo} anchoEtiquetas={160} />
         </>
       )}
       <p className="motivo">
-        Funcionalidades son las historias de usuario (HU), lo que el cliente usa; base técnica, las
-        historias técnicas (HT); calidad, las pruebas (QA); y gestión, la planificación, el seguimiento y
-        las ceremonias del proyecto (HG y SM). Cada subtarea suma al tipo de su historia.
-        {plata
-          ? ` La plata sale de ${enPlata(plata.porHora, plata.moneda)} por hora.`
-          : " Con un costo por hora en data/equipo.json (cliente.costoPorHora), también se ve en plata."}
+        Funcionalidades: historias de usuario (HU), lo que utiliza el cliente final. Base técnica:
+        historias técnicas (HT). Calidad: pruebas (QA). Gestión: planificación, seguimiento y
+        ceremonias del proyecto (HG y SM). Cada subtarea suma al tipo de su historia.
+        {plata ? ` Valorizado a ${enPlata(plata.porHora, plata.moneda)} por hora.` : ""}
       </p>
     </section>
   );
@@ -731,23 +728,24 @@ function PanelInversion({ reporte, medida }) {
 function PanelEntregas({ entregas, medida }) {
   return (
     <section className="panel">
-      <h2>¿Qué se entregó?</h2>
+      <h2>Entregas por sprint</h2>
       <p className="subtitulo">
-        Lo terminado en cada sprint, del más reciente al primero. Se listan las historias; sus subtareas
-        suman horas a la entrega
+        Trabajo terminado en cada sprint, del más reciente al primero. Se listan las historias; sus
+        subtareas suman horas a cada entrega
       </p>
-      {entregas.length === 0 && <p className="motivo">Todavía no hay sprints en el MVP.</p>}
+      {entregas.length === 0 && <p className="motivo">No hay sprints en el MVP.</p>}
       {entregas.map((s) => {
         const terminadas = s.enElSprint.tareas + s.despues.tareas;
         const resumen = [
           terminadas === 0
-            ? "Todavía no se terminó nada de este sprint"
+            ? "Sin tareas terminadas"
             : `${tareas(terminadas)} ${terminadas === 1 ? "terminada" : "terminadas"} (${medida(s.enElSprint.valor + s.despues.valor)})${
                 s.despues.tareas > 0
-                  ? `, ${s.despues.tareas === 1 ? "1 de ellas" : `${s.despues.tareas} de ellas`} después del cierre`
+                  ? `, ${s.despues.tareas === 1 ? "1 de ellas" : `${s.despues.tareas} de ellas`} después del cierre del sprint`
                   : ""
               }`,
-          s.pendiente.tareas > 0 && `quedan ${tareas(s.pendiente.tareas)} (${medida(s.pendiente.valor)})`,
+          s.pendiente.tareas > 0 &&
+            `${tareas(s.pendiente.tareas)} ${s.pendiente.tareas === 1 ? "pendiente" : "pendientes"} (${medida(s.pendiente.valor)})`,
         ].filter(Boolean);
         return (
           <div key={s.id} className="entrega">
@@ -781,7 +779,7 @@ function PanelEntregas({ entregas, medida }) {
                               sc-{i.id}
                             </a>
                             <span className="fecha-entrega">
-                              {i.terminadaEl ? fechaCorta(diaLocal(i.terminadaEl)) : "sin fecha"}
+                              {i.terminadaEl ? fechaCorta(diaLocal(i.terminadaEl)) : "sin fecha registrada"}
                               {i.subtareas > 0 && ` · ${i.subtareas === 1 ? "1 subtarea" : `${i.subtareas} subtareas`}`}
                             </span>
                             {i.despuesDelCierre && <span className="tarde">después del cierre</span>}
@@ -806,17 +804,17 @@ function PanelPendientes({ pendientes, despues, medida }) {
   const total = pendientes.reduce((t, g) => t + g.valor, 0);
   return (
     <section className="panel">
-      <h2>¿Qué falta para el MVP?</h2>
+      <h2>Pendiente para el MVP</h2>
       <p className="subtitulo">
         {pendientes.length === 0
-          ? "No queda nada pendiente del MVP"
-          : `${medida(total)} por terminar, lo que está en curso primero. Cada historia trae lo que le queda, con sus subtareas`}
+          ? "No hay trabajo pendiente para el MVP"
+          : `${medida(total)} por completar, primero lo que está en curso. Cada historia incluye lo que resta de sus subtareas`}
       </p>
       {pendientes.map((g) => (
         <div key={g.clave} className="entrega-grupo">
           <p className="titulo-grupo">
             <span className="punto-tipo" style={{ background: COLORES_TIPO[g.clave] }} />
-            {g.nombre} · {g.enCurso} en curso, {g.sinEmpezar} sin empezar · {medida(g.valor)}
+            {g.nombre} · {g.enCurso} en curso, {g.sinEmpezar} sin iniciar · {medida(g.valor)}
           </p>
           <Plegable items={g.items} visibles={FILAS_VISIBLES}>
             {(porcion) => (
@@ -827,7 +825,7 @@ function PanelPendientes({ pendientes, despues, medida }) {
                       <th>Tarea</th>
                       <th>Estado</th>
                       <th>Sprint</th>
-                      <th>Falta</th>
+                      <th>Pendiente</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -846,7 +844,7 @@ function PanelPendientes({ pendientes, despues, medida }) {
                         </td>
                         <td className={"sin-corte" + (i.etapa === ETAPAS.started ? " en-curso" : "")}>{i.estado}</td>
                         <td className="sin-corte">{i.sprint.nombre}</td>
-                        <td className="sin-corte">{i.sinEstimar && i.valor === 0 ? "sin estimar" : medida(i.valor)}</td>
+                        <td className="sin-corte">{i.sinEstimar && i.valor === 0 ? "Sin estimar" : medida(i.valor)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -859,45 +857,48 @@ function PanelPendientes({ pendientes, despues, medida }) {
       <p className="motivo">
         Después del MVP:{" "}
         {despues.sprints.length === 0
-          ? "no hay sprints cargados después de la entrega"
+          ? "no hay sprints planificados después de la entrega"
           : `${despues.sprints.map((s) => s.nombre).join(", ")}, con ${tareas(despues.tareas)} (${medida(despues.valor)})`}
         {despues.fueraDeSprints !== null && despues.fueraDeSprints > 0
-          ? `; ${despues.fueraDeSprints === 1 ? "1 story está" : `${despues.fueraDeSprints} stories están`} fuera de los sprints y no cuenta${despues.fueraDeSprints === 1 ? "" : "n"} para el MVP.`
+          ? `; ${despues.fueraDeSprints === 1 ? "1 historia fuera de los sprints no se cuenta" : `${despues.fueraDeSprints} historias fuera de los sprints no se cuentan`} en el MVP.`
           : "."}
       </p>
     </section>
   );
 }
 
-// 7. Lo que puede salir mal o hacer que un numero no diga lo que parece.
-function textoDelRiesgo(r, medida, hoy) {
+// 7. Lo que puede afectar la entrega y, aparte, las notas sobre los datos:
+// cada riesgo en una oracion formal, con sus numeros.
+function textoDelRiesgo(r, medida) {
+  // Las horas entre parentesis, salvo que sean 0: tareas sin estimar.
+  const enHoras = (valor) => (valor > 0 ? ` (${medida(valor)})` : "");
   switch (r.clave) {
     case "sin-entrega":
-      return "No hay fecha de entrega del MVP: cargala en horasPactadas.finDelProyecto de data/equipo.json. Sin ella no se puede decir si se llega.";
+      return "No hay una fecha de entrega definida para el MVP: sin ella no se puede evaluar el plazo.";
     case "sin-horas-por-punto":
-      return "Falta horasPorPunto en data/equipo.json: todo se cuenta en puntos y no hay horas justificadas.";
+      return "No está definida la equivalencia entre puntos y horas: los valores se expresan en puntos y no hay horas justificadas.";
     case "sin-ritmo":
-      return `En los últimos ${dias(r.dias)} no se terminó ninguna tarea: a este ritmo lo que falta no se termina.`;
+      return `No se completaron tareas en los últimos ${dias(r.dias)}: sin ritmo de avance no es posible estimar la finalización.`;
     case "no-llega":
-      return `Al ritmo de los últimos ${dias(DIAS_DEL_RITMO)} (${medida(r.porDia)} por día), lo que falta se termina el ${fechaProyectada(r.fin, hoy)}, ${dias(r.diasDeAtraso)} después de la entrega.${
-        r.necesarioPorDia !== null ? ` Para llegar hacen falta ${medida(r.necesarioPorDia)} por día.` : ""
+      return `Al ritmo de los últimos ${dias(DIAS_DEL_RITMO)} (${medida(r.porDia)} por día), el alcance se completaría el ${fechaCompleta(r.fin)}, ${dias(r.diasDeAtraso)} después de la fecha comprometida.${
+        r.necesarioPorDia !== null ? ` Cumplir la fecha requiere ${medida(r.necesarioPorDia)} por día.` : ""
       }`;
     case "entrega-vencida":
-      return `La entrega ya pasó y quedan ${medida(r.restante)} sin terminar.`;
+      return `La fecha de entrega venció con ${medida(r.restante)} pendientes.`;
     case "horas-bajo-el-minimo":
-      return `Faltan ${numero(r.faltan)} h para el mínimo de horas justificadas que pide el cliente.`;
+      return `Faltan ${numero(r.faltan)} h para alcanzar el mínimo de horas justificadas requerido.`;
     case "sin-sprint-en-curso":
-      return `No hay un sprint en curso desde el ${fechaCorta(r.desde)}: lo que falta del MVP no tiene un sprint con plazo.`;
+      return `No hay un sprint en curso desde el ${fechaCorta(r.desde)}: el trabajo pendiente no tiene un sprint asignado.`;
     case "sprint-cerrado-con-pendientes":
-      return `${r.sprint.nombre} cerró el ${fechaCorta(r.sprint.fin)} con ${tareas(r.tareas)} sin terminar (${medida(r.valor)}).`;
+      return `${r.sprint.nombre} cerró el ${fechaCorta(r.sprint.fin)} con ${tareas(r.tareas)} sin completar${enHoras(r.valor)}.`;
     case "entregas-despues-del-cierre":
-      return `${r.tareas === 1 ? "1 tarea" : `${r.tareas} tareas`} de ${r.sprint.nombre} (${medida(r.valor)}) se ${r.tareas === 1 ? "terminó" : "terminaron"} después de su cierre, el ${fechaCorta(r.sprint.fin)}.`;
+      return `${tareas(r.tareas)} de ${r.sprint.nombre}${enHoras(r.valor)} se ${r.tareas === 1 ? "completó" : "completaron"} después del cierre del sprint, el ${fechaCorta(r.sprint.fin)}.`;
     case "sin-estimar":
-      return `${r.tareas === 1 ? "1 tarea no tiene" : `${r.tareas} tareas no tienen`} estimación: sus horas no se cuentan en el avance ni en lo justificado.`;
+      return `${r.tareas === 1 ? "1 tarea no tiene" : `${r.tareas} tareas no tienen`} estimación: no ${r.tareas === 1 ? "suma" : "suman"} al avance ni a las horas justificadas.`;
     case "sin-clasificar":
-      return `${r.tareas === 1 ? "1 tarea no tiene" : `${r.tareas} tareas no tienen`} tipo de trabajo (ni código HU, HT, QA, HG o SM, ni historia): ${r.tareas === 1 ? "cuenta" : "cuentan"} como «Sin clasificar».`;
+      return `${r.tareas === 1 ? "1 tarea no tiene" : `${r.tareas} tareas no tienen`} tipo de trabajo (código HU, HT, QA, HG o SM): ${r.tareas === 1 ? "se agrupa" : "se agrupan"} como «Sin clasificar».`;
     case "sprint-cruza-la-entrega":
-      return `${r.sprint.nombre} termina después de la entrega (el ${fechaCorta(r.sprint.fin)}) y se cuenta entero en el MVP.`;
+      return `${r.sprint.nombre} termina el ${fechaCorta(r.sprint.fin)}, después de la entrega, y se cuenta completo en el MVP.`;
     default:
       return r.clave;
   }
@@ -905,19 +906,19 @@ function textoDelRiesgo(r, medida, hoy) {
 
 const NOMBRE_NIVEL = { alto: "Alto", medio: "Medio", bajo: "Bajo" };
 
-function PanelRiesgos({ riesgos, medida, hoy }) {
+function PanelRiesgos({ riesgos, medida }) {
   return (
     <section className="panel">
-      <h2>Riesgos y alertas</h2>
-      <p className="subtitulo">Lo que puede demorar la entrega o hacer que un número no diga lo que parece</p>
+      <h2>Riesgos</h2>
+      <p className="subtitulo">Lo que puede afectar la fecha de entrega o el cumplimiento de los objetivos</p>
       {riesgos.length === 0 ? (
-        <p className="motivo">No hay riesgos a la vista.</p>
+        <p className="motivo">No se identifican riesgos para la entrega.</p>
       ) : (
         <ul className="riesgos">
           {riesgos.map((r, i) => (
             <li key={`${r.clave}-${i}`} className={`riesgo ${r.nivel}`}>
               <span className="nivel">{NOMBRE_NIVEL[r.nivel]}</span>
-              <span>{textoDelRiesgo(r, medida, hoy)}</span>
+              <span>{textoDelRiesgo(r, medida)}</span>
             </li>
           ))}
         </ul>
@@ -930,7 +931,7 @@ function PanelRiesgos({ riesgos, medida, hoy }) {
 // estimar o sin tipo, configuracion que falta) y lo que no se pudo traducir de
 // Shortcut. Van plegadas, salvo que alguna sea grave: un dato que no se
 // entiende nunca se esconde.
-function NotasSobreLosDatos({ notas, problemas, medida, hoy }) {
+function NotasSobreLosDatos({ notas, problemas, medida }) {
   const total = notas.length + problemas.length;
   if (total === 0) return null;
   return (
@@ -941,7 +942,7 @@ function NotasSobreLosDatos({ notas, problemas, medida, hoy }) {
           {notas.map((n, i) => (
             <li key={`${n.clave}-${i}`} className={`riesgo ${n.nivel}`}>
               <span className="nivel">{NOMBRE_NIVEL[n.nivel]}</span>
-              <span>{textoDelRiesgo(n, medida, hoy)}</span>
+              <span>{textoDelRiesgo(n, medida)}</span>
             </li>
           ))}
         </ul>
@@ -956,8 +957,8 @@ function Problemas({ problemas }) {
     <>
       <p className="motivo">
         {problemas.length === 1
-          ? "1 dato de Shortcut no se pudo traducir:"
-          : `${problemas.length} datos de Shortcut no se pudieron traducir:`}
+          ? "1 dato de Shortcut no se pudo interpretar:"
+          : `${problemas.length} datos de Shortcut no se pudieron interpretar:`}
       </p>
       <div className="contrato">
         <table>
@@ -987,31 +988,33 @@ function Problemas({ problemas }) {
   );
 }
 
-// 8. Como se calcula: los supuestos de cada numero, para que el cliente sepa
-// que esta mirando.
-function ComoSeCalcula({ reporte }) {
+// 8. La metodologia: de donde sale cada numero, para que el cliente sepa que
+// esta mirando. Sin nombres de archivos ni de campos de configuracion.
+function Metodologia({ reporte }) {
   const { supuestos, inversion, mvp } = reporte;
   const { horas } = inversion;
+  const plata = horas.plata;
   return (
     <p className="nota">
-      Fuente: Shortcut. El MVP son los sprints que empiezan hasta la entrega
-      {mvp.configurada ? ` (el ${fechaCorta(mvp.entrega)})` : ""}; lo que no está en ningún sprint no
-      cuenta. Las horas salen de los puntos de cada tarea
-      {supuestos.horasPorPunto ? `, a ${numero(supuestos.horasPorPunto)} h por punto` : ""}: Shortcut no
-      registra horas. Se justifican las tareas terminadas, una vez por tarea aunque tenga varios
-      responsables.
+      <strong>Metodología.</strong> Fuente: Shortcut, la herramienta de gestión del equipo. El MVP
+      comprende los sprints que comienzan hasta la fecha de entrega
+      {mvp.configurada ? ` (${fechaCompleta(mvp.entrega)})` : ""}; el trabajo fuera de los sprints no se
+      cuenta. Las horas se calculan a partir de los puntos de cada tarea
+      {supuestos.horasPorPunto ? `, a ${numero(supuestos.horasPorPunto)} h por punto` : ""}, porque
+      Shortcut no registra horas. Se justifican las horas de las tareas terminadas, una vez por tarea
+      aunque tenga varios responsables.
       {horas.minimo !== null &&
-        ` El cliente pide al menos ${numero(horas.minimo)} h para la entrega${
+        ` El mínimo requerido para la entrega es de ${numero(horas.minimo)} h${
           horas.pactadas !== null
-            ? `; el equipo pactó ${numero(horas.pactadas)} h (${numero(supuestos.horasPactadasPorIntegrante)} por persona)`
+            ? `; el equipo comprometió ${numero(horas.pactadas)} h (${numero(supuestos.horasPactadasPorIntegrante)} h por persona)`
             : ""
-        }, y se pueden justificar más.`}{" "}
-      El ritmo es lo terminado en los últimos {dias(supuestos.diasDelRitmo)}, y la proyección lo sigue
-      desde hoy. Una entrega es lo que se terminó en un sprint; cuenta como después del cierre si se
-      terminó pasado su último día, en hora de Buenos Aires. El tipo de trabajo sale del código de cada
-      historia ({supuestos.tipos.map((t) => `${t.prefijos.join(" y ")}: ${t.nombre.toLowerCase()}`).join("; ")}).
-      Las horas pactadas, el mínimo, la fecha de entrega y el costo por hora salen de{" "}
-      <code>data/equipo.json</code>. Lo interno del equipo (roles, carga, bugs y retrabajo) está en{" "}
+        } y puede justificar más.`}
+      {plata && ` Las horas se valorizan a ${enPlata(plata.porHora, plata.moneda)} por hora.`} El ritmo es el
+      promedio de lo terminado en los últimos {dias(supuestos.diasDelRitmo)}, y la proyección lo extiende
+      desde hoy. Una entrega es el trabajo terminado en un sprint; se considera posterior al cierre si se
+      completó después de su último día, en hora de Buenos Aires. El tipo de trabajo surge del código de
+      cada historia ({supuestos.tipos.map((t) => `${t.prefijos.join(" y ")}: ${t.nombre.toLowerCase()}`).join("; ")}).
+      La información interna del equipo (roles, carga, errores y retrabajo) está en{" "}
       <Link href={performance.ruta} prefetch={false}>
         {performance.titulo}
       </Link>
