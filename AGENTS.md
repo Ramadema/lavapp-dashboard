@@ -111,12 +111,15 @@ Y mirar el backoffice en el navegador:
   chips de 7, 30 y 90 días cambian los números y «Actualizar» cambia la hora de
   «Datos de la app de gestión del…». Sin las variables `GESTION_*` muestran
   «Sin conectar», qué variable falta y **ningún número**.
-- `/dashboards/inversion` se lee de arriba abajo: el MVP en una mirada (la
-  frase con los días a la entrega, el avance, las horas y la proyección, y
-  cuatro tarjetas), los cuatro OKR del cliente, ¿llegamos? (con la curva
-  acumulada **con líneas dibujadas** y la tabla de sprints), en qué se
-  invirtieron las horas (la dona y las barras), qué se entregó, qué falta y los
-  riesgos. En 390 px de ancho no tiene scroll horizontal.
+- `/dashboards/inversion` se lee de arriba abajo, en tono formal: el
+  entregable central (el MVP, su fecha de entrega con los días restantes, las
+  barras del plazo y del alcance y la leyenda KPI/OKR), los cuatro objetivos
+  del MVP con las insignias KPI y OKR, la proyección de la entrega (con la curva
+  acumulada **con líneas dibujadas** y el cumplimiento por sprint), la
+  inversión de horas (la dona y las barras), las entregas por sprint, lo
+  pendiente, los riesgos y las notas sobre los datos, plegadas. Ningún texto
+  nombra archivos ni campos de configuración, y en 390 px de ancho no tiene
+  scroll horizontal.
 - `/dashboards/performance` abre en «Todo el proyecto» (la franja que lleva a
   «Avance e inversión», los OKRs del equipo y los bloques Planificación, Horas y
   carga del equipo, Roles y tipo de trabajo, y Calidad); al elegir un sprint en

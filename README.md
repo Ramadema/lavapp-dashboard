@@ -444,27 +444,41 @@ del proyecto de Performance (`/api/inversion`, con el mismo cache) y lo cuenta
 con las mismas tareas. Lo interno del equipo (roles, carga, bugs, retrabajo)
 queda en Performance.
 
-Se lee de arriba abajo, de lo que más le importa al cliente a lo que menos:
+Se lee de arriba abajo como un informe al cliente, en tono formal y sin frases
+armadas, de lo que más le importa a lo que menos:
 
-1. **El MVP en una mirada**: una frase con los días que quedan para la entrega,
-   el avance, las funcionalidades entregadas, las horas justificadas y cuándo se
-   termina lo que falta al ritmo actual, y cuatro tarjetas con esos números.
+1. **Entregable central**: el MVP, su fecha de entrega comprometida (con el día
+   de la semana y los días restantes) y dos barras, el plazo transcurrido contra
+   el alcance terminado. Debajo, la leyenda de las insignias KPI y OKR.
 2. **Objetivos del MVP**: los OKR del cliente, cada uno contra su meta.
-3. **¿Llegamos?**: el ritmo de los últimos 14 días contra el que hace falta, lo
-   que falta y el fin proyectado; la curva acumulada día a día (alcance,
-   planificado a la fecha, terminado y proyección) y cada sprint contra su
-   plazo: lo entregado dentro del sprint, después del cierre y lo pendiente.
-4. **¿En qué se invirtieron las horas?**: justificadas, en curso, por empezar y
-   comprometidas; por tipo de trabajo (una dona con lo justificado y una barra
-   de avance por tipo) y por sprint.
-5. **¿Qué se entregó?**: las notas de cada sprint, del más reciente al primero:
-   las historias terminadas por tipo de trabajo, con su fecha y si se cerraron
-   después del sprint.
-6. **¿Qué falta para el MVP?**: lo pendiente por tipo de trabajo, lo que está en
+3. **Proyección de la entrega**: el ritmo de los últimos 14 días contra el
+   requerido, lo pendiente y la fecha estimada de finalización con los días de
+   desvío; la curva acumulada día a día (alcance, planificado a la fecha,
+   terminado y proyección) y el cumplimiento por sprint: lo entregado dentro del
+   sprint, después del cierre y lo pendiente.
+4. **Inversión de horas**: justificadas, en curso, por iniciar y el total
+   comprometido; por tipo de trabajo (una dona con lo justificado y una barra de
+   avance por tipo) y por sprint.
+5. **Entregas por sprint**: las notas de cada sprint, del más reciente al
+   primero: las historias terminadas por tipo de trabajo, con su fecha y si se
+   cerraron después del sprint.
+6. **Pendiente para el MVP**: lo pendiente por tipo de trabajo, lo que está en
    curso primero, y una línea sobre lo que queda para después del MVP.
-7. **Riesgos y alertas**: lo que puede demorar la entrega o hacer que un número
-   no diga lo que parece, del más grave al menos.
-8. **Cómo se calcula**: los supuestos, al pie.
+7. **Riesgos**: lo que puede afectar la fecha de entrega o los objetivos, del
+   más grave al menos.
+8. **Notas sobre los datos**, plegadas (se abren solas si alguna es grave):
+   tareas sin estimar o sin tipo, configuración que falta, un sprint que cruza la
+   entrega y lo que no se pudo traducir de Shortcut.
+9. **Metodología**: de dónde sale cada número, al pie.
+
+**KPI y OKR.** Cada tarjeta, gráfico y tabla lleva su insignia con un tooltip:
+KPI es un indicador que se sigue, sin meta; OKR, un resultado clave con meta
+para la entrega. Los cuatro objetivos del MVP y las horas justificadas llevan
+las dos, porque son indicadores con meta, y el tooltip del OKR dice la meta y
+cómo está (cumplido, en curso, en riesgo según la proyección o no cumplido).
+Las listas (entregas, pendientes, riesgos) no llevan insignia. Los textos son
+los del cliente, `TIPOS_DE_METRICA_DEL_CLIENTE` en `lib/kpis/inversion.js`; los
+de Performance hablan de metas del equipo.
 
 ### Qué se calcula
 
@@ -486,7 +500,7 @@ Las reglas están firmadas con `@decision` en `lib/kpis/inversion.js`.
 - **El tipo de trabajo** sale del código con que el equipo nombra cada historia:
   HU es una funcionalidad, HT la base técnica, QA la calidad, y HG y SM la
   gestión. Una subtarea sin código toma el de su historia; lo que no tiene ni
-  código ni historia queda «Sin clasificar» y figura en los riesgos. El Skill Set
+  código ni historia queda «Sin clasificar» y figura en las notas sobre los datos. El Skill Set
   no sirve para esto: en el Sprint 2, el 95 % de las tareas dice «Product».
 - **Las funcionalidades** son las historias de usuario: las HU sin historia
   madre. Sus subtareas no cuentan aparte.
@@ -509,11 +523,13 @@ Las reglas están firmadas con `@decision` en `lib/kpis/inversion.js`.
   horas justificadas (al menos `cliente.horasMinimas`; antes, si ya están o si
   al ritmo actual se llega) y avance contra el plan (al menos
   `cliente.avanceContraElPlanMin`, 90 %).
-- **Los riesgos**: sin fecha de entrega o sin horas por punto, sin ritmo, no
-  llega a la entrega, entrega vencida con trabajo pendiente, horas bajo el
-  mínimo, sin sprint en curso, un sprint cerrado con pendientes, entregas
-  después del cierre, tareas sin estimar o sin tipo de trabajo y un sprint que
-  cruza la entrega.
+- **Los riesgos** son de dos clases (`categoria`). Los de la entrega pueden
+  demorar el MVP y se ven en «Riesgos»: sin ritmo, no llega a la entrega,
+  entrega vencida con trabajo pendiente, horas bajo el mínimo, sin sprint en
+  curso, un sprint cerrado con pendientes y entregas después del cierre. Las
+  notas sobre los datos dicen cuánto creerle a un número y van plegadas al
+  final: sin fecha de entrega o sin horas por punto, tareas sin estimar o sin
+  tipo de trabajo y un sprint que cruza la entrega.
 
 La configuración (`cliente` y `horasPactadas` en `data/equipo.json`) está en
 [Configuración del equipo](#configuración-del-equipo-dataequipojson). Si se carga
@@ -1094,17 +1110,18 @@ externo.
 
 En **Avance e inversión**, el MVP para el cliente:
 
-- El estado del MVP en una frase y cuatro tarjetas: avance, funcionalidades
-  entregadas, horas justificadas contra el mínimo y la entrega con su fin
-  proyectado
-- OKR del cliente: alcance del MVP terminado, funcionalidades entregadas, horas
-  justificadas y avance contra el plan, cada uno contra su meta
-- Ritmo de los últimos 14 días contra el necesario, lo que falta, el fin
-  proyectado, el avance acumulado día a día y cada sprint contra su plazo
-- Horas justificadas, en curso, por empezar y comprometidas, por tipo de
+- El entregable central: el MVP, su fecha de entrega comprometida y el plazo
+  transcurrido contra el alcance terminado
+- OKR del cliente (también KPI): alcance del MVP terminado, funcionalidades
+  entregadas, horas justificadas y avance contra el plan, cada uno contra su meta
+- Ritmo de los últimos 14 días contra el requerido, lo pendiente, la fecha
+  estimada de finalización, el avance acumulado día a día y el cumplimiento por
+  sprint
+- Horas justificadas, en curso, por iniciar y el total comprometido, por tipo de
   trabajo (funcionalidades, base técnica, calidad y gestión) y por sprint, y en
   plata si se carga el costo por hora
-- Las entregas de cada sprint, lo que falta del MVP y los riesgos
+- Las entregas de cada sprint, lo pendiente del MVP, los riesgos de la entrega y
+  las notas sobre los datos
 
 En **Performance**, para todo el proyecto (la vista por defecto, todos los
 sprints de Shortcut sumados):
