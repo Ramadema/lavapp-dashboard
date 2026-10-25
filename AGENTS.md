@@ -26,7 +26,7 @@ Romper cualquiera de estos es un error, no una decisión de diseño:
 3. **Los módulos de `lib/kpis/` son puros.** Sin `fetch`, sin React, sin `process.env`.
 4. **Nada falla en silencio.** Un dato que no se entiende se rechaza y se reporta:
    los de la encuesta en `/api/salud`, los de Shortcut en `problemas` de
-   `/api/performance`. Nunca se ignora calladamente.
+   `/api/performance` y de `/api/inversion`. Nunca se ignora calladamente.
 5. **Los valores del dominio viven en `VOCABULARIO`** (exportado desde
    `lib/normalizar.js`), no sueltos por el código. Ojo:
    `app/dashboards/encuesta-lavaderos/page.jsx` todavía repite parte del
@@ -65,6 +65,7 @@ pide sesión, así que el primer `curl` es el login, que guarda la cookie:
 curl -s -c /tmp/sesion.txt -X POST localhost:3000/api/auth/login -H 'Content-Type: application/json' \
   -d '{"usuario":"admin","contrasena":"<BACKOFFICE_ADMIN_PASSWORD>"}'
 curl -s -b /tmp/sesion.txt localhost:3000/api/salud | python3 -m json.tool
+curl -s -b /tmp/sesion.txt localhost:3000/api/inversion | python3 -m json.tool
 curl -s -b /tmp/sesion.txt localhost:3000/api/performance/proyecto | python3 -m json.tool
 curl -s -b /tmp/sesion.txt localhost:3000/api/performance | python3 -m json.tool
 curl -s -b /tmp/sesion.txt "localhost:3000/api/operacion?dias=7" | python3 -m json.tool
@@ -72,15 +73,20 @@ curl -s -b /tmp/sesion.txt localhost:3000/api/facturacion | python3 -m json.tool
 ```
 
 Sin cookie, cualquier endpoint responde `401`. Con la cookie de `visitors`, los
-que no son `/api/performance*` responden `403`.
+que no son `/api/inversion` ni `/api/performance*` responden `403`.
+
+Con `next start` (producción) la cookie de sesión sale con `Secure` y `curl` no
+la reenvía por `http://localhost`: para probar un build en local, el login va
+por el navegador, o un cliente que mande la cookie a mano en el header.
 
 Con la planilla configurada tiene que decir `fuente: "planilla"`, `motivo: null` y
 `filasRechazadas: 0`. Si dice `fuente: "respaldo"`, la planilla no se leyó y el
 resto del diagnóstico no significa nada.
 
-Con `SHORTCUT_API_TOKEN` configurado, `/api/performance/proyecto` (la vista por
-defecto) y `/api/performance` responden 200 con `problemas: []`. Un 501 es que
-falta el token; un 502 trae en `motivo` lo que contestó Shortcut.
+Con `SHORTCUT_API_TOKEN` configurado, `/api/inversion`, `/api/performance/proyecto`
+(la vista por defecto de Performance) y `/api/performance` responden 200 con
+`problemas: []`. Un 501 es que falta el token; un 502 trae en `motivo` lo que
+contestó Shortcut.
 
 Con `GESTION_API_URL` y `GESTION_API_KEY` configuradas (y el backend corriendo
 con `BACKOFFICE_API_KEY`), `/api/operacion`, `/api/lavaderos`, `/api/clientes` y
@@ -90,9 +96,10 @@ gestión (clave distinta, backend caído, ruta inexistente).
 
 Y mirar el backoffice en el navegador:
 
-- Sin sesión, `/` redirige a `/login`. Con `visitors`, la barra lateral muestra
-  solo Performance, `/dashboards/estado` redirige a Performance y "Salir" vuelve
-  al login. Con `admin` se ve todo.
+- Sin sesión, `/` redirige a `/login`. Con `visitors`, entra a «Avance e
+  inversión», la barra lateral muestra solo esa sección y Performance,
+  `/dashboards/estado` redirige a «Avance e inversión» y "Salir" vuelve al
+  login. Con `admin` se ve todo.
 - `/` lista las secciones y ninguna queda sin tarjeta.
 - `/dashboards/encuesta-lavaderos`: el gráfico tiene **barras dibujadas**, no solo
   ejes, y los números cambian al usar los chips de filtro. Ojo al sacar
@@ -104,14 +111,25 @@ Y mirar el backoffice en el navegador:
   chips de 7, 30 y 90 días cambian los números y «Actualizar» cambia la hora de
   «Datos de la app de gestión del…». Sin las variables `GESTION_*` muestran
   «Sin conectar», qué variable falta y **ningún número**.
-- `/dashboards/performance` abre en «Todo el proyecto» (OKRs principales, avance
-  total con dos anillos, sprint por sprint, iniciativas, responsables y
-  equipo); al elegir un sprint en «Ver» pasa al detalle de ese sprint y la URL
-  queda con `?sprint=`; "Actualizar" cambia la hora de "Datos de Shortcut del…".
+- `/dashboards/inversion` se lee de arriba abajo, en tono formal: el
+  entregable central (el MVP, su fecha de entrega con los días restantes, las
+  barras del plazo y del alcance y la leyenda KPI/OKR), los cuatro objetivos
+  del MVP como OKR (cada métrica lleva una sola insignia, KPI u OKR, y su
+  tooltip dice qué mide), la proyección de la entrega (con la curva
+  acumulada **con líneas dibujadas** y el cumplimiento por sprint), la
+  inversión de horas (la dona y las barras), las entregas por sprint, lo
+  pendiente, los riesgos y las notas sobre los datos, plegadas. Ningún texto
+  nombra archivos ni campos de configuración, y en 390 px de ancho no tiene
+  scroll horizontal.
+- `/dashboards/performance` abre en «Todo el proyecto» (la franja que lleva a
+  «Avance e inversión», los OKRs del equipo y los bloques Planificación, Horas y
+  carga del equipo, Roles y tipo de trabajo, y Calidad); al elegir un sprint en
+  «Ver» pasa al detalle de ese sprint y la URL queda con `?sprint=`;
+  "Actualizar" cambia la hora de "Datos de Shortcut del…".
 
 <!-- BEGIN:nextjs-agent-rules -->
 
-# This is NOT the Next.js you know
+## This is NOT the Next.js you know
 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
 

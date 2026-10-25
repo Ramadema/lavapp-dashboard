@@ -41,6 +41,12 @@ de pasarlos, no cambies el componente.
   valor="80%"                         // string o number, obligatorio
   detalle="papel, planilla o sin registro"  // string, opcional
   critico                             // boolean, opcional: pinta el valor en rojo
+  tipo="kpi"                          // "kpi" u "okr", opcional: agrega la insignia con tooltip (una sola; un OKR es la métrica con meta)
+  meta="al menos 680 h"               // string, opcional: la meta, en el tooltip de la insignia OKR
+  cumple={true}                       // true | false | null, opcional: la insignia OKR en verde o en rojo
+  estado="en curso"                   // string, opcional: lo que sigue a la meta, en vez de "se cumple" o "no se cumple"
+  definicion="Horas de las tareas terminadas." // string, opcional: qué mide la tarjeta; el tooltip la muestra en vez de la definición general de KPI u OKR
+  clases={TIPOS_DE_METRICA_DEL_CLIENTE} // opcional: la sigla y el nombre de las insignias; por defecto, los del equipo (TIPOS_DE_METRICA)
 />
 ```
 
@@ -572,6 +578,7 @@ Copiá esto en la descripción del PR y marcá cada punto.
 [ ] Si cambié una regla de negocio, dejé la firma @decision (ver convenciones.md)
 [ ] Actualicé el README si cambió la lista de KPIs o los endpoints
 [ ] Si cambió la forma de /api/performance*, actualicé VERSION_DE_DATOS (lib/kpis/performance.js)
+[ ] Si cambió la forma de /api/inversion, actualicé VERSION_DE_INVERSION (lib/kpis/inversion.js)
 ```
 
 ## Comandos de verificación de referencia

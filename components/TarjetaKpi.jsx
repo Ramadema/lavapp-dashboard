@@ -1,14 +1,25 @@
 // Una tarjeta con un numero grande. `tipo` ("kpi" u "okr") le agrega la
-// insignia que dice que clase de metrica es, con `meta` y `cumple` para los
-// OKR. Sin `tipo` es una tarjeta como las de siempre.
+// insignia que dice que clase de metrica es, con `meta`, `cumple` y `estado`
+// para los OKR; `definicion` hace que su tooltip diga que mide la tarjeta, y
+// `clases` cambia sus textos. Sin `tipo` es una tarjeta como las de siempre.
 import Insignia from "@/components/Insignia";
 
-export default function TarjetaKpi({ etiqueta, valor, detalle, critico, tipo, meta, cumple }) {
+export default function TarjetaKpi({ etiqueta, valor, detalle, critico, tipo, meta, cumple, estado, definicion, clases }) {
   return (
     <div className="kpi">
       <p className="etiqueta">
         {etiqueta}
-        {tipo && <Insignia tipo={tipo} meta={meta} cumple={cumple} />}
+        {tipo && (
+          <Insignia
+            tipo={tipo}
+            meta={meta}
+            cumple={cumple}
+            estado={estado}
+            indicador={etiqueta}
+            definicion={definicion}
+            clases={clases}
+          />
+        )}
       </p>
       <p className={"valor" + (critico ? " critico" : "")}>{valor}</p>
       {detalle && <p className="detalle">{detalle}</p>}

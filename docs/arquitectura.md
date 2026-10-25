@@ -39,6 +39,7 @@ importar de las de abajo, nunca de las de arriba ni de sus hermanas.
 │ 2. DOMINIO        lib/kpis/encuesta.js                      │
 │                   lib/kpis/performance.js                   │
 │                   lib/kpis/proyecto.js · lib/kpis/equipo.js │
+│                   lib/kpis/inversion.js                     │
 │                   lib/kpis/{operacion,lavaderos,clientes,   │
 │                     facturacion}.js · lib/kpis/tiempo.js    │
 │                   cálculo de indicadores. Funciones puras.  │
@@ -94,7 +95,7 @@ Navegador ──cookie lavapp_backoffice──▶ proxy.js
 |---------|-----------------|
 | `proxy.js` | La puerta. Rutas públicas (`/login`, `/api/auth/*`), redirecciones y `401`/`403`. Matcher: todo salvo `_next/static`, `_next/image` y el icono. |
 | `lib/auth.js` | **Único lector de las contraseñas y del secreto** (`BACKOFFICE_ADMIN_PASSWORD`, `BACKOFFICE_VISITORS_PASSWORD`, `BACKOFFICE_SESSION_SECRET`). `autenticar`, `cookieDeSesion`, `cookieDeSalida`, `leerSesion`, `variablesFaltantes`. Los usuarios fijos viven en `USUARIOS`. |
-| `lib/auth/permisos.js` | Puro. `ROLES`, qué secciones ve cada rol (`SLUGS_POR_ROL`, con `@decision`), `seccionesVisibles`, `gruposVisibles`, `rutaInicial`, `describirRol`, `puedeVer(rol, ruta)`. Lo leen el proxy, la barra, el menú y el login: una sola fuente de verdad. |
+| `lib/auth/permisos.js` | Puro. `ROLES`, qué secciones ve cada rol (`SLUGS_POR_ROL`, con `@decision`: `visitors` ve Avance e inversión y Performance), por dónde entra quien no usa el menú (`INICIO_POR_ROL`), `seccionesVisibles`, `gruposVisibles`, `rutaInicial`, `describirRol`, `puedeVer(rol, ruta)`. Lo leen el proxy, la barra, el menú y el login: una sola fuente de verdad. |
 | `lib/auth/sesion.js` | Puro. Firma y lectura del token (HMAC-SHA256 con Web Crypto), comparación en tiempo constante y los nombres de los headers internos. Secreto y hora por parámetro. |
 | `lib/auth/pedido.js` | `sesionDelPedido()`: la sesión que dejó el proxy en los headers, para `app/layout.jsx` y `app/page.jsx`. Aparte de `lib/auth.js` para que el proxy no arrastre `next/headers`. |
 
@@ -155,6 +156,23 @@ Shortcut no tiene respaldo en disco: el respaldo es el propio cache, que solo
 guarda respuestas 200. El detalle está en el
 [README](../README.md#performance-avance-del-sprint-desde-shortcut).
 
+«Avance e inversión», la sección para el cliente, lee de Shortcut lo mismo que
+la vista del proyecto de Performance, con el mismo cache, y lo cuenta para quien
+pone la plata:
+
+```
+Navegador
+   │  fetch /api/inversion                  (POST = botón "Actualizar")
+   ▼
+app/api/inversion/route.js
+   │  obtenerSprints() · obtenerHistorialDeSprints(todos) · obtenerConteos() · cargarEquipo()
+   ▼
+respuestas crudas ──▶ lib/kpis/inversion.js ──▶ armarInversion()
+                         leerTareasDelProyecto() (la misma traducción que proyecto.js)
+                         tipo de trabajo por prefijo · MVP hasta la entrega · plan · ritmo y proyección
+                         horas justificadas · entregas por sprint · lo que falta · OKR del cliente · riesgos
+```
+
 Las cuatro secciones de Gestión leen la app de gestión con el mismo esquema, una
 ruta de la API de backoffice por sección:
 
@@ -209,6 +227,7 @@ la app de gestión falla, `502` con el motivo. El detalle está en el
 | `test/performance.test.mjs` | `lib/kpis/performance.js`, con payloads que tienen la forma exacta de la API de Shortcut y un "ahora" fijo. También corre con `npm test`. |
 | `test/equipo.test.mjs` | `lib/kpis/equipo.js` (roles, WIP, carga, horas, bugs ratio, OKRs) y `normalizarEquipo` de `lib/equipo.js`, más el enganche en `armarReporte`. |
 | `test/proyecto.test.mjs` | `progresoDelProyecto` y `erroresDelProyecto` de `performance.js`, y `lib/kpis/proyecto.js` (`describirPeriodo`, `armarProyecto`): el proyecto entero desde las stories de todos los sprints, con las `stats` de contraste y lo que se reporta cuando no cierra. |
+| `test/inversion.test.mjs` | `lib/kpis/inversion.js`: el tipo de trabajo por prefijo (con la subtarea que hereda el de su historia), el MVP hasta la entrega, el avance contra el plan, el ritmo y la proyección, las horas justificadas contra el mínimo, las entregas dentro y después del cierre (en hora de Buenos Aires), lo que falta, los OKR del cliente y los riesgos, a mitad de un sprint, un día antes de la entrega y con la entrega vencida. |
 | `test/auth.test.mjs` | `lib/auth/permisos.js` (qué ve y qué abre cada rol) y `lib/auth/sesion.js` (firma, token manipulado, vencido, otro secreto). Secreto y hora fijos. `lib/auth.js` no: es la unión con `process.env` y se verifica con `curl`. |
 | `test/gestion.test.mjs` | `lib/kpis/tiempo.js` y los cuatro módulos de Gestión (`operacion`, `lavaderos`, `clientes`, `facturacion`), con filas que tienen la forma exacta de `GET /backoffice/*` y un "ahora" fijo: períodos, totales, minutos por orden, recurrencia, MRR, impagos y las filas rechazadas. También corre con `npm test`. |
 
@@ -224,6 +243,7 @@ fallan lo hacen en silencio.
 | `lib/kpis/performance.js` | `armarReporte(respuestasDeShortcut, { ahora })` → el reporte del sprint: resumen, tareas por estado, listas, burndown (`calcularBurndown`, con la fecha de ingreso de cada tarea sacada de su historial por `fechaDeIngreso`), cumplimiento (`calcularCumplimiento`: planificadas, cumplidas, movidas, proyección), ritmo diario (`calcularRitmo`), cycle time (`calcularCycleTime`), tiempo en el sprint (`calcularTiempoEnSprint`) y por columna (`calcularTiempoPorColumna`, del historial), y el retrabajo (`calcularRetrabajo`, del historial: las tareas cerradas que volvieron a una columna de trabajo anterior, sin replanificaciones, sin correcciones de menos de `MINUTOS_DE_CORRECCION` y sin las que tienen `ETIQUETA_SIN_RETRABAJO`; `proyecto.js` lo llama con los historiales de todos los sprints). `armarHistorial` arma la fila de cada sprint para `/historial`; `progresoDelProyecto` y `erroresDelProyecto` son el bloque `proyecto` del reporte de un sprint. `avancePorEspecialidad` agrupa por el campo custom Skill Set (`CAMPO_TIPO_DE_TRABAJO`) y `describirProyecto` dice cuántos días tiene el proyecto para repartir las horas pactadas (y si descartó la fecha de cierre configurada), `repartirDias` cuántos le tocan a cada sprint sin contar dos veces el día del cambio, y `estuvoEnElSprint` qué tarea movida cuenta como planificada. Exporta `normalizarTareas` y `resumir` para que `proyecto.js` cuente igual. También `elegirSprintPorDefecto`, `otrosSprints` (dónde buscar lo que se movió), `sprintsParaHistorial`, `ETAPAS` y `diaLocal`, que usa la pantalla. Recibe la hora por parámetro para que los tests la fijen. |
 | `lib/kpis/proyecto.js` | `armarProyecto(lecturasDeTodosLosSprints, { ahora, equipo })` → el proyecto entero, lo que `/api/performance/proyecto` publica y la pantalla abre por defecto: `periodo` (`describirPeriodo`: del inicio del primer sprint al fin del último, con la misma forma que un sprint y los días del proyecto para repartir las horas, con `@decision`), `progreso` (cada sprint desde sus stories, las `stats` de contraste), `errores`, `porSprint` (las filas de `armarHistorial`), `porIniciativa`, `porEspecialidad`, `porResponsable` y `equipo` (`armarEquipo` sobre todas las tareas). Reusa `performance.js` y `equipo.js` para que un número del proyecto se cuente igual que el de un sprint. |
 | `lib/kpis/equipo.js` | `armarEquipo(tareas, periodo, equipo, { bugsRegistrados, movidas, retrabajo })` → `porRol`, `wip`, `carga` (puntos repartidos entre los responsables de cada tarea), `horas` (las horas pactadas para el proyecto, prorrateadas por días), `bugs`, `retrabajo` (el de `calcularRetrabajo`, que llega hecho), `okrs` (bugs, retrabajo, efectividad y utilización contra sus metas) y `configuracion`: los KPIs y OKRs del equipo sobre un sprint o sobre el proyecto, con `data/equipo.json`. `TIPOS_DE_METRICA` (qué es un KPI y qué un OKR, para las insignias), `ROLES`, `SIN_ROL`, `SIN_ASIGNAR`, `EQUIPO_VACIO`. Reglas con `@decision`. |
+| `lib/kpis/inversion.js` | `armarInversion(lecturasDeTodosLosSprints, { ahora, equipo })` → el MVP para el cliente, lo que publica `/api/inversion`: `mvp` (`describirMvp`: del primer sprint a la entrega, `horasPactadas.finDelProyecto`), `alcance`, `funcionalidades` (las historias de usuario), `plan` (lo terminado sobre lo planificado a hoy), `ritmo` (los últimos `DIAS_DEL_RITMO` días y la proyección), `okrs` (`okrsDelCliente`), `avanceAcumulado`, `inversion` (`horasInvertidas` y `inversionPorTipo`), `entregas` (`entregasPorSprint`), `pendientes`, `despuesDelMvp` y `riesgos` (`riesgosDelMvp`, cada uno con su `categoria`: de la entrega o de los datos, según `CATEGORIA_DEL_RIESGO`). El tipo de trabajo sale del prefijo de cada historia (`TIPOS_DE_TRABAJO`, `tipoPorPrefijo`, `clasificarTareas`). `TIPOS_DE_METRICA_DEL_CLIENTE` son la sigla, el nombre y la línea de la leyenda de las insignias KPI y OKR para el cliente. Cada regla con `@decision`. |
 | `lib/kpis/tiempo.js` | Lo que comparten los módulos de KPIs: `ZONA_HORARIA`, `diaLocal`, `mesLocal`, `instante` (una fecha que no se entiende es `null`), `promedio`, `mediana`, `contar`, `describirLectura` y `MINUTOS_PARA_DESACTUALIZADO`. `performance.js` los reexporta. |
 | `lib/kpis/operacion.js` | `armarOperacion(ordenes, { ahora, dias, leidoEl })` → el tablero de Operación: `periodo` (`periodo(dias, ahora)`, redondeado al minuto para que el cache sirva), `totales` (del período y de ahora), demora/espera/lavado promedio, `porDia`, `porLavadero`, `porServicio`, `porEstado`, `ordenes` con sus minutos y `problemas`. `ESTADOS`, `ESTADOS_ABIERTOS` y `PERIODOS` son el contrato con el backend y la pantalla. |
 | `lib/kpis/lavaderos.js` | `armarLavaderos(lavaderos, { ahora, leidoEl })` → cuentas activas (`DIAS_ACTIVA`, con `@decision`), inactivas y suspendidas, altas del mes y por mes (`ultimosMeses`), por plan y por ciudad, el padrón ordenado por actividad. |
@@ -249,6 +269,7 @@ fallan lo hacen en silencio.
 | `POST /api/performance[?sprint=]` | `app/api/performance/route.js` | Lo mismo leyendo de Shortcut sin cache, y vence el cache para las cargas siguientes. Es el botón "Actualizar". |
 | `GET|POST /api/performance/historial` | `app/api/performance/historial/route.js` | Una fila por sprint (en curso o terminado, los últimos 8) con lo planificado, lo cumplido y lo movido a otro sprint. Aparte porque lee las tareas y el historial de cada sprint. `POST` = sin cache. |
 | `GET|POST /api/performance/proyecto` | `app/api/performance/proyecto/route.js` | El proyecto entero (la vista por defecto): todos los sprints sumados desde sus stories, con los OKR y los KPIs del equipo sobre todas las tareas, el detalle sprint por sprint y los bugs del workspace. Lee lo mismo que `/historial` para todos los sprints, más los conteos y `data/equipo.json`. `501` sin token, `502` si Shortcut falló; sin sprints no da `404` sino `200` con todo vacío. `POST` = sin cache. |
+| `GET\|POST /api/inversion` | `app/api/inversion/route.js` | El MVP para el cliente: avance, horas justificadas, entregas, lo que falta y los riesgos. Lee lo mismo que `/api/performance/proyecto`. `501` sin token, `502` si Shortcut falló. `POST` = sin cache. |
 | `GET\|POST /api/operacion[?dias=7\|30\|90]` | `app/api/operacion/route.js` | Operación leída de la app de gestión (30 días sin `?dias=`). `400` con otro valor de `dias`, `501` sin `GESTION_*`, `502` si la app de gestión falló. `POST` = sin cache. |
 | `GET\|POST /api/lavaderos` | `app/api/lavaderos/route.js` | El padrón de cuentas. Mismos códigos. |
 | `GET\|POST /api/clientes` | `app/api/clientes/route.js` | Los clientes finales, con los lavados de los últimos 90 días. Mismos códigos. |
@@ -276,14 +297,16 @@ del servicio de atrás, no de este.
 | `app/login/page.jsx` | El formulario de acceso. `"use client"`. Pide a `/api/auth/login` y recarga la página entera para que el layout arme la barra; respeta `?volver=` solo si es una ruta propia que el rol puede ver. |
 | `app/dashboards/encuesta-lavaderos/page.jsx` | El dashboard de la encuesta. `"use client"`. |
 | `app/dashboards/estado/page.jsx` | `/api/salud` con interfaz: fuente en uso, filas rechazadas, columnas ignoradas. `"use client"`. |
-| `app/dashboards/performance/page.jsx` | El avance del proyecto y de cada sprint para negocio. Un selector elige qué se mira (queda en la URL como `?sprint=`): **Todo el proyecto**, por defecto, con los OKRs principales, el avance total en dos anillos, sprint por sprint, iniciativas, tipo de trabajo, responsables, equipo y retrabajo; o **un sprint**, con los OKRs, las tarjetas, una línea del proyecto, cumplimiento, burndown, flujo, ritmo, iniciativas, tipo de trabajo, responsables, equipo, historial, retrabajo, tiempos y listas. El panel de retrabajo lista cada vuelta atrás con su tarea, quién y cuándo, para auditar el OKR. Los paneles con gráficos van de a dos por fila (`.tablero`). Si Shortcut falla, muestra el motivo y no números. `"use client"`. |
+| `app/dashboards/inversion/page.jsx` | «Avance e inversión», el informe al cliente, en tono formal, que se lee de arriba abajo: el entregable central (el MVP, su fecha de entrega y el plazo contra el alcance), los OKR del cliente, la proyección de la entrega (ritmo, curva acumulada y cumplimiento por sprint), la inversión de horas, las entregas por sprint, lo pendiente, los riesgos de la entrega, las notas sobre los datos (plegadas) y la metodología. Cada métrica lleva una sola insignia, KPI u OKR, cuyo tooltip dice qué mide el indicador (`definicionesDe`) y, en los OKR, la meta. `"use client"`. |
+| `app/dashboards/performance/page.jsx` | Lo interno del equipo, para el proyecto y para cada sprint. Un selector elige qué se mira (queda en la URL como `?sprint=`): **Todo el proyecto**, por defecto, con un enlace a «Avance e inversión» (el avance para el cliente vive ahí) y lo interno en bloques: los OKRs del equipo, la planificación (sprint por sprint), las horas y la carga, los roles y el tipo de trabajo, y la calidad (errores y retrabajo); o **un sprint**, con los OKRs, las tarjetas, una línea del proyecto, cumplimiento, burndown, flujo, ritmo, iniciativas, tipo de trabajo, responsables, equipo, historial, retrabajo, tiempos y listas. El panel de retrabajo lista cada vuelta atrás con su tarea, quién y cuándo, para auditar el OKR. Los paneles con gráficos van de a dos por fila (`.tablero`). Si Shortcut falla, muestra el motivo y no números. `"use client"`. |
 | `app/dashboards/{operacion,lavaderos,clientes,facturacion}/page.jsx` | Las secciones de Gestión. Cada una envuelve su tablero en `SeccionRemota` y dibuja tarjetas, gráficos y tablas con lo que devuelve su endpoint; Operación suma los chips de período (7, 30, 90 días). `"use client"`. |
 | `app/globals.css` | Tokens de color (`--tinta`, `--agua`, …) y todas las clases. Sin CSS-in-JS. |
-| `components/Navegacion.jsx` | Barra lateral. Recibe el rol y dibuja solo lo que puede abrir (sin "Inicio" para quien ve una sola sección). `"use client"` porque marca el enlace activo con `usePathname`. |
+| `components/Navegacion.jsx` | Barra lateral. Recibe el rol y dibuja solo lo que puede abrir (sin "Inicio" para quien no usa el menú: ve una sola sección o tiene una entrada propia). `"use client"` porque marca el enlace activo con `usePathname`. |
 | `components/Sesion.jsx` | Quién está adentro, qué ve y el botón "Salir". `"use client"`. |
 | `components/EncabezadoSeccion.jsx` | Encabezado de página: título, subtítulo y señal de estado opcional. |
 | `components/SeccionRemota.jsx` | Una sección que pide sus datos a su propio endpoint: encabezado con señal (Conectada, Sin conectar, Sin datos, Datos desactualizados), controles propios, «Actualizar» (`POST`), «Datos de … del …», el panel de carga, el de error (`501` dice qué falta, otro error dice el motivo) y el aviso de filas rechazadas. `children` recibe la respuesta y dibuja el tablero. Si «Actualizar» falla, deja lo que ya estaba con un aviso. `"use client"`. |
-| `components/TarjetaKpi.jsx` | Tarjeta de un indicador numérico. |
+| `components/TarjetaKpi.jsx` | Tarjeta de un indicador numérico, con la insignia KPI u OKR si se le pasa `tipo`; con `definicion`, el tooltip dice qué mide la tarjeta. |
+| `components/Insignia.jsx` | La insignia KPI u OKR con su tooltip: qué clase de métrica es o, con `definicion`, qué mide ese indicador; en un OKR, además, la meta y cómo está. La sigla y el nombre son los del equipo salvo que se le pasen otros (`clases`). |
 | `components/BarrasHorizontales.jsx` | Gráfico de barras horizontales (ranking de categorías). |
 | `components/BarrasAgrupadas.jsx` | Gráfico de barras verticales agrupadas (comparar series). |
 | `components/Lineas.jsx` | Gráfico de líneas (evolución en el tiempo). Un `null` corta la línea: es lo que usa el burndown para los días que no pasaron. |

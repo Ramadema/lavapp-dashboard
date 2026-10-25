@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import EncabezadoSeccion from "@/components/EncabezadoSeccion";
 import TarjetaKpi from "@/components/TarjetaKpi";
 import Lineas from "@/components/Lineas";
@@ -18,6 +19,7 @@ import { SIN_ASIGNAR, SIN_ROL, TIPOS_DE_METRICA } from "@/lib/kpis/equipo";
 import { AMBITO_PROYECTO } from "@/lib/kpis/proyecto";
 
 const seccion = buscarSeccion("performance");
+const seccionDelCliente = buscarSeccion("inversion");
 
 // Que se esta mirando: el proyecto entero (lo que se abre por defecto) o un
 // sprint. Los paneles que se comparten entre las dos vistas cambian sus textos
@@ -499,13 +501,14 @@ function PanelDeError({ error, volver }) {
   );
 }
 
-// La vista por defecto: el proyecto entero. Primero los OKR, despues el avance
-// total con los anillos, el detalle sprint por sprint y los KPIs del equipo
-// sobre todas las tareas, de a dos paneles por fila.
+// La vista por defecto: el proyecto entero, contado para el equipo. El avance,
+// las horas invertidas y las entregas, pensados para el cliente, estan en
+// «Avance e inversion»; aca va lo interno, de lo mas importante a lo menos:
+// los OKR del equipo, como se cumple lo planificado, las horas y la carga de
+// cada uno, los roles y el tipo de trabajo, y la calidad (bugs y retrabajo).
 function Proyecto({ reporte }) {
   const {
     periodo,
-    progreso,
     errores,
     porSprint,
     porIniciativa,
@@ -527,24 +530,31 @@ function Proyecto({ reporte }) {
         </div>
       )}
 
+      <FranjaDelCliente />
+
       <PanelOkrs equipo={equipo} alcance={alcance} />
 
-      <PanelAvanceTotal progreso={progreso} errores={errores} periodo={periodo} />
-
+      <h2 className="bloque-titulo">Planificación</h2>
       <PanelPorSprint porSprint={porSprint} enCurso={periodo.enCurso} />
 
+      <h2 className="bloque-titulo">Horas y carga del equipo</h2>
       <div className="tablero">
-        <PanelPorIniciativa porIniciativa={porIniciativa} alcance={alcance} />
-        <PanelPorResponsable porResponsable={porResponsable} alcance={alcance} />
-        <PanelPorRol porRol={equipo.porRol} alcance={alcance} />
-        <PanelPorEspecialidad porEspecialidad={porEspecialidad} alcance={alcance} />
-        <PanelWip wip={equipo.wip} />
-        <PanelCargaPorIntegrante carga={equipo.carga} alcance={alcance} />
         <PanelHoras horas={equipo.horas} alcance={alcance} finConfigurado={equipo.configuracion.finDelProyecto} />
+        <PanelCargaPorIntegrante carga={equipo.carga} alcance={alcance} />
+        <PanelPorResponsable porResponsable={porResponsable} alcance={alcance} />
+        <PanelWip wip={equipo.wip} />
       </div>
-
       <PanelEfectividad horas={equipo.horas} metas={equipo.configuracion.metas} />
 
+      <h2 className="bloque-titulo">Roles y tipo de trabajo</h2>
+      <div className="tablero">
+        <PanelPorRol porRol={equipo.porRol} alcance={alcance} />
+        <PanelPorEspecialidad porEspecialidad={porEspecialidad} alcance={alcance} />
+        <PanelPorIniciativa porIniciativa={porIniciativa} alcance={alcance} />
+      </div>
+
+      <h2 className="bloque-titulo">Calidad</h2>
+      <PanelErrores errores={errores} />
       <PanelRetrabajo retrabajo={equipo.retrabajo} alcance={alcance} />
 
       {problemas.length > 0 && <Problemas problemas={problemas} />}
@@ -564,6 +574,23 @@ function Proyecto({ reporte }) {
         {archivadas > 0 && ` No se cuentan ${archivadas} tareas archivadas.`}
       </p>
     </>
+  );
+}
+
+// El avance del proyecto para el cliente vive en su propia seccion: aca se
+// avisa y se enlaza, para no contarlo dos veces.
+function FranjaDelCliente() {
+  return (
+    <div className="franja-proyecto">
+      <strong>Para el cliente</strong>
+      <span>
+        El avance del MVP, las horas invertidas, las entregas y los riesgos están en{" "}
+        {seccionDelCliente.titulo}.
+      </span>
+      <Link className="chip" href={seccionDelCliente.ruta} prefetch={false}>
+        Ver {seccionDelCliente.titulo}
+      </Link>
+    </div>
   );
 }
 
@@ -1755,8 +1782,8 @@ function PanelHoras({ horas: datosDeHoras, alcance, finConfigurado }) {
   } = datosDeHoras;
   const conCapacidad = personas.filter((p) => p.capacidad !== null);
   const parcial = esParcial(alcance, datosDeHoras);
-  // "150 h pactadas por persona para el proyecto, de las que al sprint le
-  // tocan 14 de 29 días".
+  // "70 h pactadas por persona para el proyecto, de las que al sprint le
+  // tocan 14 de 36 días".
   const pactadas =
     horasPactadasPorIntegrante === null
       ? "las horas que cada uno tiene pactadas para el proyecto"
@@ -2088,138 +2115,42 @@ function FranjaProyecto({ proyecto, verProyecto, ocupado }) {
   );
 }
 
-// "1 terminado · 1 en curso · 0 por empezar"
-function detalleDeSprints({ terminados, enCurso, proximos }) {
-  return [
-    concordar(terminados, "terminado", "terminados"),
-    `${enCurso} en curso`,
-    `${proximos} por empezar`,
-  ].join(" · ");
-}
-
-// Los dias que quedan de los sprints cargados; si la fecha de cierre del
-// proyecto va mas alla, se la nombra aparte.
-function tarjetaDeDiasDelProyecto(periodo) {
-  if (periodo.fin === null) return { valor: "–", detalle: "sin sprints" };
-  const cierre =
-    periodo.repartoConfigurado && periodo.finDelReparto > periodo.fin
-      ? ` · el proyecto cierra el ${fechaCorta(periodo.finDelReparto)}`
-      : "";
-  if (periodo.diasRestantes === 0) {
-    return { valor: 0, detalle: `el último sprint terminó el ${fechaCorta(periodo.fin)}${cierre}` };
-  }
-  return {
-    valor: periodo.diasRestantes,
-    detalle: `de ${periodo.diasTotales} · el último sprint termina el ${fechaCorta(periodo.fin)}${cierre}`,
-  };
-}
-
-// El panel principal de la vista del proyecto: dos anillos con el avance total
-// (en tareas y en puntos), las tarjetas del periodo y el desglose por sprint.
-function PanelAvanceTotal({ progreso, errores, periodo }) {
-  const { sprints, tareas, puntos, sinSprint } = progreso;
-  const porSprint = useMemo(
-    () => sprints.map((s) => ({ nombre: recortar(s.nombre, 24), ...porEtapa(s.tareas) })),
-    [sprints]
-  );
-  const anilloDeTareas = [
-    { nombre: ETAPAS.done, valor: tareas.terminadas },
-    { nombre: ETAPAS.started, valor: tareas.enCurso },
-    { nombre: ETAPAS.unstarted, valor: tareas.pendientes },
-  ];
-  const anilloDePuntos = [
-    { nombre: PUNTOS_TERMINADOS, valor: puntos.terminados },
-    { nombre: PUNTOS_PENDIENTES, valor: puntos.total - puntos.terminados },
-  ];
-  const diasDelProyecto = tarjetaDeDiasDelProyecto(periodo);
-
+// Los errores (bugs) de todo el proyecto: cuantos se reportaron, cuantos se
+// resolvieron y cuantos siguen abiertos. Es calidad interna del equipo: el
+// cliente ve el avance en su seccion.
+function PanelErrores({ errores }) {
+  const sinRegistro = sinErroresRegistrados(errores);
   return (
     <section className="panel">
       <h2>
-        Avance total del proyecto <Insignia tipo="kpi" />
+        Errores (bugs) <Insignia tipo="kpi" />
       </h2>
       <p className="subtitulo">
-        Lo terminado sobre todo lo planificado en los sprints, del primero al último
-        {periodo.inicio &&
-          `: ${textoDeSprints(periodo.sprints.total)}, del ${fechaCorta(periodo.inicio)} al ${fechaCorta(periodo.fin)}`}
+        Las stories de tipo «bug» de todo el workspace de Shortcut y las que entraron a algún sprint
       </p>
-      {sprints.length === 0 ? (
-        <p className="motivo">Todavía no hay sprints cargados en Shortcut.</p>
-      ) : (
-        <>
-          <div className="anillos">
-            <div>
-              <p className="titulo-grafico">Avance en tareas</p>
-              <Torta
-                datos={anilloDeTareas}
-                colores={COLORES_ETAPAS}
-                centro={conPorcentaje(tareas.pct)}
-                detalle={`${tareas.terminadas} de ${textoDeTareas(tareas.total)}`}
-                alto={260}
-              />
-            </div>
-            <div>
-              <p className="titulo-grafico">Avance en puntos</p>
-              <Torta
-                datos={anilloDePuntos}
-                colores={COLORES_PUNTOS}
-                centro={conPorcentaje(puntos.pct)}
-                detalle={
-                  puntos.total === 0 ? "ninguna tarea tiene puntos" : `${puntos.terminados} de ${puntos.total} puntos`
-                }
-                alto={260}
-              />
-            </div>
-            <div className="grilla-kpis">
-              <TarjetaKpi
-                etiqueta="Sprints"
-                valor={periodo.sprints.total}
-                detalle={detalleDeSprints(periodo.sprints)}
-              />
-              <TarjetaKpi
-                etiqueta="Días restantes"
-                valor={diasDelProyecto.valor}
-                detalle={diasDelProyecto.detalle}
-              />
-              <TarjetaKpi
-                etiqueta="En curso hoy"
-                valor={tareas.enCurso}
-                detalle={`${tareas.pendientes} sin empezar${
-                  puntos.tareasSinEstimar > 0
-                    ? ` · ${textoDeTareas(puntos.tareasSinEstimar)} sin estimar`
-                    : ""
-                }`}
-              />
-              <TarjetaKpi
-                etiqueta="Errores abiertos"
-                valor={errores.abiertos === null || sinErroresRegistrados(errores) ? "–" : errores.abiertos}
-                critico={errores.abiertos !== null && errores.abiertos > 0}
-                detalle={detalleDeErrores(errores)}
-              />
-            </div>
-          </div>
-          <h3 className="subtitulo">Por sprint</h3>
-          <BarrasApiladas datos={porSprint} series={SERIES_ETAPAS} anchoEtiquetas={160} />
-          <ul className="lista-avance">
-            {sprints.map((s) => (
-              <li key={s.id}>
-                <strong>{s.nombre}</strong> ({s.estado}, {fechaCorta(s.inicio)} – {fechaCorta(s.fin)}):{" "}
-                {terminadasDe(s.tareas.terminadas, s.tareas.total)}
-                {s.tareas.pct !== null && ` (${s.tareas.pct}%)`}
-                {s.puntos.total > 0 && ` · ${s.puntos.terminados} de ${s.puntos.total} puntos`}
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-      {sinSprint !== null && sinSprint > 0 && (
-        <p className="motivo">
-          {sinSprint === 1
-            ? "1 tarea no está en ningún sprint y no cuenta en el avance."
-            : `${sinSprint} tareas no están en ningún sprint y no cuentan en el avance.`}
-        </p>
-      )}
-      {errores.reportados === 0 && (
+      <div className="grilla-kpis">
+        <TarjetaKpi
+          etiqueta="Abiertos"
+          valor={errores.abiertos === null || sinRegistro ? "–" : errores.abiertos}
+          critico={errores.abiertos !== null && errores.abiertos > 0}
+          detalle={detalleDeErrores(errores)}
+        />
+        <TarjetaKpi
+          etiqueta="Reportados"
+          valor={errores.reportados ?? "–"}
+          detalle={
+            errores.enElSprint.reportados > 0
+              ? `${concordar(errores.enElSprint.reportados, "entró", "entraron")} a algún sprint`
+              : "ninguno entró a un sprint"
+          }
+        />
+        <TarjetaKpi
+          etiqueta="Resueltos"
+          valor={errores.resueltos ?? "–"}
+          detalle={errores.pctResueltos === null ? "sin porcentaje" : `${errores.pctResueltos}% de los reportados`}
+        />
+      </div>
+      {sinRegistro && (
         <p className="motivo">
           El proyecto no tiene ninguna story de tipo «bug» en Shortcut: los errores y el OKR de
           bugs se miden cuando los defectos se carguen con ese tipo, no como feature.
