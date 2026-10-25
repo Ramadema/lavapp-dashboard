@@ -844,17 +844,52 @@ a.chip {
 
 /* ─── Avance e inversión ────────────────────────────────────────────────── */
 
-/* El primer panel del informe al cliente: el estado del MVP en cuatro frases,
-   con el borde de la marca como los OKR. */
-.titular {
+/* El primer panel del informe al cliente: el entregable central, con el borde
+   de la marca. Arriba el MVP y su fecha de entrega; abajo, el plazo
+   transcurrido contra el alcance terminado. */
+.entregable {
   border-left: 4px solid var(--agua);
+  padding-bottom: 20px;
 }
 
-.titular-texto {
+.entregable-rotulo {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--agua-oscura);
+  margin: 0 0 4px;
+}
+
+.panel.entregable h2 {
+  font-size: 26px;
+  margin: 0 0 6px;
+}
+
+.entregable-fecha {
   font-size: 16px;
-  line-height: 1.6;
-  margin: 6px 0 18px;
-  max-width: 980px;
+  margin: 0 0 20px;
+}
+
+.entregable-fecha span[title] {
+  cursor: help;
+  border-bottom: 1px dotted var(--gris-suave);
+}
+
+.entregable-barras {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
+  gap: 16px 40px;
+}
+
+.titulo-barra {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gris);
+  margin: 0 0 6px;
 }
 
 /* Las entregas de un sprint, como notas de version: un bloque por sprint y,

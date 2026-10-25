@@ -42,6 +42,15 @@ const fechaProyectada = (dia, hoy) =>
   dia && hoy && dia.slice(0, 4) !== hoy.slice(0, 4)
     ? FECHA_CON_ANIO.format(new Date(`${dia}T00:00:00Z`))
     : fechaCorta(dia);
+// La fecha de entrega, completa y con el dia de la semana: «miércoles, 28/10/2026».
+const FECHA_LARGA = new Intl.DateTimeFormat("es-AR", {
+  weekday: "long",
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  timeZone: "UTC",
+});
+const fechaLarga = (dia) => FECHA_LARGA.format(new Date(`${dia}T00:00:00Z`));
 const diaYHora = (instante) => DIA_Y_HORA.format(new Date(instante));
 const numero = (n) => (n === null || n === undefined ? "–" : NUMERO.format(n));
 const conPorcentaje = (pct) => (pct === null || pct === undefined ? "–" : `${numero(pct)}%`);
@@ -263,7 +272,7 @@ function Informe({ reporte }) {
           Shortcut: tocá «Actualizar» para verla.
         </div>
       )}
-      <PanelDeUnVistazo reporte={reporte} medida={medida} />
+      <PanelEntregable reporte={reporte} medida={medida} />
       <PanelObjetivos reporte={reporte} medida={medida} />
       <PanelLlegada reporte={reporte} medida={medida} />
       <PanelInversion reporte={reporte} medida={medida} />
@@ -281,95 +290,53 @@ function Informe({ reporte }) {
   );
 }
 
-// 1. El MVP en una mirada: lo que el cliente quiere saber antes que nada, en
-// cuatro frases y cuatro numeros.
-function titularDe({ mvp, alcance, funcionalidades, ritmo, inversion }, medida) {
-  const frases = [];
-  if (!mvp.configurada) frases.push("Todavía no hay una fecha de entrega del MVP cargada.");
-  else if (mvp.vencida) frases.push(`La entrega del MVP fue el ${fechaCorta(mvp.entrega)}.`);
-  else if (mvp.diasRestantes === 1) frases.push(`Hoy es la entrega del MVP (${fechaCorta(mvp.entrega)}).`);
-  else frases.push(`Quedan ${dias(mvp.diasRestantes)} para la entrega del MVP, el ${fechaCorta(mvp.entrega)}, contando hoy.`);
-
+// 1. El entregable central: el MVP y su fecha de entrega comprometida, y cuanto
+// del plazo paso contra cuanto del alcance esta terminado. Sin frases: se lee
+// de un vistazo y el detalle sigue abajo.
+function PanelEntregable({ reporte, medida }) {
+  const { mvp, alcance } = reporte;
   const pct = alcance.valor.pct ?? alcance.tareas.pct;
-  frases.push(
-    `Está terminado el ${conPorcentaje(pct)} del alcance y se entregaron ${funcionalidades.entregadas} de ${funcionalidades.total} funcionalidades.`
-  );
-
-  const { horas } = inversion;
-  if (horas.configurado) {
-    const minimo =
-      horas.minimo === null
-        ? ""
-        : horas.justificadas >= horas.minimo
-          ? `, por encima de las ${numero(horas.minimo)} h mínimas`
-          : `; faltan ${numero(horas.faltanParaElMinimo)} h para las ${numero(horas.minimo)} h mínimas`;
-    frases.push(`Se justificaron ${numero(horas.justificadas)} h${minimo}.`);
-  }
-
-  const p = ritmo.proyeccion;
-  if (p?.terminado) frases.push("No queda nada pendiente del MVP.");
-  else if (!p) frases.push(`En los últimos ${dias(ritmo.dias)} no se terminó ninguna tarea: no hay ritmo para proyectar.`);
-  else if (p.llegaALaEntrega === false) {
-    frases.push(
-      `Al ritmo de los últimos ${dias(ritmo.dias)}, lo que falta se termina el ${fechaProyectada(p.fin, mvp.hoy)}, ${dias(p.diasDeAtraso)} después de la entrega${
-        ritmo.necesarioPorDia !== null ? `: para llegar hay que terminar ${medida(ritmo.necesarioPorDia)} por día` : ""
-      }.`
-    );
-  } else {
-    frases.push(`Al ritmo de los últimos ${dias(ritmo.dias)}, lo que falta se termina el ${fechaProyectada(p.fin, mvp.hoy)}.`);
-  }
-  return frases;
-}
-
-function PanelDeUnVistazo({ reporte, medida }) {
-  const { mvp, alcance, funcionalidades, ritmo, inversion } = reporte;
-  const { horas } = inversion;
-  const p = ritmo.proyeccion;
-  const pct = alcance.valor.pct ?? alcance.tareas.pct;
-  const faltan = enOrden(funcionalidades.faltan.map(codigo));
+  const plazo =
+    mvp.diasTotales > 0 ? Math.round((Math.min(mvp.diasTranscurridos, mvp.diasTotales) / mvp.diasTotales) * 1000) / 10 : null;
   return (
-    <section className="panel titular">
-      <h2>El MVP en una mirada</h2>
-      <p className="titular-texto">{titularDe(reporte, medida).join(" ")}</p>
-      <div className="grilla-kpis">
-        <TarjetaKpi
-          etiqueta="Avance del MVP"
-          valor={conPorcentaje(pct)}
-          detalle={`${medida(alcance.valor.terminado)} de ${medida(alcance.valor.total)} · ${alcance.tareas.terminadas} de ${tareas(alcance.tareas.total)}`}
-        />
-        <TarjetaKpi
-          etiqueta="Funcionalidades entregadas"
-          valor={`${funcionalidades.entregadas} de ${funcionalidades.total}`}
-          detalle={faltan.length === 0 ? "todas las historias de usuario" : `faltan ${listar(faltan)}`}
-        />
-        <TarjetaKpi
-          etiqueta="Horas justificadas"
-          valor={horas.configurado ? `${numero(horas.justificadas)} h` : "–"}
-          critico={horas.configurado && horas.minimo !== null && horas.justificadas < horas.minimo}
-          detalle={
-            !horas.configurado
-              ? "falta horasPorPunto en data/equipo.json"
-              : horas.minimo === null
-                ? "sin mínimo cargado"
-                : `${conPorcentaje(horas.pctDelMinimo)} de las ${numero(horas.minimo)} h mínimas`
-          }
-        />
-        <TarjetaKpi
-          etiqueta="Entrega del MVP"
-          valor={mvp.configurada ? fechaCorta(mvp.entrega) : "–"}
-          critico={mvp.configurada && p !== null && p?.llegaALaEntrega === false}
-          detalle={
-            !mvp.configurada
-              ? "sin fecha en data/equipo.json"
-              : p?.terminado
-                ? "todo terminado"
-                : p === null
-                  ? "sin ritmo para proyectar"
-                  : `al ritmo actual, termina el ${fechaProyectada(p.fin, mvp.hoy)}`
-          }
-        />
+    <section className="panel entregable">
+      <p className="entregable-rotulo">Entregable central</p>
+      <h2>MVP de LavApp</h2>
+      <FechaDeEntrega mvp={mvp} />
+      <div className="entregable-barras">
+        <div>
+          <p className="titulo-barra">Plazo transcurrido</p>
+          <BarraDeProgreso
+            pct={plazo}
+            color="var(--tinta-tenue)"
+            texto={plazo === null ? "–" : `${conPorcentaje(plazo)} · ${mvp.diasTranscurridos} de ${mvp.diasTotales} días`}
+          />
+        </div>
+        <div>
+          <p className="titulo-barra">Alcance terminado</p>
+          <BarraDeProgreso
+            pct={pct}
+            color="var(--verde)"
+            texto={`${conPorcentaje(pct)} · ${medida(alcance.valor.terminado)} de ${medida(alcance.valor.total)}`}
+          />
+        </div>
       </div>
     </section>
+  );
+}
+
+function FechaDeEntrega({ mvp }) {
+  if (!mvp.configurada) return <p className="entregable-fecha">Fecha de entrega sin definir</p>;
+  const cuando = mvp.vencida
+    ? "vencida"
+    : mvp.diasRestantes === 1
+      ? "la entrega es hoy"
+      : `${dias(mvp.diasRestantes)} restantes`;
+  return (
+    <p className="entregable-fecha">
+      Entrega comprometida: <strong>{fechaLarga(mvp.entrega)}</strong> ·{" "}
+      <span title="Días corridos hasta la entrega, hoy incluido">{cuando}</span>
+    </p>
   );
 }
 
