@@ -269,8 +269,13 @@ function Informe({ reporte }) {
       <PanelInversion reporte={reporte} medida={medida} />
       <PanelEntregas entregas={reporte.entregas} medida={medida} />
       <PanelPendientes pendientes={reporte.pendientes} despues={reporte.despuesDelMvp} medida={medida} />
-      <PanelRiesgos riesgos={reporte.riesgos} medida={medida} hoy={reporte.mvp.hoy} />
-      {reporte.problemas.length > 0 && <Problemas problemas={reporte.problemas} />}
+      <PanelRiesgos riesgos={reporte.riesgos.filter((r) => r.categoria === "entrega")} medida={medida} hoy={reporte.mvp.hoy} />
+      <NotasSobreLosDatos
+        notas={reporte.riesgos.filter((r) => r.categoria === "datos")}
+        problemas={reporte.problemas}
+        medida={medida}
+        hoy={reporte.mvp.hoy}
+      />
       <ComoSeCalcula reporte={reporte} />
     </>
   );
@@ -877,16 +882,39 @@ function PanelRiesgos({ riesgos, medida, hoy }) {
   );
 }
 
-// Lo que no se pudo leer o traducir se muestra plegado: un dato que no se
+// Las notas sobre los datos: lo que dice cuanto creerle a un numero (tareas sin
+// estimar o sin tipo, configuracion que falta) y lo que no se pudo traducir de
+// Shortcut. Van plegadas, salvo que alguna sea grave: un dato que no se
 // entiende nunca se esconde.
+function NotasSobreLosDatos({ notas, problemas, medida, hoy }) {
+  const total = notas.length + problemas.length;
+  if (total === 0) return null;
+  return (
+    <details className="panel" open={notas.some((n) => n.nivel === "alto")}>
+      <summary>{total === 1 ? "1 nota sobre los datos" : `${total} notas sobre los datos`}</summary>
+      {notas.length > 0 && (
+        <ul className="riesgos">
+          {notas.map((n, i) => (
+            <li key={`${n.clave}-${i}`} className={`riesgo ${n.nivel}`}>
+              <span className="nivel">{NOMBRE_NIVEL[n.nivel]}</span>
+              <span>{textoDelRiesgo(n, medida, hoy)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {problemas.length > 0 && <Problemas problemas={problemas} />}
+    </details>
+  );
+}
+
 function Problemas({ problemas }) {
   return (
-    <details className="panel">
-      <summary>
+    <>
+      <p className="motivo">
         {problemas.length === 1
-          ? "1 dato de Shortcut o de data/equipo.json no se pudo traducir"
-          : `${problemas.length} datos de Shortcut o de data/equipo.json no se pudieron traducir`}
-      </summary>
+          ? "1 dato de Shortcut no se pudo traducir:"
+          : `${problemas.length} datos de Shortcut no se pudieron traducir:`}
+      </p>
       <div className="contrato">
         <table>
           <thead>
@@ -911,7 +939,7 @@ function Problemas({ problemas }) {
           </tbody>
         </table>
       </div>
-    </details>
+    </>
   );
 }
 

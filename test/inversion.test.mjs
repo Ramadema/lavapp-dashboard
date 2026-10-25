@@ -3,6 +3,7 @@
 // Sin framework: node los corre directo con `npm test`.
 
 import {
+  CATEGORIA_DEL_RIESGO,
   DIAS_DEL_RITMO,
   SIN_CLASIFICAR,
   VERSION_DE_INVERSION,
@@ -176,6 +177,9 @@ console.log("A mitad del Sprint 2 (20/10)");
   check("riesgos: faltan 4 h para el mínimo, una entrega tardía, una sin estimar y una sin tipo", r.riesgos.map((x) => [x.clave, x.nivel]), [
     ["horas-bajo-el-minimo", "medio"], ["entregas-despues-del-cierre", "bajo"], ["sin-estimar", "bajo"], ["sin-clasificar", "bajo"],
   ]);
+  check("las horas y la entrega tardía son de la entrega; lo sin estimar y sin tipo, notas sobre los datos", r.riesgos.map((x) => x.categoria), [
+    "entrega", "entrega", "datos", "datos",
+  ]);
   const hoy = r.avanceAcumulado.find((d) => d.dia === "2026-10-20");
   const ultimo = r.avanceAcumulado.at(-1);
   check("la curva va del 1/10 al 28/10", [r.avanceAcumulado.length, r.avanceAcumulado[0].dia, ultimo.dia], [28, "2026-10-01", "2026-10-28"]);
@@ -191,7 +195,7 @@ console.log("Un día antes de la entrega (27/10): no llega");
   // En los 14 días del 14/10 al 27/10 se terminaron 11 puntos (44 h).
   check("ritmo de 3.1 h por día: se termina el 3/11, 6 días tarde", [r.ritmo.porDia, r.ritmo.proyeccion.fin, r.ritmo.proyeccion.llegaALaEntrega, r.ritmo.proyeccion.diasDeAtraso, r.ritmo.necesarioPorDia], [3.1, "2026-11-03", false, 6, 10]);
   check("OKR: el alcance no llega y las horas tampoco", r.okrs.map((o) => [o.clave, o.cumple]), [["alcance", false], ["funcionalidades", null], ["horas", false], ["plan", false]]);
-  check("riesgo principal: no llega", r.riesgos[0], { clave: "no-llega", nivel: "alto", fin: "2026-11-03", diasDeAtraso: 6, necesarioPorDia: 10, porDia: 3.1 });
+  check("riesgo principal: no llega", r.riesgos[0], { clave: "no-llega", nivel: "alto", categoria: "entrega", fin: "2026-11-03", diasDeAtraso: 6, necesarioPorDia: 10, porDia: 3.1 });
 }
 
 console.log("Pasada la entrega (30/10)");
@@ -210,6 +214,7 @@ console.log("Sin fecha de entrega, sin horas por punto");
   check("se mide en puntos y el MVP es todo lo cargado", [r.unidad, r.mvp.configurada, r.alcance.valor.total, r.despuesDelMvp.tareas], ["puntos", false, 29, 0]);
   check("las horas no se calculan", [r.inversion.horas.configurado, r.inversion.horas.justificadas], [false, undefined]);
   check("los riesgos lo dicen primero", r.riesgos.slice(0, 2).map((x) => x.clave), ["sin-entrega", "sin-horas-por-punto"]);
+  check("y los dos son notas sobre los datos, no riesgos de la entrega", r.riesgos.slice(0, 2).map((x) => x.categoria), ["datos", "datos"]);
   check("OKR sin fecha: alcance y horas sin juzgar", r.okrs.map((o) => [o.clave, o.cumple]), [["alcance", null], ["funcionalidades", null], ["horas", null], ["plan", true]]);
 }
 
@@ -260,6 +265,8 @@ console.log("OKR y riesgos sueltos");
     unidad: "horas",
   });
   check("sin ritmo y sin sprint en curso", riesgos.map((x) => [x.clave, x.nivel]), [["sin-ritmo", "alto"], ["sin-sprint-en-curso", "medio"]]);
+  check("cada clave de riesgo tiene categoría, de la entrega o de los datos", Object.entries(CATEGORIA_DEL_RIESGO).filter(([, c]) => c !== "entrega" && c !== "datos"), []);
+  check("son las doce claves del contrato", Object.keys(CATEGORIA_DEL_RIESGO).length, 12);
 }
 
 console.log(`\n${ok} OK, ${fail} fallas`);
