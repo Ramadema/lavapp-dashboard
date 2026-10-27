@@ -1079,7 +1079,62 @@ a.chip {
   color: var(--gris);
 }
 
-/* ─── Estados de carga y error ──────────────────────────────────────────── */
+/* ─── Escala de puntos a horas ──────────────────────────────────────────── */
+
+.escala-horas {
+  margin: 4px 0 22px;
+}
+
+.escala-horas figcaption {
+  margin: 0;
+}
+
+.escala-horas ol {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
+  gap: 10px;
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+}
+
+.escala-horas li {
+  background: var(--blanco);
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+  padding: 12px 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.escala-puntos {
+  font-size: 13px;
+  color: var(--gris);
+}
+
+.escala-riel {
+  display: block;
+  height: 6px;
+  border-radius: 99px;
+  background: var(--espuma);
+  overflow: hidden;
+}
+
+.escala-riel span {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  background: var(--agua);
+}
+
+.escala-valor {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  color: var(--tinta);
+}
 
 .nota {
   font-size: 12px;

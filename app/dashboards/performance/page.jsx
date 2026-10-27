@@ -13,6 +13,7 @@ import Torta from "@/components/Torta";
 import Plegable from "@/components/Plegable";
 import BarraDeProgreso from "@/components/BarraDeProgreso";
 import Insignia from "@/components/Insignia";
+import EscalaDeHoras from "@/components/EscalaDeHoras";
 import { buscarSeccion, ESTADO_SIN_FUENTE } from "@/lib/secciones";
 import { diaLocal, ESTADOS_SPRINT, ETAPAS, VERSION_DE_DATOS, ZONA_HORARIA } from "@/lib/kpis/performance";
 import { SIN_ASIGNAR, SIN_ROL, TIPOS_DE_METRICA } from "@/lib/kpis/equipo";
@@ -566,7 +567,7 @@ function Proyecto({ reporte }) {
         su sprint; lo planificado de un sprint es todo lo que entró a él, y una tarea movida a
         otro sprint cuenta como planificada y no cumplida. Los errores son las stories de tipo
         «bug» de todo el proyecto, y el retrabajo sale del historial de cada tarjeta. El rol y las
-        horas pactadas de cada integrante, las horas por punto y las metas de los OKR salen de{" "}
+        horas pactadas de cada integrante, la escala de puntos a horas y las metas de los OKR salen de{" "}
         <code>data/equipo.json</code>; las horas pactadas
         son por persona para todo el proyecto y cada período recibe la parte que le toca por sus
         días, y los puntos de una tarea compartida se reparten entre sus responsables. Los datos
@@ -725,13 +726,13 @@ function Reporte({ reporte, pedidoDeHistorial, verProyecto, ocupado }) {
         iniciativa es el epic al que pertenece y los puntos son la estimación de
         esfuerzo que carga el equipo. Lo planificado es todo lo que entró al sprint; una
         tarea que se movió a otro sprint sigue contando como planificada y no cumplida. Los
-        puntos de una tarea compartida se reparten entre sus responsables al pasarlos a
-        horas, y las horas pactadas son por persona para todo el proyecto, prorrateadas a
+        puntos de una tarea compartida se convierten a horas con la escala y esas horas se
+        reparten entre sus responsables, y las horas pactadas son por persona para todo el proyecto, prorrateadas a
         los días del sprint. El progreso del proyecto suma las
         estadísticas de todos los sprints, los errores son las stories de tipo «bug»
         de todo el proyecto y el retrabajo sale del historial de cada tarjeta. El rol y las
         horas pactadas de cada
-        integrante, las horas por punto y las metas de los OKR salen de{" "}
+        integrante, la escala de puntos a horas y las metas de los OKR salen de{" "}
         <code>data/equipo.json</code>, que mantiene el equipo. Los datos se releen solos cada
         pocos minutos y «Actualizar» los trae de Shortcut en el momento.
         {resumen.tareas.archivadas > 0 &&
@@ -1528,7 +1529,7 @@ function Problemas({ problemas }) {
 // ---- Equipo: KPIs y OKRs sobre roles, carga y horas -------------------------
 
 function AvisoDeConfiguracion({ configuracion }) {
-  const { integrantes, sinRol, sinHoras, fueraDeLaConfiguracion, horasPorPunto } = configuracion;
+  const { integrantes, sinRol, sinHoras, fueraDeLaConfiguracion, escala } = configuracion;
   const avisos = [];
   if (integrantes === 0) {
     avisos.push("No hay integrantes cargados en data/equipo.json: todos salen como sin rol.");
@@ -1541,7 +1542,7 @@ function AvisoDeConfiguracion({ configuracion }) {
   if (fueraDeLaConfiguracion.length > 0) {
     avisos.push(`Con tareas en Shortcut pero fuera de data/equipo.json: ${listar(fueraDeLaConfiguracion)}.`);
   }
-  if (!horasPorPunto) avisos.push("Falta horasPorPunto: no se calculan horas, utilización ni efectividad.");
+  if (!escala?.length) avisos.push("Falta la escala de puntos a horas: no se calculan horas, utilización ni efectividad.");
   if (avisos.length === 0) return null;
   return <p className="motivo">{avisos.join(" ")}</p>;
 }
@@ -1576,7 +1577,7 @@ function detalleDeOkr(okr, { bugs, horas: h, retrabajo }, alcance) {
       bugs.historiasTerminadas === 1 ? "historia terminada" : "historias terminadas"
     }`;
   }
-  if (!h.configurado) return "falta horasPorPunto en data/equipo.json";
+  if (!h.configurado) return "falta la escala de puntos a horas en data/equipo.json";
   if (okr.clave === "efectividad") {
     if (h.equipo.asignadas === 0) return "no hay horas asignadas";
     if (h.equipo.efectividad === null) return "todavía no empezó: nada hecho que medir";
@@ -1777,7 +1778,7 @@ function PanelHoras({ horas: datosDeHoras, alcance, finConfigurado }) {
     diasDelPeriodo,
     diasDelProyecto,
     reparto,
-    horasPorPunto,
+    escala,
     equipo,
   } = datosDeHoras;
   const conCapacidad = personas.filter((p) => p.capacidad !== null);
@@ -1808,14 +1809,17 @@ function PanelHoras({ horas: datosDeHoras, alcance, finConfigurado }) {
         Horas pactadas vs. extras <Insignia tipo="kpi" />
       </h2>
       <p className="subtitulo">
-        Las horas que demanda lo asignado a cada persona {alcance.en} (los puntos de una tarea
+        Las horas que demanda lo asignado a cada persona {alcance.en} (las de una historia
         compartida se reparten) contra {pactadas}
         {prorrateo}
-        {horasPorPunto ? `, a ${horasPorPunto} h por punto` : ""}
       </p>
+      <EscalaDeHoras
+        escala={escala}
+        aclaracion="La historia se convierte entera. Si tiene varios responsables, esas horas se reparten. Una subtarea no suma."
+      />
       {!configurado ? (
         <p className="motivo">
-          Falta <code>horasPorPunto</code> en data/equipo.json: sin eso no hay forma de pasar los
+          Falta <code>escalaDeHoras</code> en data/equipo.json: sin eso no hay forma de pasar los
           puntos a horas.
         </p>
       ) : conCapacidad.length === 0 ? (
@@ -1892,7 +1896,7 @@ function PanelEfectividad({ horas: datosDeHoras, metas }) {
         asignadas. Las mismas cuentas que los OKR, persona por persona.
       </p>
       {!configurado ? (
-        <p className="motivo">Falta <code>horasPorPunto</code> en data/equipo.json.</p>
+        <p className="motivo">Falta <code>escalaDeHoras</code> en data/equipo.json.</p>
       ) : personas.length === 0 ? (
         <p className="motivo">No hay integrantes configurados ni tareas asignadas.</p>
       ) : (

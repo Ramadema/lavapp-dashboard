@@ -29,8 +29,15 @@ const check = (nombre, real, esperado) => {
 
 // ---- datos ----------------------------------------------------------------
 
+const ESCALA = [
+  { puntos: 1, horas: 2 },
+  { puntos: 2, horas: 4 },
+  { puntos: 3, horas: 8 },
+  { puntos: 5, horas: 15 },
+  { puntos: 8, horas: 25 },
+];
 const EQUIPO = {
-  horasPorPunto: 4,
+  escalaDeHoras: ESCALA,
   wipMaxPorPersona: 2,
   horasPactadas: { porIntegrante: null, finDelProyecto: null },
   metas: { bugsRatioMax: 0.25, retrabajoMax: 10, efectividadMin: 80, utilizacionMin: 70, utilizacionMax: 90 },
@@ -154,25 +161,35 @@ console.log("Horas pactadas, utilización y efectividad");
     terminada({ puntos: 5, responsables: ["Ana"] }),
     enCurso({ puntos: 5, responsables: ["Ana"] }),
     tarea({ puntos: 2, responsables: ["Ana"] }),
-    terminada({ puntos: 4, responsables: ["Beto"] }),
+    terminada({ puntos: 2, responsables: ["Beto"] }),
     tarea({ puntos: 3, responsables: ["Caro"] }), // sin horas pactadas
   ];
   const r = horasPorIntegrante(tareas, SPRINT, EQUIPO);
-  check("el sprint es todo el proyecto: 14 de 14 días, factor 4", [r.configurado, r.diasDelPeriodo, r.diasDelProyecto, r.horasPorPunto], [true, 14, 14, 4]);
+  check("el sprint es todo el proyecto: 14 de 14 días, con escala", [r.configurado, r.diasDelPeriodo, r.diasDelProyecto, r.escala], [true, 14, 14, ESCALA]);
   const ana = r.personas.find((p) => p.nombre === "Ana");
-  check("Ana: capacidad 40, demanda 48, extras 8, utilización 120%",
-    [ana.capacidad, ana.demanda, ana.dentroDeLoPactado, ana.extras, ana.utilizacion], [40, 48, 40, 8, 120]);
-  check("Ana: hechas 20 sobre 48 asignadas = 41.7%", [ana.hechas, ana.efectividad], [20, 41.7]);
+  // 5+5+2 puntos → 15+15+4 h. Cabe en las 40 h de capacidad.
+  check("Ana: capacidad 40, demanda 34, sin extras, utilización 85%",
+    [ana.capacidad, ana.demanda, ana.dentroDeLoPactado, ana.extras, ana.utilizacion], [40, 34, 34, 0, 85]);
+  check("Ana: hechas 15 sobre 34 asignadas = 44.1%", [ana.hechas, ana.efectividad], [15, 44.1]);
   const beto = r.personas.find((p) => p.nombre === "Beto");
-  check("Beto: capacidad 20, demanda 16, sin extras, 80% utilización, 100% efectividad",
-    [beto.capacidad, beto.demanda, beto.extras, beto.utilizacion, beto.efectividad], [20, 16, 0, 80, 100]);
+  check("Beto: capacidad 20, demanda 4, sin extras, 20% utilización, 100% efectividad",
+    [beto.capacidad, beto.demanda, beto.extras, beto.utilizacion, beto.efectividad], [20, 4, 0, 20, 100]);
   const caro = r.personas.find((p) => p.nombre === "Caro");
-  check("Caro: sin horas pactadas no tiene capacidad ni utilización, pero sí demanda", [caro.capacidad, caro.utilizacion, caro.extras, caro.demanda], [null, null, null, 12]);
+  check("Caro: sin horas pactadas no tiene capacidad ni utilización, pero sí demanda", [caro.capacidad, caro.utilizacion, caro.extras, caro.demanda], [null, null, null, 8]);
   check("equipo: solo quien tiene capacidad entra en utilización",
-    [r.equipo.capacidad, r.equipo.demanda, r.equipo.extras, r.equipo.utilizacion, r.equipo.conSobrecarga], [70, 64, 8, 91.4, 1]);
-  check("equipo: efectividad sobre las horas asignadas a todos", [r.equipo.hechas, r.equipo.asignadas, r.equipo.efectividad], [36, 76, 47.4]);
+    [r.equipo.capacidad, r.equipo.demanda, r.equipo.extras, r.equipo.utilizacion, r.equipo.conSobrecarga], [70, 38, 0, 54.3, 0]);
+  check("equipo: efectividad sobre las horas asignadas a todos", [r.equipo.hechas, r.equipo.asignadas, r.equipo.efectividad], [19, 46, 41.3]);
   check("se informa quién no tiene horas (Dani tiene 10)", r.sinHoras, ["Caro"]);
-  check("sin horasPorPunto no se calcula nada", horasPorIntegrante(tareas, SPRINT, EQUIPO_VACIO), {
+  const compartida = horasPorIntegrante(
+    [tarea({ puntos: 3, responsables: ["Ana", "Beto"] }), tarea({ puntos: 4, responsables: ["Ana"] })],
+    SPRINT,
+    EQUIPO
+  );
+  check("3 puntos compartidos son 8 h, 4 h cada uno; un 4 fuera de la escala no suma", [
+    compartida.personas.find((p) => p.nombre === "Ana").demanda,
+    compartida.personas.find((p) => p.nombre === "Beto").demanda,
+  ], [4, 4]);
+  check("sin escala no se calcula nada", horasPorIntegrante(tareas, SPRINT, EQUIPO_VACIO), {
     configurado: false, horasPactadasPorIntegrante: null, diasDelPeriodo: 14, diasDelProyecto: 14, reparto: { fin: null, configurado: false }, personas: [], equipo: null, sinHoras: [],
   });
   // Un sprint de 14 dias en un proyecto de 28 vale la mitad de las horas pactadas.
@@ -191,8 +208,8 @@ console.log("Horas pactadas, utilización y efectividad");
   // Lo planificado que se movio a otro sprint entra en las asignadas.
   const conMovidas = horasPorIntegrante(tareas, SPRINT, EQUIPO, { movidas: [tarea({ puntos: 5, responsables: ["Ana"] }), tarea({ puntos: 2, responsables: ["Zoe"] })] });
   const anaConMovidas = conMovidas.personas.find((p) => p.nombre === "Ana");
-  check("Ana: 48 h de demanda y 68 h asignadas con su movida: 29.4 % de efectividad", [anaConMovidas.demanda, anaConMovidas.asignadas, anaConMovidas.efectividad], [48, 68, 29.4]);
-  check("equipo: 76 + 20 + 8 (de alguien a quien solo le quedan movidas) = 104 h asignadas", [conMovidas.equipo.demanda, conMovidas.equipo.asignadas, conMovidas.equipo.efectividad], [64, 104, 34.6]);
+  check("Ana: 34 h de demanda y 49 h asignadas con su movida: 30.6 % de efectividad", [anaConMovidas.demanda, anaConMovidas.asignadas, anaConMovidas.efectividad], [34, 49, 30.6]);
+  check("equipo: 46 h más la movida de Ana (15 h) y la de Zoe (4 h) = 65 h asignadas", [conMovidas.equipo.demanda, conMovidas.equipo.asignadas, conMovidas.equipo.efectividad], [38, 65, 29.2]);
   check("el reparto viaja", horasPorIntegrante(tareas, { ...SPRINT, finDelReparto: "2026-12-05", repartoConfigurado: true }, EQUIPO).reparto, { fin: "2026-12-05", configurado: true });
   // Antes de empezar no hay nada hecho que medir.
   const futuro = horasPorIntegrante(tareas, { ...SPRINT, diasRestantes: 14, diasParaEmpezar: 3 }, EQUIPO);
@@ -249,7 +266,12 @@ console.log("OKRs");
 console.log("Normalización de data/equipo.json");
 {
   const r = normalizarEquipo({
-    horasPorPunto: 4,
+    escalaDeHoras: [
+      { puntos: 8, horas: 25 },
+      { puntos: 1, horas: 2 },
+      { puntos: 1, horas: 9 },
+      { puntos: 0, horas: 4 },
+    ],
     wipMaxPorPersona: "tres",
     horasPactadas: { porIntegrante: 150, finDelProyecto: "2026-12-05" },
     metas: { bugsRatioMax: 0.25, retrabajoMax: 10, efectividadMin: -1 },
@@ -261,38 +283,38 @@ console.log("Normalización de data/equipo.json");
       { nombre: "Caro" },
     ],
   });
-  check("lo válido se normaliza, lo inválido cae al default", [r.datos.horasPorPunto, r.datos.wipMaxPorPersona, r.datos.horasPactadas, r.datos.metas], [4, 3, { porIntegrante: 150, finDelProyecto: "2026-12-05" }, { bugsRatioMax: 0.25, retrabajoMax: 10, efectividadMin: null, utilizacionMin: null, utilizacionMax: null }]);
+  check("lo válido se normaliza, lo inválido cae al default", [r.datos.escalaDeHoras, r.datos.wipMaxPorPersona, r.datos.horasPactadas, r.datos.metas], [[{ puntos: 1, horas: 2 }, { puntos: 8, horas: 25 }], 3, { porIntegrante: 150, finDelProyecto: "2026-12-05" }, { bugsRatioMax: 0.25, retrabajoMax: 10, efectividadMin: null, utilizacionMin: null, utilizacionMax: null }]);
   check("integrantes: recortados, sin repetidos, rol y horas inválidos a null", r.datos.integrantes, [
     { nombre: "Ana", rol: "Dev", detalle: "BA", horasPactadas: 120 },
     { nombre: "Beto", rol: null, detalle: null, horasPactadas: null },
     { nombre: "Caro", rol: null, detalle: null, horasPactadas: null },
   ]);
-  check("cada problema queda anotado", r.problemas.map((p) => p.campo), ["wipMaxPorPersona", "metas.efectividadMin", "integrantes[1].nombre", "integrantes[2].nombre", "integrantes[3].rol", "integrantes[3].horasPactadas"]);
+  check("cada problema queda anotado", r.problemas.map((p) => p.campo), ["escalaDeHoras[2].puntos", "escalaDeHoras[3]", "wipMaxPorPersona", "metas.efectividadMin", "integrantes[1].nombre", "integrantes[2].nombre", "integrantes[3].rol", "integrantes[3].horasPactadas"]);
   check("raíz que no es objeto", normalizarEquipo([]).problemas.length, 1);
-  check("sin integrantes se avisa", normalizarEquipo({ horasPorPunto: 4 }).problemas.map((p) => p.campo), ["integrantes"]);
+  check("sin integrantes se avisa", normalizarEquipo({ escalaDeHoras: ESCALA }).problemas.map((p) => p.campo), ["integrantes"]);
   check("horasPactadas o metas que no son un objeto se anotan",
-    (() => { const n = normalizarEquipo({ horasPactadas: 150, metas: 80, integrantes: [] }); return [n.problemas.map((p) => p.campo), n.datos.horasPactadas.porIntegrante]; })(),
+    (() => { const n = normalizarEquipo({ escalaDeHoras: ESCALA, horasPactadas: 150, metas: 80, integrantes: [] }); return [n.problemas.map((p) => p.campo), n.datos.horasPactadas.porIntegrante]; })(),
     [["horasPactadas", "metas"], null]);
   check("un día que no existe (31 de noviembre) no pasa por fecha",
-    normalizarEquipo({ horasPactadas: { finDelProyecto: "2026-11-31" }, integrantes: [] }).problemas.map((p) => p.campo),
+    normalizarEquipo({ escalaDeHoras: ESCALA, horasPactadas: { finDelProyecto: "2026-11-31" }, integrantes: [] }).problemas.map((p) => p.campo),
     ["horasPactadas.finDelProyecto"]);
   check("horas pactadas y fin del proyecto inválidos se anotan y caen al default",
-    (() => { const n = normalizarEquipo({ horasPactadas: { porIntegrante: "muchas", finDelProyecto: "diciembre" }, integrantes: [] }); return [n.problemas.map((p) => p.campo), n.datos.horasPactadas]; })(),
+    (() => { const n = normalizarEquipo({ escalaDeHoras: ESCALA, horasPactadas: { porIntegrante: "muchas", finDelProyecto: "diciembre" }, integrantes: [] }); return [n.problemas.map((p) => p.campo), n.datos.horasPactadas]; })(),
     [["horasPactadas.porIntegrante", "horasPactadas.finDelProyecto"], { porIntegrante: null, finDelProyecto: null }]);
   check("cliente: lo que pide del MVP se normaliza",
-    normalizarEquipo({ cliente: { horasMinimas: 680, avanceContraElPlanMin: 90, costoPorHora: 12000, moneda: " ARS " }, integrantes: [] }).datos.cliente,
+    normalizarEquipo({ escalaDeHoras: ESCALA, cliente: { horasMinimas: 680, avanceContraElPlanMin: 90, costoPorHora: 12000, moneda: " ARS " }, integrantes: [] }).datos.cliente,
     { horasMinimas: 680, avanceContraElPlanMin: 90, costoPorHora: 12000, moneda: "ARS" });
   check("cliente: sin el bloque, todo en null y sin problemas",
-    (() => { const n = normalizarEquipo({ integrantes: [] }); return [n.datos.cliente, n.problemas]; })(),
+    (() => { const n = normalizarEquipo({ escalaDeHoras: ESCALA, integrantes: [] }); return [n.datos.cliente, n.problemas]; })(),
     [{ horasMinimas: null, avanceContraElPlanMin: null, costoPorHora: null, moneda: null }, []]);
   check("cliente: números inválidos se anotan y quedan en null",
-    (() => { const n = normalizarEquipo({ cliente: { horasMinimas: "680", avanceContraElPlanMin: 0, moneda: 5 }, integrantes: [] }); return [n.problemas.map((p) => p.campo), n.datos.cliente]; })(),
+    (() => { const n = normalizarEquipo({ escalaDeHoras: ESCALA, cliente: { horasMinimas: "680", avanceContraElPlanMin: 0, moneda: 5 }, integrantes: [] }); return [n.problemas.map((p) => p.campo), n.datos.cliente]; })(),
     [["cliente.horasMinimas", "cliente.avanceContraElPlanMin", "cliente.moneda"], { horasMinimas: null, avanceContraElPlanMin: null, costoPorHora: null, moneda: null }]);
   check("cliente: un costo por hora sin moneda no se usa y se anota",
-    (() => { const n = normalizarEquipo({ cliente: { costoPorHora: 12000 }, integrantes: [] }); return [n.problemas.map((p) => [p.campo, p.motivo]), n.datos.cliente.costoPorHora]; })(),
+    (() => { const n = normalizarEquipo({ escalaDeHoras: ESCALA, cliente: { costoPorHora: 12000 }, integrantes: [] }); return [n.problemas.map((p) => [p.campo, p.motivo]), n.datos.cliente.costoPorHora]; })(),
     [[["cliente.moneda", "falta la moneda del costo por hora: se muestran solo horas"]], null]);
   check("cliente que no es un objeto se anota",
-    normalizarEquipo({ cliente: [680], integrantes: [] }).problemas.map((p) => p.campo),
+    normalizarEquipo({ escalaDeHoras: ESCALA, cliente: [680], integrantes: [] }).problemas.map((p) => p.campo),
     ["cliente"]);
 }
 
@@ -303,6 +325,7 @@ console.log("data/equipo.json del repo es válido");
   check("sin problemas", real.problemas, []);
   check("70 h por persona hasta la entrega del MVP", real.datos.horasPactadas, { porIntegrante: 70, finDelProyecto: "2026-10-28" });
   check("el cliente pide 680 h y 90 % de avance contra el plan", [real.datos.cliente.horasMinimas, real.datos.cliente.avanceContraElPlanMin], [680, 90]);
+  check("la escala de puntos a horas", real.datos.escalaDeHoras, ESCALA);
 }
 
 // ---- enganche con armarReporte ------------------------------------------------
@@ -336,7 +359,7 @@ console.log("armarReporte publica `equipo`");
   );
   const e = reporte.equipo;
   check("tipo viaja: 1 bug abierto en el sprint sobre 1 historia terminada", [e.bugs.bugsAbiertosEnSprint, e.bugs.historiasTerminadas, e.bugs.ratio], [1, 1, 1]);
-  check("horas: 32 h asignadas, 20 hechas, 62.5% de efectividad", [e.horas.personas[0].demanda, e.horas.personas[0].hechas, e.horas.personas[0].efectividad], [32, 20, 62.5]);
+  check("horas: 23 h asignadas, 15 hechas, 65.2% de efectividad", [e.horas.personas[0].demanda, e.horas.personas[0].hechas, e.horas.personas[0].efectividad], [23, 15, 65.2]);
   check("capacidad: 30 h pactadas para un proyecto que es este sprint de 15 días", [e.horas.diasDelPeriodo, e.horas.diasDelProyecto, e.horas.personas[0].capacidad], [15, 15, 30]);
   check("por rol", e.porRol.grupos.map((g) => [g.rol, g.tareas]), [["Dev", 3]]);
   check("configuración resumida", [e.configuracion.integrantes, e.configuracion.sinRol, e.configuracion.sinHoras, e.configuracion.fueraDeLaConfiguracion], [1, [], [], []]);

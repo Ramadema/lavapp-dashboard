@@ -1,6 +1,12 @@
 {
-  "_comentario": "Lo que Shortcut no sabe del equipo y del cliente: el rol de cada integrante, las horas pactadas, cuántas horas vale un punto, las metas de los OKR y lo que el cliente pide del MVP. Lo mantiene el equipo a mano. Un integrante se reconoce por su nombre tal como figura en Shortcut (Perfil > Name). rol agrupa (PM, PO, Dev, DevOps, QA, UX) y detalle cuenta el resto (especialidad, BA, Scrum Master). horasPactadas.porIntegrante es la cifra por persona para todo el proyecto (unas 70 h cada uno); un integrante puede traer la suya en horasPactadas. finDelProyecto (AAAA-MM-DD) es la entrega del MVP, que es también la fecha límite para justificar las horas: hasta ahí se reparten por sprint; sin él, el proyecto termina con el último sprint cargado. retrabajoMax es el porcentaje máximo de tareas cerradas que pueden volver atrás. cliente.horasMinimas son las horas que el cliente pide tener justificadas para la entrega (se pueden justificar más), cliente.avanceContraElPlanMin el porcentaje mínimo de lo planificado a la fecha que tiene que estar terminado, y cliente.costoPorHora (con su moneda) pasa las horas a plata en «Avance e inversión»: en null, esa sección muestra solo horas.",
-  "horasPorPunto": 4,
+  "_comentario": "Lo que Shortcut no sabe del equipo y del cliente: el rol de cada integrante, las horas pactadas, la escala que pasa cada valor de puntos a horas, las metas de los OKR y lo que el cliente pide del MVP. Lo mantiene el equipo a mano. Un integrante se reconoce por su nombre tal como figura en Shortcut (Perfil > Name). rol agrupa (PM, PO, Dev, DevOps, QA, UX) y detalle cuenta el resto (especialidad, BA, Scrum Master). horasPactadas.porIntegrante es la cifra por persona para todo el proyecto (unas 70 h cada uno); un integrante puede traer la suya en horasPactadas. finDelProyecto (AAAA-MM-DD) es la entrega del MVP, que es también la fecha límite para justificar las horas: hasta ahí se reparten por sprint; sin él, el proyecto termina con el último sprint cargado. escalaDeHoras lista cada valor de puntos con las horas que representa (1→2, 2→4, 3→8, 5→15, 8→25). retrabajoMax es el porcentaje máximo de tareas cerradas que pueden volver atrás. cliente.horasMinimas son las horas que el cliente pide tener justificadas para la entrega (se pueden justificar más), cliente.avanceContraElPlanMin el porcentaje mínimo de lo planificado a la fecha que tiene que estar terminado, y cliente.costoPorHora (con su moneda) pasa las horas a plata en «Avance e inversión»: en null, esa sección muestra solo horas.",
+  "escalaDeHoras": [
+    { "puntos": 1, "horas": 2 },
+    { "puntos": 2, "horas": 4 },
+    { "puntos": 3, "horas": 8 },
+    { "puntos": 5, "horas": 15 },
+    { "puntos": 8, "horas": 25 }
+  ],
   "wipMaxPorPersona": 3,
   "horasPactadas": { "porIntegrante": 70, "finDelProyecto": "2026-10-28" },
   "metas": {

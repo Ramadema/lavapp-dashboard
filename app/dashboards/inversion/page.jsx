@@ -10,6 +10,7 @@ import Torta from "@/components/Torta";
 import Plegable from "@/components/Plegable";
 import BarraDeProgreso from "@/components/BarraDeProgreso";
 import Insignia from "@/components/Insignia";
+import EscalaDeHoras from "@/components/EscalaDeHoras";
 import { buscarSeccion, ESTADO_SIN_FUENTE } from "@/lib/secciones";
 import { ETAPAS, ZONA_HORARIA, diaLocal } from "@/lib/kpis/performance";
 import {
@@ -81,7 +82,7 @@ const enOrden = (codigos) => [...codigos].sort((a, b) => a.localeCompare(b, "es"
 // El titulo sin el codigo adelante, que ya va aparte.
 const sinCodigo = (titulo) => titulo.replace(/^\s*[A-Za-z]{2}\s*-\s*\d+\s*[-–—:]?\s*/, "").trim() || titulo;
 
-// Un valor en la unidad de la respuesta: horas, o puntos si falta horasPorPunto.
+// Un valor en la unidad de la respuesta: horas, o puntos si falta la escala.
 function medidor(unidad) {
   return unidad === "horas" ? (n) => `${numero(n)} h` : (n) => `${numero(n)} ${n === 1 ? "punto" : "puntos"}`;
 }
@@ -120,7 +121,7 @@ const FILAS_VISIBLES = 6;
 // OKR van por su clave (alcance, funcionalidades, horas y plan).
 function definicionesDe({ supuestos }) {
   const ritmo = dias(supuestos.diasDelRitmo);
-  const porPunto = supuestos.horasPorPunto ? `, a ${numero(supuestos.horasPorPunto)} h por punto` : "";
+  const porPunto = supuestos.escala?.length ? ", según la escala de puntos a horas" : "";
   return {
     plazo:
       "Porcentaje de los días del MVP que ya transcurrieron, desde el inicio del primer sprint hasta la fecha de entrega.",
@@ -685,10 +686,13 @@ function PanelInversion({ reporte, medida }) {
     <section className="panel">
       <h2>Inversión de horas</h2>
       <p className="subtitulo">
-        Horas justificadas por las tareas terminadas
-        {horas.horasPorPunto ? `, a ${numero(horas.horasPorPunto)} h por punto` : ""}, y su distribución
-        por tipo de trabajo según el código de cada historia
+        Horas justificadas por las tareas terminadas, y su distribución por tipo de trabajo según el
+        código de cada historia
       </p>
+      <EscalaDeHoras
+        escala={horas.escala}
+        aclaracion="Cada historia se estima en puntos. Cada valor de la escala corresponde a una cantidad de horas de trabajo."
+      />
       {!horas.configurado && (
         <p className="motivo">
           La equivalencia entre puntos y horas no está definida: los valores se muestran en puntos.
@@ -789,7 +793,7 @@ function PanelInversion({ reporte, medida }) {
       <p className="motivo">
         Funcionalidades: historias de usuario (HU), lo que utiliza el cliente final. Base técnica:
         historias técnicas (HT). Calidad: pruebas (QA). Gestión: planificación, seguimiento y
-        ceremonias del proyecto (HG y SM). Cada subtarea suma al tipo de su historia.
+        ceremonias del proyecto (HG y SM). Las horas son las de la historia: una subtarea no suma.
         {plata ? ` Valorizado a ${enPlata(plata.porHora, plata.moneda)} por hora.` : ""}
       </p>
     </section>
@@ -803,8 +807,8 @@ function PanelEntregas({ entregas, medida }) {
     <section className="panel">
       <h2>Entregas por sprint</h2>
       <p className="subtitulo">
-        Trabajo terminado en cada sprint, del más reciente al primero. Se listan las historias; sus
-        subtareas suman horas a cada entrega
+        Trabajo terminado en cada sprint, del más reciente al primero. Se listan las historias. Las
+        horas son las de cada historia; sus subtareas no suman
       </p>
       {entregas.length === 0 && <p className="motivo">No hay sprints en el MVP.</p>}
       {entregas.map((s) => {
@@ -881,7 +885,7 @@ function PanelPendientes({ pendientes, despues, medida }) {
       <p className="subtitulo">
         {pendientes.length === 0
           ? "No hay trabajo pendiente para el MVP"
-          : `${medida(total)} por completar, primero lo que está en curso. Cada historia incluye lo que resta de sus subtareas`}
+          : `${medida(total)} por completar, primero lo que está en curso. El valor es el de la historia`}
       </p>
       {pendientes.map((g) => (
         <div key={g.clave} className="entrega-grupo">
@@ -949,7 +953,7 @@ function textoDelRiesgo(r, medida) {
     case "sin-entrega":
       return "No hay una fecha de entrega definida para el MVP: sin ella no se puede evaluar el plazo.";
     case "sin-horas-por-punto":
-      return "No está definida la equivalencia entre puntos y horas: los valores se expresan en puntos y no hay horas justificadas.";
+      return "No está definida la escala que pasa los puntos a horas: los valores se expresan en puntos y no hay horas justificadas.";
     case "sin-ritmo":
       return `No se completaron tareas en los últimos ${dias(r.dias)}: sin ritmo de avance no es posible estimar la finalización.`;
     case "no-llega":
@@ -1072,10 +1076,9 @@ function Metodologia({ reporte }) {
       <strong>Metodología.</strong> Fuente: Shortcut, la herramienta de gestión del equipo. El MVP
       comprende los sprints que comienzan hasta la fecha de entrega
       {mvp.configurada ? ` (${fechaCompleta(mvp.entrega)})` : ""}; el trabajo fuera de los sprints no se
-      cuenta. Las horas se calculan a partir de los puntos de cada tarea
-      {supuestos.horasPorPunto ? `, a ${numero(supuestos.horasPorPunto)} h por punto` : ""}, porque
-      Shortcut no registra horas. Se justifican las horas de las tareas terminadas, una vez por tarea
-      aunque tenga varios responsables.
+      cuenta. Las horas se calculan a partir de los puntos de cada historia, con la escala de puntos a horas,
+      porque Shortcut no registra horas. Se justifican las horas de las historias terminadas, una vez
+      por historia aunque tenga varios responsables.
       {horas.minimo !== null &&
         ` El mínimo requerido para la entrega es de ${numero(horas.minimo)} h${
           horas.pactadas !== null
