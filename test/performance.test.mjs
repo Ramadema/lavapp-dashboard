@@ -827,7 +827,7 @@ console.log("### La efectividad de un sprint cuenta lo que se movió a otro");
   // Sprint 1 con 3 tareas terminadas de 2 puntos de Ana y una cuarta suya que
   // se movio al Sprint 2 sin terminar: el cumplimiento es 3 de 4 y la
   // efectividad tiene que ser 75 %, no 100.
-  const EQUIPO_ANA = { horasPorPunto: 4, wipMaxPorPersona: 3, horasPactadas: { porIntegrante: 150, finDelProyecto: null }, metas: { bugsRatioMax: null, efectividadMin: 80, utilizacionMin: null, utilizacionMax: null }, integrantes: [{ nombre: "Ana Pérez", rol: "Dev", detalle: null, horasPactadas: null }] };
+  const EQUIPO_ANA = { escalaDeHoras: [{ puntos: 1, horas: 2 }, { puntos: 2, horas: 4 }, { puntos: 3, horas: 8 }, { puntos: 5, horas: 15 }, { puntos: 8, horas: 25 }], wipMaxPorPersona: 3, horasPactadas: { porIntegrante: 150, finDelProyecto: null }, metas: { bugsRatioMax: null, efectividadMin: 80, utilizacionMin: null, utilizacionMax: null }, integrantes: [{ nombre: "Ana Pérez", rol: "Dev", detalle: null, horasPactadas: null }] };
   const s70 = iteracion({ id: 70, name: "Sprint 2", status: "unstarted", start_date: "2026-10-07", end_date: "2026-10-21" });
   const ida = story({ id: 9, iteration_id: 70, estimate: 2, owner_ids: ["uuid-ana"], created_at: "2026-09-17T12:00:00Z", previous_iteration_ids: [29] });
   const terminadas = [1, 2, 3].map((id) => terminada({ id, estimate: 2, owner_ids: ["uuid-ana"], created_at: "2026-09-17T12:00:00Z" }));
@@ -838,8 +838,8 @@ console.log("### La efectividad de un sprint cuenta lo que se movió a otro");
     equipo: EQUIPO_ANA,
   });
   check("cumplimiento 3 de 4 con la movida", [r.cumplimiento.planificadas.total, r.cumplimiento.planificadas.terminadas, r.cumplimiento.planificadas.movidas], [4, 3, 1]);
-  check("efectividad 24 h hechas de 32 h asignadas: 75 %, no cumple", [r.equipo.horas.equipo.hechas, r.equipo.horas.equipo.asignadas, ...(({ valor, cumple }) => [valor, cumple])(r.equipo.okrs.find((o) => o.clave === "efectividad"))], [24, 32, 75, false]);
-  check("la movida no suma demanda: la utilización mira lo que hay hoy", r.equipo.horas.equipo.demanda, 24);
+  check("efectividad 12 h hechas de 16 h asignadas: 75 %, no cumple", [r.equipo.horas.equipo.hechas, r.equipo.horas.equipo.asignadas, ...(({ valor, cumple }) => [valor, cumple])(r.equipo.okrs.find((o) => o.clave === "efectividad"))], [12, 16, 75, false]);
+  check("la movida no suma demanda: la utilización mira lo que hay hoy", r.equipo.horas.equipo.demanda, 12);
 }
 
 console.log("### Retrabajo");
@@ -915,7 +915,7 @@ console.log("### Retrabajo");
     cambioDeEstado(id, "2026-09-26T12:00:00Z", DONE, IN_PROGRESS),
     cambioDeEstado(id, "2026-09-27T12:00:00Z", IN_PROGRESS, DONE),
   ];
-  const metaDe10 = { horasPorPunto: null, wipMaxPorPersona: 3, horasPactadas: { porIntegrante: null, finDelProyecto: null }, metas: { bugsRatioMax: null, retrabajoMax: 10, efectividadMin: null, utilizacionMin: null, utilizacionMax: null }, integrantes: [] };
+  const metaDe10 = { escalaDeHoras: null, wipMaxPorPersona: 3, horasPactadas: { porIntegrante: null, finDelProyecto: null }, metas: { bugsRatioMax: null, retrabajoMax: 10, efectividadMin: null, utilizacionMin: null, utilizacionMax: null }, integrantes: [] };
   const rep = reporte(
     [terminada({ id: 21, labels: [{ id: 1, name: "needs qa" }] }), terminada({ id: 22, labels: [{ id: 2, name: "no-es-retrabajo" }] }), terminada({ id: 23 })],
     { historiales: { 21: reabierta(21), 22: reabierta(22), 23: [creada(23, "2026-09-20T12:00:00Z", { iteration_id: 29 })] }, equipo: metaDe10 }

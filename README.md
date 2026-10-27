@@ -494,18 +494,20 @@ Las reglas están firmadas con `@decision` en `lib/kpis/inversion.js`.
   empiezan hasta ese día; los que empiezan después son de una versión posterior
   y solo se mencionan. Sin la fecha, el MVP es todo lo cargado y la pantalla lo
   avisa. Los días restantes incluyen hoy.
-- **Las horas** salen de los puntos: `horasPorPunto` (4) por punto, porque
-  Shortcut no registra horas. Las **justificadas** son las de las tareas
-  terminadas, una vez por tarea aunque tenga varios responsables; lo en curso y
-  lo pendiente se muestran aparte. El mínimo que pide el cliente
-  (`cliente.horasMinimas`, 680 h) y las pactadas (70 por persona, 700 h) no son
-  un tope: se pueden justificar más. Sin `horasPorPunto`, todo se cuenta en
-  puntos y la pantalla lo dice.
+- **Las horas** salen de los puntos de la historia, con la escala de
+  `escalaDeHoras` (1 punto son 2 h, 2 son 4 h, 3 son 8 h, 5 son 15 h y 8 son
+  25 h), porque Shortcut no registra horas. Una subtarea no suma: el punto vive
+  en la historia. Las **justificadas** son las de las historias terminadas, una
+  vez cada una aunque tenga varios responsables; lo en curso y lo pendiente se
+  muestran aparte. El mínimo que pide el cliente (`cliente.horasMinimas`, 680 h)
+  y las pactadas (70 por persona, 700 h) no son un tope: se pueden justificar
+  más. Sin la escala, todo se cuenta en puntos y la pantalla lo dice.
 - **El tipo de trabajo** sale del código con que el equipo nombra cada historia:
   HU es una funcionalidad, HT la base técnica, QA la calidad, y HG y SM la
-  gestión. Una subtarea sin código toma el de su historia; lo que no tiene ni
-  código ni historia queda «Sin clasificar» y figura en las notas sobre los datos. El Skill Set
-  no sirve para esto: en el Sprint 2, el 95 % de las tareas dice «Product».
+  gestión. Una subtarea se clasifica como su historia, aunque su título tenga
+  otro prefijo. Lo que no tiene prefijo ni historia queda «Sin clasificar» y
+  figura en las notas sobre los datos. El Skill Set no sirve para esto: en el
+  Sprint 2, el 95 % de las tareas dice «Product».
 - **Las funcionalidades** son las historias de usuario: las HU sin historia
   madre. Sus subtareas no cuentan aparte.
 - **El avance contra el plan** es lo terminado sobre lo que tendría que estar
@@ -532,7 +534,7 @@ Las reglas están firmadas con `@decision` en `lib/kpis/inversion.js`.
   entrega vencida con trabajo pendiente, horas bajo el mínimo, sin sprint en
   curso, un sprint cerrado con pendientes y entregas después del cierre. Las
   notas sobre los datos dicen cuánto creerle a un número y van plegadas al
-  final: sin fecha de entrega o sin horas por punto, tareas sin estimar o sin
+  final: sin fecha de entrega o sin escala de puntos a horas, tareas sin estimar o sin
   tipo de trabajo y un sprint que cruza la entrega.
 
 La configuración (`cliente` y `horasPactadas` en `data/equipo.json`) está en
@@ -795,12 +797,12 @@ curl -b /tmp/sesion.txt http://localhost:3000/api/performance/historial   # el h
     los puntos de una tarea con varios responsables se reparten en partes
     iguales (una reunión de 8 puntos con 10 personas suma 0,8 a cada una), así
     la suma de las personas da el total, salvo redondeo, y las horas no se
-    multiplican. Los
+    multiplican. Los puntos son los de la historia: una subtarea no suma. Los
     integrantes configurados sin carga aparecen en 0.
   - *KPI · Horas pactadas vs. extras*: por persona, capacidad = horas pactadas
-    para el proyecto × días del período / días del proyecto; demanda = puntos
-    asignados (repartidos) × `horasPorPunto`; extras = lo que la demanda excede
-    a la capacidad.
+    para el proyecto × días del período / días del proyecto; demanda = horas de
+    lo asignado (la historia entera, repartida si se comparte); extras = lo que
+    la demanda excede a la capacidad.
   - *KPI · Utilización y efectividad por integrante*: la tabla con las mismas
     cuentas de los OKR, persona por persona, marcando en rojo lo que queda fuera
     de las metas.
@@ -817,7 +819,13 @@ mantiene el equipo a mano (no lleva secretos):
 
 ```json
 {
-  "horasPorPunto": 4,
+  "escalaDeHoras": [
+    { "puntos": 1, "horas": 2 },
+    { "puntos": 2, "horas": 4 },
+    { "puntos": 3, "horas": 8 },
+    { "puntos": 5, "horas": 15 },
+    { "puntos": 8, "horas": 25 }
+  ],
   "wipMaxPorPersona": 3,
   "horasPactadas": { "porIntegrante": 70, "finDelProyecto": "2026-10-28" },
   "metas": { "bugsRatioMax": 0.25, "retrabajoMax": 10, "efectividadMin": 80, "utilizacionMin": 70, "utilizacionMax": 90 },
@@ -848,9 +856,10 @@ mantiene el equipo a mano (no lleva secretos):
   último sprint se descarta y se anota en el panel de problemas. Con la fecha
   cargada, la vista del proyecto mide los sprints cargados contra su parte de
   las horas y dice que el resto queda para los sprints que faltan.
-- `horasPorPunto` convierte los story points en horas; sin él no se calculan
-  horas, utilización ni efectividad. `wipMaxPorPersona` es el umbral de
-  sobrecarga del WIP.
+- `escalaDeHoras` pasa cada valor de puntos a horas (1→2, 2→4, 3→8, 5→15,
+  8→25). Sin ella no se calculan horas, utilización ni efectividad. Un valor
+  que no está en la escala no suma y se anota. `wipMaxPorPersona` es el umbral
+  de sobrecarga del WIP.
 - `metas` son las de los cuatro OKR (`retrabajoMax` es el porcentaje máximo de
   tareas cerradas con retrabajo); con `null` la tarjeta muestra el valor sin
   decir si cumple.

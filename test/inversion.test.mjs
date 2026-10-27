@@ -74,9 +74,16 @@ const STORIES = {
   3: [story({ id: 9, name: "HU-03 Reportes", estimate: 5, iteration_id: 3 })],
 };
 
+const ESCALA = [
+  { puntos: 1, horas: 2 },
+  { puntos: 2, horas: 4 },
+  { puntos: 3, horas: 8 },
+  { puntos: 5, horas: 15 },
+  { puntos: 8, horas: 25 },
+];
 const EQUIPO = {
   ...EQUIPO_VACIO,
-  horasPorPunto: 4,
+  escalaDeHoras: ESCALA,
   horasPactadas: { porIntegrante: 70, finDelProyecto: "2026-10-28" },
   cliente: { horasMinimas: 80, avanceContraElPlanMin: 90, costoPorHora: null, moneda: null },
   integrantes: [
@@ -117,7 +124,7 @@ console.log("Clasificación de las tareas");
     t(5, "Retro interna"),
     t(6, "Subtarea de nadie", { id: 98, titulo: "Algo sin prefijo" }),
   ]);
-  check("la subtarea toma el tipo de su historia; el prefijo propio manda", clasificadas.map((c) => c.tipoDeTrabajo), ["funcionalidades", "funcionalidades", "calidad", "tecnica", SIN_CLASIFICAR.clave, SIN_CLASIFICAR.clave]);
+  check("la subtarea se clasifica como su historia, aunque tenga otro prefijo", clasificadas.map((c) => c.tipoDeTrabajo), ["funcionalidades", "funcionalidades", "funcionalidades", "tecnica", SIN_CLASIFICAR.clave, SIN_CLASIFICAR.clave]);
 }
 
 // ---- el MVP ----------------------------------------------------------------------
@@ -142,39 +149,39 @@ console.log("A mitad del Sprint 2 (20/10)");
 {
   const r = armar("2026-10-20T15:00:00Z");
   check("versión y unidad", [r.version, r.unidad], [VERSION_DE_INVERSION, "horas"]);
-  check("el alcance del MVP: 8 tareas, 96 h, 76 h terminadas", [r.alcance.tareas, r.alcance.valor, r.alcance.sinEstimar], [
+  check("el alcance del MVP: 8 tareas, 54 h de las historias, 46 h terminadas", [r.alcance.tareas, r.alcance.valor, r.alcance.sinEstimar], [
     { total: 8, terminadas: 5, enCurso: 1, pendientes: 2, pct: 62.5 },
-    { total: 96, terminado: 76, enCurso: 12, pendiente: 8, pct: 79.2 },
+    { total: 54, terminado: 46, enCurso: 8, pendiente: 0, pct: 85.2 },
     1,
   ]);
   check("funcionalidades: 1 de 2 historias de usuario", [r.funcionalidades.total, r.funcionalidades.entregadas, r.funcionalidades.faltan.map((f) => f.id)], [2, 1, [5]]);
-  // Sprint 1 entero (72 h) más 6 de los 14 días del Sprint 2 (24 h x 6/14).
-  check("avance contra el plan: 76 h sobre 82.3 h planificadas a hoy", r.plan, { planificado: 82.3, terminado: 76, pct: 92.3 });
-  check("ritmo: 76 h en 14 días; faltan 20 h y se terminan el 24/10", [r.ritmo.porDia, r.ritmo.restante, r.ritmo.necesarioPorDia, r.ritmo.proyeccion], [
-    5.4, 20, 2.2, { terminado: false, fin: "2026-10-24", llegaALaEntrega: true, diasDeAtraso: 0, alaEntrega: 96 },
+  // Sprint 1 entero (44 h: 15+25+4) más 6 de los 14 días del Sprint 2 (10 h x 6/14).
+  check("avance contra el plan: 46 h sobre 48.3 h planificadas a hoy", r.plan, { planificado: 48.3, terminado: 46, pct: 95.2 });
+  check("ritmo: 46 h en 14 días; faltan 8 h y se terminan el 23/10", [r.ritmo.porDia, r.ritmo.restante, r.ritmo.necesarioPorDia, r.ritmo.proyeccion], [
+    3.3, 8, 0.9, { terminado: false, fin: "2026-10-23", llegaALaEntrega: true, diasDeAtraso: 0, alaEntrega: 54 },
   ]);
-  check("horas: 76 justificadas de 80 mínimas; 70 + 30 pactadas", (({ justificadas, comprometidas, minimo, pactadas, pctDelMinimo, faltanParaElMinimo, plata }) => ({ justificadas, comprometidas, minimo, pactadas, pctDelMinimo, faltanParaElMinimo, plata }))(r.inversion.horas), {
-    justificadas: 76, comprometidas: 96, minimo: 80, pactadas: 100, pctDelMinimo: 95, faltanParaElMinimo: 4, plata: null,
+  check("horas: 46 justificadas de 80 mínimas; 70 + 30 pactadas", (({ justificadas, comprometidas, minimo, pactadas, pctDelMinimo, faltanParaElMinimo, plata }) => ({ justificadas, comprometidas, minimo, pactadas, pctDelMinimo, faltanParaElMinimo, plata }))(r.inversion.horas), {
+    justificadas: 46, comprometidas: 54, minimo: 80, pactadas: 100, pctDelMinimo: 57.5, faltanParaElMinimo: 34, plata: null,
   });
   check("en qué se invirtió, por tipo", r.inversion.porTipo.map((t) => [t.clave, t.valor.total, t.valor.terminado, t.pctDeLoTerminado]), [
-    ["funcionalidades", 52, 32, 42.1], ["tecnica", 8, 8, 10.5], ["calidad", 4, 4, 5.3], ["gestion", 32, 32, 42.1], [SIN_CLASIFICAR.clave, 0, 0, 0],
+    ["funcionalidades", 23, 15, 32.6], ["tecnica", 4, 4, 8.7], ["calidad", 2, 2, 4.3], ["gestion", 25, 25, 54.3], [SIN_CLASIFICAR.clave, 0, 0, 0],
   ]);
   check("las entregas van del sprint más nuevo al más viejo", r.entregas.map((s) => s.id), [2, 1]);
   const s1 = r.entregas[1];
   check("Sprint 1: tres tareas dentro del sprint (la de las 23 h incluida) y una después", [s1.planificado, s1.enElSprint, s1.despues, s1.pendiente, s1.pctEnElSprint], [
-    { tareas: 4, valor: 72 }, { tareas: 3, valor: 64 }, { tareas: 1, valor: 8 }, { tareas: 0, valor: 0 }, 88.9,
+    { tareas: 4, valor: 44 }, { tareas: 3, valor: 40 }, { tareas: 1, valor: 4 }, { tareas: 0, valor: 0 }, 90.9,
   ]);
-  check("Sprint 1: se listan las historias, la subtarea suma a la suya", s1.entregas.map((g) => [g.clave, g.tareas, g.valor, g.items.map((i) => [i.id, i.subtareas, i.despuesDelCierre])]), [
-    ["funcionalidades", 2, 32, [[1, 1, false]]], ["tecnica", 1, 8, [[4, 0, true]]], ["gestion", 1, 32, [[3, 0, false]]],
+  check("Sprint 1: se listan las historias; la subtarea no suma sus horas", s1.entregas.map((g) => [g.clave, g.tareas, g.valor, g.items.map((i) => [i.id, i.subtareas, i.despuesDelCierre])]), [
+    ["funcionalidades", 2, 15, [[1, 1, false]]], ["tecnica", 1, 4, [[4, 0, true]]], ["gestion", 1, 25, [[3, 0, false]]],
   ]);
   check("lo que falta: la historia en curso con su subtarea, y la retro sin tipo", r.pendientes.map((g) => [g.clave, g.enCurso, g.sinEmpezar, g.valor, g.items.map((i) => [i.id, i.valor, i.subtareasPendientes, i.sinEstimar])]), [
-    ["funcionalidades", 1, 0, 20, [[5, 20, 1, false]]], [SIN_CLASIFICAR.clave, 0, 1, 0, [[8, 0, 0, true]]],
+    ["funcionalidades", 1, 0, 8, [[5, 8, 1, false]]], [SIN_CLASIFICAR.clave, 0, 1, 0, [[8, 0, 0, true]]],
   ]);
-  check("después del MVP: el Sprint 3, y 2 stories fuera de los sprints", [r.despuesDelMvp.sprints.map((s) => s.id), r.despuesDelMvp.tareas, r.despuesDelMvp.valor, r.despuesDelMvp.fueraDeSprints], [[3], 1, 20, 1]);
+  check("después del MVP: el Sprint 3, y 2 stories fuera de los sprints", [r.despuesDelMvp.sprints.map((s) => s.id), r.despuesDelMvp.tareas, r.despuesDelMvp.valor, r.despuesDelMvp.fueraDeSprints], [[3], 1, 15, 1]);
   check("OKR del cliente", r.okrs.map((o) => [o.clave, o.valor, o.meta, o.cumple]), [
-    ["alcance", 79.2, 100, true], ["funcionalidades", 50, 100, null], ["horas", 76, 80, true], ["plan", 92.3, 90, true],
+    ["alcance", 85.2, 100, true], ["funcionalidades", 50, 100, null], ["horas", 46, 80, false], ["plan", 95.2, 90, true],
   ]);
-  check("riesgos: faltan 4 h para el mínimo, una entrega tardía, una sin estimar y una sin tipo", r.riesgos.map((x) => [x.clave, x.nivel]), [
+  check("riesgos: faltan 16 h para el mínimo, una entrega tardía, una sin estimar y una sin tipo", r.riesgos.map((x) => [x.clave, x.nivel]), [
     ["horas-bajo-el-minimo", "medio"], ["entregas-despues-del-cierre", "bajo"], ["sin-estimar", "bajo"], ["sin-clasificar", "bajo"],
   ]);
   check("las horas y la entrega tardía son de la entrega; lo sin estimar y sin tipo, notas sobre los datos", r.riesgos.map((x) => x.categoria), [
@@ -183,8 +190,8 @@ console.log("A mitad del Sprint 2 (20/10)");
   const hoy = r.avanceAcumulado.find((d) => d.dia === "2026-10-20");
   const ultimo = r.avanceAcumulado.at(-1);
   check("la curva va del 1/10 al 28/10", [r.avanceAcumulado.length, r.avanceAcumulado[0].dia, ultimo.dia], [28, "2026-10-01", "2026-10-28"]);
-  check("hoy: lo terminado y la proyección arrancan juntos", [hoy.terminado, hoy.proyeccion, hoy.planificado], [76, 76, 82.3]);
-  check("después de hoy no hay terminado y la proyección no pasa del alcance", [ultimo.terminado, ultimo.proyeccion, ultimo.alcance], [null, 96, 96]);
+  check("hoy: lo terminado y la proyección arrancan juntos", [hoy.terminado, hoy.proyeccion, hoy.planificado], [46, 46, 48.3]);
+  check("después de hoy no hay terminado y la proyección no pasa del alcance", [ultimo.terminado, ultimo.proyeccion, ultimo.alcance], [null, 54, 54]);
   check("antes de hoy no hay proyección", r.avanceAcumulado[0].proyeccion, null);
   check("sin problemas", r.problemas, []);
 }
@@ -192,10 +199,10 @@ console.log("A mitad del Sprint 2 (20/10)");
 console.log("Un día antes de la entrega (27/10): no llega");
 {
   const r = armar("2026-10-27T15:00:00Z");
-  // En los 14 días del 14/10 al 27/10 se terminaron 11 puntos (44 h).
-  check("ritmo de 3.1 h por día: se termina el 3/11, 6 días tarde", [r.ritmo.porDia, r.ritmo.proyeccion.fin, r.ritmo.proyeccion.llegaALaEntrega, r.ritmo.proyeccion.diasDeAtraso, r.ritmo.necesarioPorDia], [3.1, "2026-11-03", false, 6, 10]);
+  // En los 14 días del 14/10 al 27/10 se terminaron 31 h de historias (8+2+1 puntos).
+  check("ritmo de 2.2 h por día: se termina el 31/10, 3 días tarde", [r.ritmo.porDia, r.ritmo.proyeccion.fin, r.ritmo.proyeccion.llegaALaEntrega, r.ritmo.proyeccion.diasDeAtraso, r.ritmo.necesarioPorDia], [2.2, "2026-10-31", false, 3, 4]);
   check("OKR: el alcance no llega y las horas tampoco", r.okrs.map((o) => [o.clave, o.cumple]), [["alcance", false], ["funcionalidades", null], ["horas", false], ["plan", false]]);
-  check("riesgo principal: no llega", r.riesgos[0], { clave: "no-llega", nivel: "alto", categoria: "entrega", fin: "2026-11-03", diasDeAtraso: 6, necesarioPorDia: 10, porDia: 3.1 });
+  check("riesgo principal: no llega", r.riesgos[0], { clave: "no-llega", nivel: "alto", categoria: "entrega", fin: "2026-10-31", diasDeAtraso: 3, necesarioPorDia: 4, porDia: 2.2 });
 }
 
 console.log("Pasada la entrega (30/10)");
@@ -208,10 +215,10 @@ console.log("Pasada la entrega (30/10)");
   ]);
 }
 
-console.log("Sin fecha de entrega, sin horas por punto");
+console.log("Sin fecha de entrega, sin escala de horas");
 {
-  const r = armar("2026-10-20T15:00:00Z", { ...EQUIPO, horasPorPunto: null, horasPactadas: { porIntegrante: 70, finDelProyecto: null } });
-  check("se mide en puntos y el MVP es todo lo cargado", [r.unidad, r.mvp.configurada, r.alcance.valor.total, r.despuesDelMvp.tareas], ["puntos", false, 29, 0]);
+  const r = armar("2026-10-20T15:00:00Z", { ...EQUIPO, escalaDeHoras: null, horasPactadas: { porIntegrante: 70, finDelProyecto: null } });
+  check("se mide en puntos de las historias y el MVP es todo lo cargado", [r.unidad, r.mvp.configurada, r.alcance.valor.total, r.despuesDelMvp.tareas], ["puntos", false, 24, 0]);
   check("las horas no se calculan", [r.inversion.horas.configurado, r.inversion.horas.justificadas], [false, undefined]);
   check("los riesgos lo dicen primero", r.riesgos.slice(0, 2).map((x) => x.clave), ["sin-entrega", "sin-horas-por-punto"]);
   check("y los dos son notas sobre los datos, no riesgos de la entrega", r.riesgos.slice(0, 2).map((x) => x.categoria), ["datos", "datos"]);

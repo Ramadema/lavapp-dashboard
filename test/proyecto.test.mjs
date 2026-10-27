@@ -175,7 +175,14 @@ const MIEMBROS = [
   { id: "u-beto", profile: { name: "Beto", mention_name: "beto" } },
 ];
 const EQUIPO = {
-  horasPorPunto: 4, wipMaxPorPersona: 3,
+  escalaDeHoras: [
+    { puntos: 1, horas: 2 },
+    { puntos: 2, horas: 4 },
+    { puntos: 3, horas: 8 },
+    { puntos: 5, horas: 15 },
+    { puntos: 8, horas: 25 },
+  ],
+  wipMaxPorPersona: 3,
   horasPactadas: { porIntegrante: null, finDelProyecto: null },
   metas: { bugsRatioMax: 0.25, retrabajoMax: 10, efectividadMin: 80, utilizacionMin: 70, utilizacionMax: 90 },
   integrantes: [{ nombre: "Ana", rol: "Dev", detalle: null, horasPactadas: 100 }, { nombre: "Beto", rol: "QA", detalle: null, horasPactadas: 50 }],
@@ -251,10 +258,10 @@ console.log("armarProyecto: el proyecto entero desde las stories de todos los sp
     [["Sprint 1", 2, 2, 100, 0, 2, 2, 3, 3], ["Sprint 2", 3, 1, 33.3, 0, 1, 3, 1, 8]]);
   check("bugs del proyecto: 1 bug sobre 2 historias terminadas", r.equipo.bugs, { bugs: 1, bugsAbiertosEnSprint: 1, bugsTerminados: 1, historiasTerminadas: 2, historias: 4, ratio: 0.5, sinRegistro: false });
   check("tipo de trabajo: sin el campo Skill Set en el catálogo, sin grupos y con el motivo", r.porEspecialidad, { grupos: [], motivo: "sin-campo" });
-  check("OKRs sobre todo el proyecto: ratio 0.5 no cumple, sin retrabajo cumple, efectividad 44.4% y utilización 24% no", r.equipo.okrs.map((o) => [o.clave, o.valor, o.cumple]), [["bugsRatio", 0.5, false], ["retrabajo", 0, true], ["efectividad", 44.4, false], ["utilizacion", 24, false]]);
-  check("horas: el periodo del proyecto es todo el proyecto (29 días de calendario), así que las pactadas entran enteras", [r.equipo.horas.diasDelPeriodo, r.equipo.horas.diasDelProyecto, r.equipo.horas.equipo], [29, 29, { capacidad: 150, demanda: 36, extras: 0, hechas: 16, asignadas: 36, utilizacion: 24, efectividad: 44.4, conSobrecarga: 0 }]);
-  check("Ana: 100 h pactadas, 36 h asignadas (3 + 5 + 1 puntos), 16 h hechas", r.equipo.horas.personas.find((p) => p.nombre === "Ana"), {
-    nombre: "Ana", rol: "Dev", detalle: null, horasPactadas: 100, capacidad: 100, demanda: 36, dentroDeLoPactado: 36, extras: 0, hechas: 16, asignadas: 36, utilizacion: 36, efectividad: 44.4,
+  check("OKRs sobre todo el proyecto: ratio 0.5 no cumple, sin retrabajo cumple, efectividad 40% y utilización 16.7% no", r.equipo.okrs.map((o) => [o.clave, o.valor, o.cumple]), [["bugsRatio", 0.5, false], ["retrabajo", 0, true], ["efectividad", 40, false], ["utilizacion", 16.7, false]]);
+  check("horas: el periodo del proyecto es todo el proyecto (29 días de calendario), así que las pactadas entran enteras", [r.equipo.horas.diasDelPeriodo, r.equipo.horas.diasDelProyecto, r.equipo.horas.equipo], [29, 29, { capacidad: 150, demanda: 25, extras: 0, hechas: 10, asignadas: 25, utilizacion: 16.7, efectividad: 40, conSobrecarga: 0 }]);
+  check("Ana: 100 h pactadas, 25 h asignadas (3, 5 y 1 puntos), 10 h hechas", r.equipo.horas.personas.find((p) => p.nombre === "Ana"), {
+    nombre: "Ana", rol: "Dev", detalle: null, horasPactadas: 100, capacidad: 100, demanda: 25, dentroDeLoPactado: 25, extras: 0, hechas: 10, asignadas: 25, utilizacion: 25, efectividad: 40,
   });
   check("errores del workspace, con los bugs de los sprints en el vocabulario del OKR", r.errores, { reportados: 1, resueltos: 1, abiertos: 0, pctResueltos: 100, enElSprint: { reportados: 1, sinResolver: 0 } });
   check("iniciativas y responsables sobre todas las tareas", [
@@ -326,14 +333,14 @@ console.log("armarProyecto: sprints sin empezar y tareas movidas");
   };
   const lecturas = [...LECTURAS, { iteracion: S3, stories: [f, g], historiales }];
   const r = armarProyecto({ iteraciones: [S1, S2, S3], sprints: lecturas, ...CATALOGOS }, { ahora: AHORA, equipo: EQUIPO });
-  check("el sprint por empezar suma alcance y horas asignadas: la efectividad baja porque de él no se hizo nada", [r.progreso.tareas.total, r.equipo.horas.diasDelPeriodo, r.equipo.horas.diasDelProyecto, r.equipo.horas.equipo.capacidad, r.equipo.horas.equipo.asignadas, r.equipo.okrs.find((o) => o.clave === "efectividad").valor], [7, 43, 43, 150, 56, 28.6]);
+  check("el sprint por empezar suma alcance y horas asignadas: la efectividad baja porque de él no se hizo nada", [r.progreso.tareas.total, r.equipo.horas.diasDelPeriodo, r.equipo.horas.diasDelProyecto, r.equipo.horas.equipo.capacidad, r.equipo.horas.equipo.asignadas, r.equipo.okrs.find((o) => o.clave === "efectividad").valor], [7, 43, 43, 150, 40, 25]);
   check("la movida cuenta una sola vez en el proyecto, y en el Sprint 2 como planificada y movida", [r.progreso.sprints.map((s) => s.tareas.total), r.porSprint.map((s) => [s.nombre, s.planificadas, s.cumplidas, s.movidas])], [[2, 3, 2], [["Sprint 1", 2, 2, 0], ["Sprint 2", 4, 1, 1]]]);
   check("el sprint que no empezó no tiene fila propia y nada que reportar", [r.porSprint.length, r.periodo.sprints.proximos, r.problemas], [2, 1, []]);
 
   // En la vista de un sprint que no empezo todavia no hay nada hecho que
   // medir: la efectividad queda sin dato, no en 0 %.
   const sprint3 = armarReporte({ iteraciones: [S1, S2, S3], iteracion: S3, stories: [f, g], ...CATALOGOS, historiales, movidas: null }, { ahora: AHORA, equipo: EQUIPO });
-  check("armarReporte de un sprint sin empezar: 20 h asignadas y efectividad sin dato", [sprint3.equipo.horas.equipo.asignadas, sprint3.equipo.okrs.find((o) => o.clave === "efectividad").valor], [20, null]);
+  check("armarReporte de un sprint sin empezar: 15 h asignadas y efectividad sin dato", [sprint3.equipo.horas.equipo.asignadas, sprint3.equipo.okrs.find((o) => o.clave === "efectividad").valor], [15, null]);
 
   // Una movida cuyo historial no dice cuando entro al sprint de origen: lo que
   // armarHistorial reporta sobre ella llega a `problemas`, una sola vez.
