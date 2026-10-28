@@ -157,8 +157,8 @@ console.log("A mitad del Sprint 2 (20/10)");
   check("funcionalidades: 1 de 2 historias de usuario", [r.funcionalidades.total, r.funcionalidades.entregadas, r.funcionalidades.faltan.map((f) => f.id)], [2, 1, [5]]);
   // Sprint 1 entero (44 h: 15+25+4) más 6 de los 14 días del Sprint 2 (10 h x 6/14).
   check("avance contra el plan: 46 h sobre 48.3 h planificadas a hoy", r.plan, { planificado: 48.3, terminado: 46, pct: 95.2 });
-  check("ritmo: 46 h en 14 días; faltan 8 h y se terminan el 23/10", [r.ritmo.porDia, r.ritmo.restante, r.ritmo.necesarioPorDia, r.ritmo.proyeccion], [
-    3.3, 8, 0.9, { terminado: false, fin: "2026-10-23", llegaALaEntrega: true, diasDeAtraso: 0, alaEntrega: 54 },
+  check("ritmo: el sprint 2 va del 15/10 al 20/10, 6 h en 6 días; faltan 8 h y se terminan el 28/10", [r.ritmo.desde, r.ritmo.dias, r.ritmo.porDia, r.ritmo.restante, r.ritmo.necesarioPorDia, r.ritmo.proyeccion], [
+    "2026-10-15", 6, 1, 8, 0.9, { terminado: false, fin: "2026-10-28", llegaALaEntrega: true, diasDeAtraso: 0, alaEntrega: 54 },
   ]);
   check("horas: 46 justificadas de 80 mínimas; 70 + 30 pactadas", (({ justificadas, comprometidas, minimo, pactadas, pctDelMinimo, faltanParaElMinimo, plata }) => ({ justificadas, comprometidas, minimo, pactadas, pctDelMinimo, faltanParaElMinimo, plata }))(r.inversion.horas), {
     justificadas: 46, comprometidas: 54, minimo: 80, pactadas: 100, pctDelMinimo: 57.5, faltanParaElMinimo: 34, plata: null,
@@ -199,10 +199,10 @@ console.log("A mitad del Sprint 2 (20/10)");
 console.log("Un día antes de la entrega (27/10): no llega");
 {
   const r = armar("2026-10-27T15:00:00Z");
-  // En los 14 días del 14/10 al 27/10 se terminaron 31 h de historias (8+2+1 puntos).
-  check("ritmo de 2.2 h por día: se termina el 31/10, 3 días tarde", [r.ritmo.porDia, r.ritmo.proyeccion.fin, r.ritmo.proyeccion.llegaALaEntrega, r.ritmo.proyeccion.diasDeAtraso, r.ritmo.necesarioPorDia], [2.2, "2026-10-31", false, 3, 4]);
+  // El sprint 2 empieza el 15/10: entran 6 h (HT 4 + QA 2) en 13 días.
+  check("ritmo de 0.5 h por día: se termina el 14/11, 17 días tarde", [r.ritmo.porDia, r.ritmo.proyeccion.fin, r.ritmo.proyeccion.llegaALaEntrega, r.ritmo.proyeccion.diasDeAtraso, r.ritmo.necesarioPorDia], [0.5, "2026-11-14", false, 17, 4]);
   check("OKR: el alcance no llega y las horas tampoco", r.okrs.map((o) => [o.clave, o.cumple]), [["alcance", false], ["funcionalidades", null], ["horas", false], ["plan", false]]);
-  check("riesgo principal: no llega", r.riesgos[0], { clave: "no-llega", nivel: "alto", categoria: "entrega", fin: "2026-10-31", diasDeAtraso: 3, necesarioPorDia: 4, porDia: 2.2 });
+  check("riesgo principal: no llega", r.riesgos[0], { clave: "no-llega", nivel: "alto", categoria: "entrega", fin: "2026-11-14", diasDeAtraso: 17, necesarioPorDia: 4, porDia: 0.5 });
 }
 
 console.log("Pasada la entrega (30/10)");

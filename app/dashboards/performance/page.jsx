@@ -14,6 +14,7 @@ import Plegable from "@/components/Plegable";
 import BarraDeProgreso from "@/components/BarraDeProgreso";
 import Insignia from "@/components/Insignia";
 import EscalaDeHoras from "@/components/EscalaDeHoras";
+import BotonExportar from "@/components/BotonExportar";
 import { buscarSeccion, ESTADO_SIN_FUENTE } from "@/lib/secciones";
 import { diaLocal, ESTADOS_SPRINT, ETAPAS, VERSION_DE_DATOS, ZONA_HORARIA } from "@/lib/kpis/performance";
 import { SIN_ASIGNAR, SIN_ROL, TIPOS_DE_METRICA } from "@/lib/kpis/equipo";
@@ -412,6 +413,13 @@ export default function PaginaPerformance() {
             <button className="chip" onClick={actualizar} disabled={cargando || actualizando}>
               {actualizando ? "Actualizando…" : "Actualizar"}
             </button>
+            {reporte && (
+              <BotonExportar
+                href="/api/performance/exportar"
+                reporte={reporte}
+                nombre={reporte.sprint?.nombre ? "performance-sprint.xlsx" : "performance.xlsx"}
+              />
+            )}
             {reporte?.lectura.leidoEl && (
               <span className="lectura">
                 Datos de Shortcut del {diaYHora(reporte.lectura.leidoEl)}
