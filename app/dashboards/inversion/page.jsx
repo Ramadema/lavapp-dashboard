@@ -11,6 +11,7 @@ import Plegable from "@/components/Plegable";
 import BarraDeProgreso from "@/components/BarraDeProgreso";
 import Insignia from "@/components/Insignia";
 import EscalaDeHoras from "@/components/EscalaDeHoras";
+import BotonExportar from "@/components/BotonExportar";
 import { buscarSeccion, ESTADO_SIN_FUENTE } from "@/lib/secciones";
 import { ETAPAS, ZONA_HORARIA, diaLocal } from "@/lib/kpis/performance";
 import {
@@ -246,6 +247,7 @@ export default function PaginaInversion() {
             <button className="chip" onClick={actualizar} disabled={cargando || actualizando}>
               {actualizando ? "Actualizando…" : "Actualizar"}
             </button>
+            {reporte && <BotonExportar href="/api/inversion/exportar" reporte={reporte} nombre="avance-e-inversion.xlsx" />}
             {reporte?.lectura.leidoEl && (
               <span className="lectura">Datos de Shortcut del {diaYHora(reporte.lectura.leidoEl)}</span>
             )}
