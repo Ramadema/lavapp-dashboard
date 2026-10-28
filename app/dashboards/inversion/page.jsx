@@ -14,7 +14,6 @@ import EscalaDeHoras from "@/components/EscalaDeHoras";
 import { buscarSeccion, ESTADO_SIN_FUENTE } from "@/lib/secciones";
 import { ETAPAS, ZONA_HORARIA, diaLocal } from "@/lib/kpis/performance";
 import {
-  DIAS_DEL_RITMO,
   SIN_CLASIFICAR,
   TIPOS_DE_METRICA_DEL_CLIENTE,
   VERSION_DE_INVERSION,
@@ -125,13 +124,12 @@ function definicionesDe({ supuestos }) {
   return {
     plazo:
       "Porcentaje de los días del MVP que ya transcurrieron, desde el inicio del primer sprint hasta la fecha de entrega.",
-    alcance: `Porcentaje de las horas del MVP que corresponden a tareas terminadas. Hasta la fecha de entrega, la meta se evalúa con la proyección al ritmo de los últimos ${ritmo}.`,
+    alcance: `Porcentaje de las horas del MVP que corresponden a tareas terminadas. Hasta la fecha de entrega, la meta se evalúa con la proyección al ritmo del sprint en curso (${ritmo}).`,
     funcionalidades:
       "Historias de usuario (HU) del MVP terminadas sobre el total. Cada historia de usuario es una funcionalidad que usa el cliente final.",
     horas: `Horas de las tareas terminadas${porPunto}, contadas una vez por tarea aunque tenga varios responsables. Se pueden justificar más horas que el mínimo.`,
     plan: "Horas terminadas sobre las que debían estar terminadas a la fecha según la planificación de cada sprint.",
-    ritmoActual: `Promedio de horas terminadas por día en los últimos ${ritmo}.`,
-    ritmoRequerido: "Horas por día que hay que terminar, desde hoy, para completar el alcance en la fecha de entrega.",
+    ritmoActual: `Promedio de horas terminadas por día desde el inicio del sprint en curso (${ritmo}).`,
     pendiente: "Horas de las tareas del MVP que todavía no se terminaron, en curso o por iniciar.",
     finalizacion: "Fecha en que se completaría el alcance del MVP si se mantiene el ritmo actual.",
     avanceAcumulado:
@@ -183,15 +181,12 @@ async function pedirReporte(metodo) {
 
 // El estado del MVP en una palabra, para la señal del encabezado.
 function estadoDelMvp(reporte) {
-  const alcance = reporte.okrs.find((o) => o.clave === "alcance");
   if (!reporte.mvp.configurada) return { tono: "pendiente", texto: "Sin fecha de entrega" };
   if (reporte.alcance.valor.pct === 100 || reporte.alcance.tareas.pct === 100) {
     return { tono: "ok", texto: "MVP completo" };
   }
-  if (reporte.mvp.vencida) return { tono: "alerta", texto: "Entrega vencida" };
-  const horas = reporte.okrs.find((o) => o.clave === "horas");
-  if (alcance?.cumple === true && horas?.cumple !== false) return { tono: "ok", texto: "En plazo" };
-  return { tono: "alerta", texto: "En riesgo" };
+  if (reporte.mvp.vencida) return { tono: "ok", texto: "En cierre" };
+  return { tono: "ok", texto: "En curso" };
 }
 
 function senalDe(reporte, error) {
@@ -475,7 +470,7 @@ function estadoDeOkr(okr, mvp) {
   if (okr.cumple === true) return "cumplido";
   if (okr.cumple === false) {
     if (okr.clave === "plan") return "por debajo de la meta";
-    return mvp.vencida ? "no cumplido" : "en riesgo según la proyección";
+    return mvp.vencida ? "fecha de entrega superada" : "proyección posterior a la fecha";
   }
   return okr.clave === "funcionalidades" && !mvp.vencida ? "en curso" : "sin evaluar";
 }
@@ -487,8 +482,7 @@ function PanelObjetivos({ reporte, medida }) {
       <h2>Objetivos del MVP</h2>
       <p className="subtitulo">
         Resultados clave comprometidos para la entrega, cada uno frente a su meta. Hasta la fecha de
-        entrega, el alcance y las horas se evalúan con la proyección al ritmo de los últimos{" "}
-        {dias(DIAS_DEL_RITMO)}.
+        entrega, el alcance y las horas se evalúan con la proyección al ritmo del sprint en curso.
       </p>
       <div className="grilla-kpis">
         {reporte.okrs.map((okr) => (
@@ -502,7 +496,6 @@ function PanelObjetivos({ reporte, medida }) {
             meta={metaDeOkr(okr, reporte.mvp)}
             cumple={okr.cumple}
             estado={estadoDeOkr(okr, reporte.mvp)}
-            critico={okr.cumple === false}
             detalle={detalleDeOkr(okr, reporte, medida)}
           />
         ))}
@@ -532,8 +525,8 @@ function PanelLlegada({ reporte, medida }) {
     <section className="panel">
       <h2>Proyección de la entrega</h2>
       <p className="subtitulo">
-        Ritmo de los últimos {dias(ritmo.dias)} frente al requerido para completar el alcance en la
-        fecha comprometida, y avance acumulado del MVP, en {unidad}
+        Ritmo desde el inicio del sprint ({fechaCorta(ritmo.desde)}), lo que falta del alcance y la
+        fecha estimada de finalización, en {unidad}
       </p>
       <div className="grilla-kpis">
         <TarjetaKpi
@@ -543,23 +536,6 @@ function PanelLlegada({ reporte, medida }) {
           etiqueta="Ritmo actual"
           valor={`${medida(ritmo.porDia)} por día`}
           detalle={`promedio diario · ${tareas(ritmo.tareasTerminadas)} ${ritmo.tareasTerminadas === 1 ? "terminada" : "terminadas"} desde el ${fechaCorta(ritmo.desde)}`}
-        />
-        <TarjetaKpi
-          tipo="kpi"
-          clases={CLASES}
-          definicion={def.ritmoRequerido}
-          etiqueta="Ritmo requerido"
-          valor={ritmo.necesarioPorDia === null ? "–" : `${medida(ritmo.necesarioPorDia)} por día`}
-          critico={ritmo.necesarioPorDia !== null && ritmo.necesarioPorDia > ritmo.porDia}
-          detalle={
-            ritmo.restante === 0
-              ? "alcance completo"
-              : ritmo.necesarioPorDia === null
-                ? mvp.configurada
-                  ? "plazo vencido"
-                  : "sin fecha de entrega definida"
-                : `para completar el alcance en los ${dias(mvp.diasRestantes)} restantes`
-          }
         />
         <TarjetaKpi
           tipo="kpi"
@@ -575,7 +551,6 @@ function PanelLlegada({ reporte, medida }) {
           definicion={def.finalizacion}
           etiqueta="Fecha estimada de finalización"
           valor={p?.terminado ? "Completo" : p ? fechaCompleta(p.fin) : "–"}
-          critico={p !== null && p.llegaALaEntrega === false}
           detalle={
             p === null
               ? `sin avance en los últimos ${dias(ritmo.dias)}`
@@ -955,9 +930,9 @@ function textoDelRiesgo(r, medida) {
     case "sin-horas-por-punto":
       return "No está definida la escala que pasa los puntos a horas: los valores se expresan en puntos y no hay horas justificadas.";
     case "sin-ritmo":
-      return `No se completaron tareas en los últimos ${dias(r.dias)}: sin ritmo de avance no es posible estimar la finalización.`;
+      return `No se completaron tareas desde el inicio del sprint (${dias(r.dias)}): sin ritmo de avance no es posible estimar la finalización.`;
     case "no-llega":
-      return `Al ritmo de los últimos ${dias(DIAS_DEL_RITMO)} (${medida(r.porDia)} por día), el alcance se completaría el ${fechaCompleta(r.fin)}, ${dias(r.diasDeAtraso)} después de la fecha comprometida.${
+      return `Al ritmo del sprint (${medida(r.porDia)} por día), el alcance se completaría el ${fechaCompleta(r.fin)}, ${dias(r.diasDeAtraso)} después de la fecha comprometida.${
         r.necesarioPorDia !== null ? ` Cumplir la fecha requiere ${medida(r.necesarioPorDia)} por día.` : ""
       }`;
     case "entrega-vencida":
@@ -986,15 +961,14 @@ const NOMBRE_NIVEL = { alto: "Alto", medio: "Medio", bajo: "Bajo" };
 function PanelRiesgos({ riesgos, medida }) {
   return (
     <section className="panel">
-      <h2>Riesgos</h2>
-      <p className="subtitulo">Lo que puede afectar la fecha de entrega o el cumplimiento de los objetivos</p>
+      <h2>Para la entrega</h2>
+      <p className="subtitulo">Lo que queda mirando la fecha comprometida y los objetivos</p>
       {riesgos.length === 0 ? (
-        <p className="motivo">No se identifican riesgos para la entrega.</p>
+        <p className="motivo">No hay observaciones para la entrega.</p>
       ) : (
         <ul className="riesgos">
           {riesgos.map((r, i) => (
-            <li key={`${r.clave}-${i}`} className={`riesgo ${r.nivel}`}>
-              <span className="nivel">{NOMBRE_NIVEL[r.nivel]}</span>
+            <li key={`${r.clave}-${i}`} className="riesgo bajo">
               <span>{textoDelRiesgo(r, medida)}</span>
             </li>
           ))}
@@ -1086,7 +1060,7 @@ function Metodologia({ reporte }) {
             : ""
         } y puede justificar más.`}
       {plata && ` Las horas se valorizan a ${enPlata(plata.porHora, plata.moneda)} por hora.`} El ritmo es el
-      promedio de lo terminado en los últimos {dias(supuestos.diasDelRitmo)}, y la proyección lo extiende
+      promedio de lo terminado desde el inicio del sprint en curso, y la proyección lo extiende
       desde hoy. Una entrega es el trabajo terminado en un sprint; se considera posterior al cierre si se
       completó después de su último día, en hora de Buenos Aires. El tipo de trabajo surge del código de
       cada historia ({supuestos.tipos.map((t) => `${t.prefijos.join(" y ")}: ${t.nombre.toLowerCase()}`).join("; ")}).
